@@ -230,7 +230,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold">Quality Monitoring</h2>
+                          <h2 className="text-lg font-bold">Quality Monitoring</h2>
           <p className="text-sm text-muted-foreground">Real-time tracking of quality metrics</p>
         </div>
         <Button onClick={() => window.location.reload()} variant="outline" size="sm">

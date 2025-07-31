@@ -83,7 +83,7 @@ export default function CollaborationPage() {
       <div className="space-y-4 p-6 pt-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center">
+            <h1 className="text-xl font-bold tracking-tight flex items-center">
               <Handshake className="mr-3 h-8 w-8 text-orange-500" />
               Collaboration
             </h1>
@@ -108,7 +108,7 @@ export default function CollaborationPage() {
     <div className="space-y-4 p-6 pt-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center">
+          <h1 className="text-xl font-bold tracking-tight flex items-center">
             <Handshake className="mr-3 h-8 w-8 text-orange-500" />
             Collaboration
           </h1>

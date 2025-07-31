@@ -379,7 +379,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
       {/* Header with title and edit buttons - Updated like other tabs */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Quality Plan</h2>
+                          <h2 className="text-lg font-bold">Quality Plan</h2>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />

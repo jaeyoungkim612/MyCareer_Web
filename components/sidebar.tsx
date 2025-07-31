@@ -72,7 +72,7 @@ export function Sidebar() {
       <Link
         href={item.href}
         className={cn(
-          "flex items-center rounded-md px-3 py-3 text-base font-medium transition-colors whitespace-nowrap",
+          "flex items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap",
           pathname === item.href
             ? "bg-orange-100 dark:bg-orange-500 text-orange-600 dark:text-orange-50"
             : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
@@ -141,7 +141,7 @@ export function Sidebar() {
               ))}
               <button
                 onClick={() => setIsHelpOpen(true)}
-                className="flex w-full items-center rounded-md px-3 py-3 text-base font-medium transition-colors whitespace-nowrap text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
+                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
               >
                 <HelpCircle className="h-5 w-5 flex-shrink-0 mr-3" />
                 <span className="truncate">Help</span>

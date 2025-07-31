@@ -325,7 +325,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       {/* Header with title and user info */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">People Plan</h2>
+                          <h2 className="text-lg font-bold">People Plan</h2>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />

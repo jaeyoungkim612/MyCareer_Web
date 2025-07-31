@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Bell, Trash2, LogOut, User, Settings } from "lucide-react"
+import { Bell, LogOut, User, Settings } from "lucide-react"
 import { AuthService } from "@/lib/auth-service"
 import { UserInfoMapper } from "@/data/user-info"
 import { useRouter } from "next/navigation"
@@ -44,68 +44,48 @@ export function TopNav() {
     }
   }, [])
 
-  // 개발용 완전삭제 - 간단한 confirm 사용
-  const handleCompleteDelete = async () => {
-    console.log("🔥 완전삭제 버튼 클릭됨!")
+  // 로그아웃 핸들러
+  const handleLogout = async () => {
+    console.log("🚪 로그아웃 버튼 클릭됨!")
 
     const confirmed = window.confirm(
-      "⚠️ 사용자 정보 완전 삭제\n\n현재 사용자의 모든 정보를 로컬스토리지와 데이터베이스에서 완전히 삭제합니다.\n이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?",
+      "🚪 로그아웃\n\n현재 세션을 종료하고 로그인 페이지로 이동합니다.\n\n계속하시겠습니까?",
     )
 
     if (!confirmed) {
-      console.log("🔥 사용자가 삭제를 취소했습니다.")
+      console.log("🚪 사용자가 로그아웃을 취소했습니다.")
       return
     }
 
     setIsDeleting(true)
-    console.log("🔥 삭제 프로세스 시작...")
+    console.log("🚪 로그아웃 프로세스 시작...")
 
     try {
-      const result = await AuthService.deleteUserCompletely()
-      console.log("🔥 삭제 결과:", result)
+      // AuthContext의 logout 함수 호출 (세션만 삭제, DB는 유지)
+      logout()
 
-      if (result.success) {
-        // AuthContext 상태 강제 업데이트
-        console.log("🔥 AuthContext 상태 강제 업데이트...")
-        setUser(null)
-        setUserInfo(null)
-        logout() // AuthContext의 상태를 업데이트
+      toast({
+        title: "🚪 로그아웃 완료",
+        description: "성공적으로 로그아웃되었습니다.",
+        variant: "default",
+      })
 
-        toast({
-          title: "✅ 삭제 완료",
-          description: result.message,
-          variant: "default",
-        })
-
-        console.log("🔥 즉시 로그인 페이지로 이동...")
-        router.push("/login")
-      } else {
-        console.error("🔥 삭제 실패:", result.message)
-        toast({
-          title: "❌ 삭제 실패",
-          description: result.message,
-          variant: "destructive",
-        })
-      }
+      console.log("🚪 즉시 로그인 페이지로 이동...")
+      router.push("/login")
     } catch (error) {
-      console.error("🔥 삭제 중 예외 발생:", error)
+      console.error("🚪 로그아웃 중 예외 발생:", error)
       toast({
         title: "❌ 오류 발생",
-        description: "삭제 처리 중 오류가 발생했습니다.",
+        description: "로그아웃 처리 중 오류가 발생했습니다.",
         variant: "destructive",
       })
     } finally {
       setIsDeleting(false)
-      console.log("🔥 삭제 프로세스 종료")
+      console.log("🚪 로그아웃 프로세스 종료")
     }
   }
 
-  const handleLogout = () => {
-    console.log("🚪 로그아웃 버튼 클릭됨")
-    logout() // AuthContext의 logout 사용
-    console.log("🚪 로그인 페이지로 이동...")
-    router.push("/login")
-  }
+
 
   // Azure Function URL 제거 - 더 이상 필요 없음
 
@@ -120,16 +100,16 @@ export function TopNav() {
       <div className="flex items-center space-x-4">
         <Bell className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-orange-500 transition-colors" />
         
-        {/* 개발용 완전삭제 버튼 - 우측으로 이동 */}
+        {/* 로그아웃 버튼 */}
         <Button
-          onClick={handleCompleteDelete}
-          variant="destructive"
+          onClick={handleLogout}
+          variant="outline"
           size="sm"
-          className="bg-red-600 hover:bg-red-700 text-white"
+          className="bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-300"
           disabled={isDeleting}
         >
-          <Trash2 className="mr-2 h-4 w-4" />
-          {isDeleting ? "삭제 중..." : "완전삭제"}
+          <LogOut className="mr-2 h-4 w-4" />
+          {isDeleting ? "로그아웃 중..." : "로그아웃"}
         </Button>
         
         <DropdownMenu>

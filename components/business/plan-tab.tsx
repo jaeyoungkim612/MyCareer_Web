@@ -444,7 +444,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
       {/* Header with title and edit buttons */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Business Plan</h2> {/* 제목만 남김 */}
+                          <h2 className="text-lg font-bold">Business Plan</h2> {/* 제목만 남김 */}
           <div className="flex items-center gap-4"> {/* gap-2 → gap-4로 확대 */}
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />

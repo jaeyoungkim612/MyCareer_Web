@@ -82,7 +82,7 @@ export function QualityMetrics() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Quality</h2>
+                    <h2 className="text-xl font-bold tracking-tight">Quality</h2>
         <p className="text-muted-foreground">품질 관리 및 개선 활동을 계획하고 모니터링합니다.</p>
       </div>
 

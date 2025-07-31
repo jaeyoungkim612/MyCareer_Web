@@ -212,7 +212,7 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Collaboration Monitoring</h2>
+                        <h2 className="text-lg font-bold">Collaboration Monitoring</h2>
         {/* 기간(Period) selector 제거됨 */}
       </div>
 

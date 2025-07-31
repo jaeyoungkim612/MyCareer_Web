@@ -512,7 +512,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           {/* 헤더 */}
           <div className="flex items-center mb-6">
             <PieChartIcon className="mr-3 h-6 w-6 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">Total Budget Overview</span>
+                            <span className="text-lg font-bold text-gray-900">Total Budget Overview</span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -543,7 +543,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <FileText className="mr-3 h-6 w-6 text-orange-600" />
-              <span className="text-2xl font-bold text-gray-900">Audit Budget Overview</span>
+                              <span className="text-lg font-bold text-gray-900">Audit Budget Overview</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -576,7 +576,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <BarChart3 className="mr-3 h-6 w-6 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">Non-Audit Budget Overview</span>
+                              <span className="text-lg font-bold text-gray-900">Non-Audit Budget Overview</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -617,7 +617,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               <div>
                 <div className="flex items-center mb-6">
                   <FileText className="mr-3 h-6 w-6 text-orange-600" />
-                  <span className="text-2xl font-bold text-gray-900">Audit</span>
+                  <span className="text-lg font-bold text-gray-900">Audit</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <BarChartComponent
@@ -650,7 +650,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               <div className="mt-12">
                 <div className="flex items-center mb-6">
                   <BarChart3 className="mr-3 h-6 w-6 text-blue-600" />
-                  <span className="text-2xl font-bold text-gray-900">Non-Audit Service</span>
+                  <span className="text-lg font-bold text-gray-900">Non-Audit Service</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <BarChartComponent

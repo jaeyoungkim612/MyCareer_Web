@@ -313,7 +313,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
       {/* Header with title and edit buttons - Updated like business/plan-tab.tsx */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Collaboration Plan</h2>
+                          <h2 className="text-lg font-bold">Collaboration Plan</h2>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />

@@ -277,7 +277,7 @@ export function TeamMemberDetailDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="text-3xl font-bold">작성내역</DialogTitle>
+                          <DialogTitle className="text-xl font-bold">작성내역</DialogTitle>
         </DialogHeader>
         
         <div className="grid grid-cols-12 gap-4 h-[calc(90vh-100px)]">
@@ -303,7 +303,7 @@ export function TeamMemberDetailDialog({
                       <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-green-500 rounded-full border-2 border-white"></div>
                     </div>
                     <div>
-                      <h2 className="text-3xl font-bold">{memberData.name}</h2>
+                      <h2 className="text-xl font-bold">{memberData.name}</h2>
                       <p className="text-xl text-muted-foreground">{targetUserInfo?.GRADNM || memberData.position}</p>
                     </div>
                   </div>

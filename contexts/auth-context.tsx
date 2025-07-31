@@ -9,9 +9,10 @@ interface AuthContextType {
   user: any
   isAuthenticated: boolean
   isLoading: boolean
-  login: (empno: string) => Promise<any>
+  login: (empno: string, password: string) => Promise<any>
   logout: () => void
   verifyToken: (token: string) => Promise<any>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<any>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,10 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log("✅ AuthContext: Initial auth check completed")
   }, [])
 
-  const login = async (empno: string) => {
+  const login = async (empno: string, password: string) => {
     console.log("🔄 AuthContext: Starting login for empno:", empno)
     setIsLoading(true)
-    const result = await AuthService.initiateLogin(empno)
+    const result = await AuthService.initiateLogin(empno, password)
     console.log("🔄 AuthContext: AuthService result:", result)
     
     if (result.success && result.user) {
@@ -69,6 +70,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: false, message: "Not implemented" }
   }
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    console.log("🔄 AuthContext: Changing password")
+    setIsLoading(true)
+    const result = await AuthService.changePassword(currentPassword, newPassword)
+    
+    if (result.success) {
+      // 비밀번호 변경 성공 시 사용자 상태 업데이트
+      const updatedUser = AuthService.getCurrentUser()
+      if (updatedUser) {
+        setUser(updatedUser)
+        console.log("✅ AuthContext: User state updated after password change")
+      }
+    }
+    
+    setIsLoading(false)
+    return result
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -78,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         verifyToken,
+        changePassword,
       }}
     >
       {children}

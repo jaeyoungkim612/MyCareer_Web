@@ -203,7 +203,7 @@ export default function IndustryMonitoringTab({ empno, readOnly = false }: Indus
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Industry & TL Activity Monitoring</h2>
+                          <h2 className="text-lg font-bold">Industry & TL Activity Monitoring</h2>
           <p className="text-sm text-muted-foreground">산업전문화 및 Thought Leadership 활동 진행 현황</p>
         </div>
 
