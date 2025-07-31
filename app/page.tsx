@@ -10,7 +10,7 @@ import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw,
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import type { UserMasterInfo } from "@/data/user-info"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AuthService } from "@/lib/auth-service"
 import { UserInfoMapper } from "@/data/user-info"
 import { ReviewerService, type UserRole } from "@/lib/reviewer-service"
@@ -29,6 +29,7 @@ export default function Intro() {
   const [currentEmpno, setCurrentEmpno] = useState<string>("")
   const [teamMemberInfo, setTeamMemberInfo] = useState<Map<string, UserMasterInfo>>(new Map())
   const [teamPlanAssessmentStatus, setTeamPlanAssessmentStatus] = useState<Map<string, TeamMemberStatus>>(new Map())
+  const [employeePhotos, setEmployeePhotos] = useState<Map<string, string>>(new Map()) // 직원 사진 캐시
   const [activeMainTab, setActiveMainTab] = useState("my-evaluation")
   
   // 검색/필터 상태
@@ -146,27 +147,27 @@ export default function Intro() {
     console.log("✅ Team plan and assessment status loaded:", statusMap.size, "of", reviewees.length, "members")
   }
 
-  // 팀원들의 프로필 정보 로드 (캐시 덮어쓰기 방지를 위해 직접 DB 조회)
-  const loadTeamMemberInfo = async (reviewees: any[]) => {
-    console.log("🔍 Loading profile info for", reviewees.length, "team members (direct DB query)")
-    const infoMap = new Map<string, UserMasterInfo>()
-    
-    for (const reviewee of reviewees) {
-      try {
-        // UserInfoMapper 대신 직접 DB 조회로 캐시 오염 방지
+  // 🚀 개별 직원 정보 로딩 (지연 로딩용)
+  const loadIndividualMemberInfo = async (empno: string, name: string): Promise<UserMasterInfo | null> => {
+    try {
+      console.log(`🔍 Loading individual info for ${name} (${empno})`)
+      
+      // 이미 캐시에 있으면 반환
+      if (teamMemberInfo.has(empno)) {
+        console.log(`✅ Using cached info for ${name}`)
+        return teamMemberInfo.get(empno) || null
+      }
+
+      // HR 마스터 정보 조회
         const { data: hrData } = await supabase
           .from("a_hr_master")
           .select("*")
-          .eq("EMPNO", reviewee.사번)
+        .eq("EMPNO", empno)
           .single()
 
         if (hrData) {
-          // 사진 정보 조회
-          const { data: photoData } = await supabase
-            .from("employee_photos")
-            .select("photo_url")
-            .eq("empno", reviewee.사번)
-            .single()
+        // 사진 정보는 캐시에서 가져오기 (이미 미리 로딩됨)
+        const cachedPhotoUrl = employeePhotos.get(empno)
 
           const memberInfo: UserMasterInfo = {
             empno: hrData.EMPNO,
@@ -174,22 +175,170 @@ export default function Intro() {
             org_nm: hrData.ORG_NM,
             job_info_nm: hrData.JOB_INFO_NM,
             gradnm: hrData.GRADNM,
-            photo_url: photoData?.photo_url,
+          photo_url: cachedPhotoUrl,
             pwc_id: hrData.PWC_ID,
           }
 
-          infoMap.set(reviewee.사번, memberInfo)
-          console.log("✅ Profile info loaded for", reviewee.성명, "without cache pollution")
+        // 캐시에 저장
+        setTeamMemberInfo(prev => new Map(prev).set(empno, memberInfo))
+        console.log(`✅ Individual info loaded and cached for ${name}`)
+        return memberInfo
         } else {
-          console.log("ℹ️ No HR data found for", reviewee.성명)
+        console.log(`ℹ️ No HR data found for ${name}`)
+        return null
         }
       } catch (error) {
-        console.log("ℹ️ Profile info not available for", reviewee.성명, ":", error)
-      }
+      console.log(`❌ Error loading info for ${name}:`, error)
+      return null
     }
-    
-    setTeamMemberInfo(infoMap)
-    console.log("✅ Team member info loaded:", infoMap.size, "of", reviewees.length, "members (cache safe)")
+  }
+
+  // 🚀 개별 직원 평가 상태 로딩 (지연 로딩용)
+  const loadIndividualMemberStatus = async (empno: string, name: string): Promise<TeamMemberStatus | null> => {
+    try {
+      console.log(`📋 Loading individual status for ${name} (${empno})`)
+      
+      // 이미 캐시에 있으면 반환
+      if (teamPlanAssessmentStatus.has(empno)) {
+        console.log(`✅ Using cached status for ${name}`)
+        return teamPlanAssessmentStatus.get(empno) || null
+      }
+
+      // Plan Status 조회
+      const [businessPlan, peoplePlan, collaborationPlan, qualityPlan, industryPlan] = await Promise.all([
+        supabase.from('business_goals').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('people_goals').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('collaborations').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('quality_non_audit_performance').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('industry_tl_planning').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      ])
+
+      // Self Assessment Status 조회
+      const [businessMid, businessFinal, peopleMid, peopleFinal, collaborationMid, collaborationFinal, qualityMid, qualityFinal, industryMid, industryFinal] = await Promise.all([
+        supabase.from('business_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('business_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('people_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('people_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('collaboration_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('collaboration_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('quality_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('quality_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('industry_tl_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('industry_tl_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      ])
+
+      const memberStatus: TeamMemberStatus = {
+        empno,
+        planStatus: {
+          business: businessPlan.data?.status || null,
+          people: peoplePlan.data?.status || null,
+          collaboration: collaborationPlan.data?.status || null,
+          quality: qualityPlan.data?.status || null,
+          industry: industryPlan.data?.status || null
+        },
+        selfAssessmentStatus: {
+          business_mid: businessMid.data?.status || null,
+          business_final: businessFinal.data?.status || null,
+          people_mid: peopleMid.data?.status || null,
+          people_final: peopleFinal.data?.status || null,
+          collaboration_mid: collaborationMid.data?.status || null,
+          collaboration_final: collaborationFinal.data?.status || null,
+          quality_mid: qualityMid.data?.status || null,
+          quality_final: qualityFinal.data?.status || null,
+          industry_mid: industryMid.data?.status || null,
+          industry_final: industryFinal.data?.status || null
+        },
+        lastUpdated: [
+          businessPlan.data?.updated_at,
+          peoplePlan.data?.updated_at,
+          collaborationPlan.data?.updated_at,
+          qualityPlan.data?.updated_at,
+          industryPlan.data?.updated_at
+        ].filter(Boolean).sort().reverse()[0] || null
+      }
+
+      // 캐시에 저장
+      setTeamPlanAssessmentStatus(prev => new Map(prev).set(empno, memberStatus))
+      console.log(`✅ Individual status loaded and cached for ${name}`)
+      return memberStatus
+    } catch (error) {
+      console.log(`❌ Error loading status for ${name}:`, error)
+      return null
+    }
+  }
+
+  // 📷 직원들의 사진 정보만 배치 로딩 (UI 표시용)
+  const loadEmployeePhotos = async (employees: any[]) => {
+    try {
+      console.log("📷 Loading employee photos for", employees.length, "employees")
+      
+      const empnos = employees.map(emp => emp.사번)
+      if (empnos.length === 0) return
+
+      // 배치로 모든 사진 정보 조회
+      const { data: photosData, error } = await supabase
+        .from("employee_photos")
+        .select("empno, photo_url")
+        .in("empno", empnos)
+
+      if (error) {
+        console.error("❌ Error loading employee photos:", error)
+        return
+      }
+
+      // Map으로 변환하여 캐시에 저장
+      const photosMap = new Map<string, string>()
+      photosData?.forEach(photo => {
+        if (photo.photo_url) {
+          photosMap.set(photo.empno, photo.photo_url)
+        }
+      })
+
+      setEmployeePhotos(photosMap)
+      console.log("✅ Employee photos loaded:", photosMap.size, "photos cached")
+    } catch (error) {
+      console.error("❌ Error loading employee photos:", error)
+    }
+  }
+
+  // 🚀 "작성내역 보기" 버튼 클릭 핸들러 (지연 로딩)
+  const handleViewMemberDetails = async (empno: string, name: string) => {
+    try {
+      console.log(`🚀 Opening details for ${name} with lazy loading...`)
+      
+      // 로딩 상태 표시를 위해 일시적으로 로딩 상태로 설정
+      setSelectedMember({
+        empno,
+        name,
+        info: null,
+        status: null
+      })
+
+      // 병렬로 정보와 상태 로딩
+      const [memberInfo, memberStatus] = await Promise.all([
+        loadIndividualMemberInfo(empno, name),
+        loadIndividualMemberStatus(empno, name)
+      ])
+
+      // 로딩 완료 후 실제 데이터로 업데이트
+      setSelectedMember({
+        empno,
+        name,
+        info: memberInfo,
+        status: memberStatus
+      })
+
+      console.log(`✅ Details opened for ${name} with lazy loaded data`)
+    } catch (error) {
+      console.error(`❌ Error opening details for ${name}:`, error)
+      // 에러 발생 시 기본 상태로 설정
+      setSelectedMember({
+        empno,
+        name,
+        info: null,
+        status: null
+      })
+    }
   }
 
   // 사용자 정보 및 리뷰어 역할 로드
@@ -218,13 +367,18 @@ export default function Intro() {
             revieweesCount: role.reviewees.length
           })
 
-          // 리뷰어 권한이 있으면 팀원들의 상태와 프로필 정보 로드
+          // 🚀 성능 개선: 상세 정보는 지연 로딩, 사진만 미리 로딩
+          // 리뷰어 권한이 있으면 팀원들의 사진 미리 로딩
           if (role.isReviewer && role.reviewees.length > 0) {
-            await Promise.all([
-              loadTeamPlanAssessmentStatus(role.reviewees),
-              loadTeamMemberInfo(role.reviewees)
-            ])
+            await loadEmployeePhotos(role.reviewees)
           }
+
+          // 마스터 권한이 있으면 모든 직원들의 사진 미리 로딩
+          if (role.isMaster && role.allEmployees.length > 0) {
+            await loadEmployeePhotos(role.allEmployees)
+          }
+
+          console.log("✅ 초기 로딩 완료 - 사진은 미리 로딩, 상세 정보는 지연 로딩")
 
           // 현재 사용자에 대한 평가 피드백 로드
           await loadReviewerFeedback(currentUser.empno)
@@ -249,8 +403,31 @@ export default function Intro() {
       const currentUser = AuthService.getCurrentUser()
       if (currentUser?.empno) {
         console.log("🔄 Refreshing user info for empno:", currentUser.empno)
-        const refreshedInfo = await UserInfoMapper.loadUserInfo(currentUser.empno)
+        
+        // 병렬로 정보 갱신
+        const [refreshedInfo, refreshedRole] = await Promise.all([
+          UserInfoMapper.loadUserInfo(currentUser.empno),
+          ReviewerService.getUserRole(currentUser.empno)
+        ])
+        
         setUserInfo(refreshedInfo)
+        setUserRole(refreshedRole)
+
+        // 🚀 성능 개선: 새로고침에서도 상세 정보는 미리 로딩하지 않음, 사진만 다시 로딩
+        // 리뷰어 권한이 있으면 팀원들의 사진 다시 로딩
+        if (refreshedRole.isReviewer && refreshedRole.reviewees.length > 0) {
+          await loadEmployeePhotos(refreshedRole.reviewees)
+        }
+
+        // 마스터 권한이 있으면 모든 직원들의 사진 다시 로딩
+        if (refreshedRole.isMaster && refreshedRole.allEmployees.length > 0) {
+          await loadEmployeePhotos(refreshedRole.allEmployees)
+        }
+
+        console.log("✅ 새로고침 완료 - 사진 갱신, 기존 캐시 유지, 상세 정보는 지연 로딩")
+
+        // 평가 피드백도 갱신
+        await loadReviewerFeedback(currentUser.empno)
       } else {
         console.error("로그인된 사용자 정보가 없습니다.")
       }
@@ -394,6 +571,12 @@ export default function Intro() {
                   평가 대상자 ({userRole.reviewees.length}명)
                 </Badge>
               )}
+              {userRole.isMaster && (
+                <Badge variant="default" className="text-xs bg-red-500 hover:bg-red-600">
+                  <Eye className="h-3 w-3 mr-1" />
+                  마스터 권한 ({userRole.allEmployees.length}명)
+                </Badge>
+              )}
             </div>
           )}
         </div>
@@ -412,7 +595,12 @@ export default function Intro() {
 
       {/* 메인 탭 */}
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="space-y-4">
-        <TabsList className={`grid w-full ${userRole?.isReviewer ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <TabsList className={`grid w-full ${
+          // 실제 탭 개수에 따라 그리드 설정 (더 깔끔한 방식)
+          userRole?.isReviewer && userRole?.isMaster ? 'grid-cols-3' :  // 내 평가 + 평가 대상자 + ALL
+          (userRole?.isReviewer || userRole?.isMaster) ? 'grid-cols-2' : // 내 평가 + (평가 대상자 OR ALL)
+          'grid-cols-1' // 내 평가만
+        }`}>
           <TabsTrigger value="my-evaluation" className="text-sm flex items-center gap-2">
             <User className="h-4 w-4" />
             내 평가
@@ -421,6 +609,12 @@ export default function Intro() {
             <TabsTrigger value="team-evaluation" className="text-sm flex items-center gap-2">
               <Users className="h-4 w-4" />
               평가 대상자 ({userRole.reviewees.length})
+            </TabsTrigger>
+          )}
+          {userRole?.isMaster && (
+            <TabsTrigger value="all-evaluation" className="text-sm flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              ALL ({userRole.allEmployees.length})
             </TabsTrigger>
           )}
         </TabsList>
@@ -696,9 +890,9 @@ export default function Intro() {
                           <div className="flex justify-between items-start mb-4">
                             <div className="flex items-center space-x-3">
                               <div className="relative w-12 h-12 flex-shrink-0">
-                                {memberInfo?.photo_url ? (
+                                {employeePhotos.get(reviewee.사번) ? (
                                   <Image
-                                    src={memberInfo.photo_url}
+                                    src={employeePhotos.get(reviewee.사번)!}
                                     alt={`${reviewee.성명} Profile`}
                                     className="rounded-full object-cover border-2 border-blue-300"
                                     fill
@@ -720,16 +914,11 @@ export default function Intro() {
                               {/* 작성내역 버튼 - 상단으로 이동 */}
                               <Button 
                                 variant="outline" 
-                                size="lg" // size="sm" → size="lg"
-                                onClick={() => setSelectedMember({
-                                  empno: reviewee.사번,
-                                  name: reviewee.성명,
-                                  info: memberInfo || null,
-                                  status: memberStatus || null
-                                })}
-                                className="text-base" // 글씨 크기 추가
+                                size="lg"
+                                onClick={() => handleViewMemberDetails(reviewee.사번, reviewee.성명)}
+                                className="text-base"
                               >
-                                <Eye className="h-5 w-5 mr-2" /> {/* h-4 w-4 mr-1 → h-5 w-5 mr-2 */}
+                                <Eye className="h-5 w-5 mr-2" />
                                 작성내역
                               </Button>
                             </div>
@@ -873,6 +1062,147 @@ export default function Intro() {
                     <div className="text-center py-8 text-muted-foreground">
                       <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                       <p>현재 리뷰 대상자가 없습니다.</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {/* ALL 탭 (마스터 전용) */}
+        {userRole?.isMaster && (
+          <TabsContent value="all-evaluation" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5" />
+                  전체 직원 현황 (마스터 권한)
+                </CardTitle>
+                
+                {/* 검색 및 필터 */}
+                <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="이름 또는 사번으로 검색..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={teamFilter} onValueChange={setTeamFilter}>
+                    <SelectTrigger className="w-full sm:w-48">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="팀 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">ALL</SelectItem>
+                      {/* 모든 직원의 팀 목록 */}
+                      {Array.from(new Set(userRole.allEmployees.map(emp => emp['FY26 팀명']).filter(Boolean))).map((team) => (
+                        <SelectItem key={team} value={team}>
+                          {team}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* 필터링된 전체 직원 목록 */}
+                  {userRole.allEmployees
+                    .filter(employee => {
+                      const matchesSearch = searchTerm === "" || 
+                        employee.성명.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        employee.사번.includes(searchTerm)
+                      const matchesTeam = teamFilter === "all" || employee['FY26 팀명'] === teamFilter
+                      return matchesSearch && matchesTeam
+                    })
+                    .map((employee, index) => {
+                      // 팀원 정보 조회
+                      const memberInfo = teamMemberInfo.get(employee.사번)
+                      const memberStatus = teamPlanAssessmentStatus.get(employee.사번)
+
+                      return (
+                        <Card key={employee.사번} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <Avatar className="h-16 w-16">
+                                  {employeePhotos.get(employee.사번) ? (
+                                    <AvatarImage 
+                                      src={employeePhotos.get(employee.사번)} 
+                                      alt={`${employee.성명} Profile`}
+                                      className="object-cover"
+                                    />
+                                  ) : null}
+                                  <AvatarFallback className="text-lg font-medium bg-gradient-to-br from-orange-100 to-orange-200 text-orange-800">
+                                    {employee.성명.slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-3">
+                                    <h3 className="text-lg font-semibold">{employee.성명}</h3>
+                                    <Badge variant="outline" className="text-xs">
+                                      {employee.사번}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    {employee['FY26 팀명'] || "팀 정보 없음"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    리뷰어: {employee['1차 Reviewer'] || "지정되지 않음"}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-3">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewMemberDetails(employee.사번, employee.성명)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  작성내역 보기
+                                </Button>
+                              </div>
+                            </div>
+                            
+                            {/* 상태 표시 영역 */}
+                            <div className="mt-4 pt-4 border-t">
+                              <div className="text-xs text-muted-foreground">
+                                {memberStatus?.lastUpdated 
+                                  ? `최근 업데이트: ${new Date(memberStatus.lastUpdated).toLocaleDateString('ko-KR')}`
+                                  : "업데이트 정보 없음"
+                                }
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  
+                  {/* 검색 결과가 없을 때 */}
+                  {userRole.allEmployees.filter(employee => {
+                    const matchesSearch = searchTerm === "" || 
+                      employee.성명.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      employee.사번.includes(searchTerm)
+                    const matchesTeam = teamFilter === "all" || employee['FY26 팀명'] === teamFilter
+                    return matchesSearch && matchesTeam
+                  }).length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>검색 조건에 맞는 직원이 없습니다.</p>
+                      <p className="text-sm mt-2">다른 검색어나 필터를 시도해보세요.</p>
+                    </div>
+                  )}
+                  
+                  {userRole.allEmployees.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>직원 정보를 불러올 수 없습니다.</p>
                     </div>
                   )}
                 </div>
