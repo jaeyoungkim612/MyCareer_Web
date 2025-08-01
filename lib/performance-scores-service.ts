@@ -30,11 +30,16 @@ export class PerformanceScoresService {
   static async getByEmployeeId(employeeId: string): Promise<PerformanceScore | null> {
     console.log('PerformanceScoresService.getByEmployeeId called with:', employeeId)
     
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+    console.log(`🔧 Normalizing employee ID: ${employeeId} → ${normalizedEmployeeId}`)
+    
     try {
       const { data, error } = await supabase
         .from('performance_scores')
         .select('*')
-        .eq('employee_id', employeeId)
+        .eq('employee_id', normalizedEmployeeId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -61,10 +66,21 @@ export class PerformanceScoresService {
   static async upsert(performanceScore: PerformanceScore): Promise<PerformanceScore | null> {
     console.log('🔄 PerformanceScoresService.upsert called with:', performanceScore)
     
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(performanceScore.employee_id)
+    console.log(`🔧 Normalizing employee ID for upsert: ${performanceScore.employee_id} → ${normalizedEmployeeId}`)
+    
+    // performanceScore의 employee_id를 정규화된 값으로 업데이트
+    const normalizedPerformanceScore = {
+      ...performanceScore,
+      employee_id: normalizedEmployeeId
+    }
+    
     try {
       // 먼저 기존 데이터가 있는지 확인
-      console.log('🔍 Checking existing data for employee_id:', performanceScore.employee_id)
-      const existing = await this.getByEmployeeId(performanceScore.employee_id)
+      console.log('🔍 Checking existing data for employee_id:', normalizedEmployeeId)
+      const existing = await this.getByEmployeeId(performanceScore.employee_id) // 원본으로 확인 (getByEmployeeId에서 정규화함)
       console.log('📊 Existing data:', existing)
       
       if (existing) {
@@ -87,7 +103,7 @@ export class PerformanceScoresService {
         const { data, error } = await supabase
           .from('performance_scores')
           .update(updateData)
-          .eq('employee_id', performanceScore.employee_id)
+          .eq('employee_id', normalizedEmployeeId)
           .select()
           .single()
 
@@ -102,11 +118,11 @@ export class PerformanceScoresService {
       } else {
         // 생성
         console.log('➕ Creating new record...')
-        console.log('📝 Insert data:', performanceScore)
+        console.log('📝 Insert data:', normalizedPerformanceScore)
         
         const { data, error } = await supabase
           .from('performance_scores')
-          .insert([performanceScore])
+          .insert([normalizedPerformanceScore])
           .select()
           .single()
 

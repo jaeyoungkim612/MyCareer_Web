@@ -16,10 +16,15 @@ export class PeopleGoalsService {
   // 최신 목표 가져오기
   static async getLatestGoals(employeeId: string): Promise<PeopleGoal | null> {
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import('./reviewer-service')
+      const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+      console.log(`🔧 PeopleGoalsService: Normalizing employee ID: ${employeeId} → ${normalizedEmployeeId}`)
+      
       const { data, error } = await supabase
         .from("people_goals")
         .select("*")
-        .eq("employee_id", employeeId)
+        .eq("employee_id", normalizedEmployeeId)
         .order("created_at", { ascending: false })
         .limit(1)
       if (error) return null
@@ -36,8 +41,13 @@ export class PeopleGoalsService {
     goals: Omit<PeopleGoal, "id" | "employee_id" | "created_at" | "updated_at">,
   ): Promise<PeopleGoal | null> {
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import('./reviewer-service')
+      const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+      console.log(`🔧 PeopleGoalsService: Normalizing employee ID for save: ${employeeId} → ${normalizedEmployeeId}`)
+      
       const goalData = {
-        employee_id: employeeId,
+        employee_id: normalizedEmployeeId,
         ...goals,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -57,9 +67,14 @@ export class PeopleGoalsService {
     updates: Partial<Omit<PeopleGoal, "id" | "employee_id" | "created_at" | "updated_at">>,
   ): Promise<PeopleGoal | null> {
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import('./reviewer-service')
+      const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+      console.log(`🔧 PeopleGoalsService: Normalizing employee ID for update: ${employeeId} → ${normalizedEmployeeId}`)
+      
       const latestGoal = await this.getLatestGoals(employeeId)
       const newGoalData = {
-        employee_id: employeeId,
+        employee_id: normalizedEmployeeId,
         people_goal: updates.people_goal ?? latestGoal?.people_goal ?? "",
         gps_score: updates.gps_score ?? latestGoal?.gps_score ?? 1,
         pei_score: updates.pei_score ?? latestGoal?.pei_score ?? 1,

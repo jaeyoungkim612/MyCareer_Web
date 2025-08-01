@@ -13,7 +13,7 @@ import { UserInfoMapper } from "@/data/user-info"
 import { supabase } from "@/lib/supabase"
 
 // 1. 디폴트 값
-const nonAuditDefault = `신규 서비스 개발\n여기에 내용을 입력하세요...\n\n기존 서비스 확장\n여기에 내용을 입력하세요...`;
+const nonAuditDefault = `신규 서비스 개발\n\n\n기존 서비스 확장\n`;
 
 // 2. 섹션 파싱 함수
 function parseNonAuditSections(text: string) {
@@ -44,7 +44,9 @@ function renderNonAuditView(text: string) {
   return lines.map((line, idx) => {
     const trimmed = line.trim();
     if (sections.includes(trimmed)) {
-      return <p key={idx} className="font-bold">{trimmed}</p>;
+      // 첫 번째 섹션이 아닌 경우 위쪽 마진 추가
+      const isFirstSection = idx === 0 || !lines.slice(0, idx).some(prevLine => sections.includes(prevLine.trim()));
+      return <p key={idx} className={`font-bold ${!isFirstSection ? 'mt-6' : ''}`}>{trimmed}</p>;
     }
     return <p key={idx} className="text-sm">{line}</p>;
   });
@@ -108,13 +110,22 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
       const targetEmpno = readOnly ? empno : (empno || user?.empno)
       setCurrentUser({ ...user, empno: targetEmpno })
       
-      // 대상 사용자의 정보 가져오기 (Business Plan과 동일한 로직)
+      // 대상 사용자의 정보 가져오기 (Business Plan과 동일한 로직, 사번 정규화)
       try {
-        const { data: hrData } = await supabase
+        if (!targetEmpno) throw new Error("사번이 없습니다.")
+        // ReviewerService import 필요
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        console.log(`🔍 Querying HR master with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
+        const { data: hrData, error: hrError } = await supabase
           .from("a_hr_master")
           .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
-          .eq("EMPNO", targetEmpno)
-          .single()
+          .eq("EMPNO", normalizedEmpno)
+          .maybeSingle()
+        
+        if (hrError) {
+          console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
+        }
 
         if (hrData) {
           setUserInfo({
@@ -157,52 +168,78 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
     try {
       console.log('📖 Fetching goal for employee:', currentUser.empno)
       
-      // 간단한 조회: 가장 최신 레코드 가져오기
-      const { data, error } = await supabase
+      // 모든 관련 레코드 가져오기 (신규/기존/none 타입 모두)
+      const { data: allRecords, error } = await supabase
         .from('quality_non_audit_performance')
         .select('*')
         .eq('employee_id', currentUser.empno)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
       
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching goal:', error)
         throw error
       }
       
-      if (data) {
-        console.log('📊 Latest record found:', data)
+      if (allRecords && allRecords.length > 0) {
+        console.log('📊 All records found:', allRecords)
         
-        // 데이터 설정
-        setGoals(data.quality_goal || '')
+        // 최신 레코드에서 공통 정보 가져오기 (Goals, 감사 메트릭, 상태)
+        const latestRecord = allRecords[0]
+        setGoals(latestRecord.quality_goal || '')
         setAuditMetrics({
-          doaeRate: data.doae_rate || 0,
-          yraRatio: data.yra_ratio || 0
+          doaeRate: latestRecord.doae_rate || 0,
+          yraRatio: latestRecord.yra_ratio || 0
         })
-        setNonAuditText(data.goal_text || '')
-        
-        // 상태 설정
-        setCurrentStatus(data.status || 'Draft')
+        setCurrentStatus(latestRecord.status || 'Draft')
         
         // 날짜 설정
-        if (data.updated_at) {
-          const date = new Date(data.updated_at)
+        if (latestRecord.updated_at) {
+          const date = new Date(latestRecord.updated_at)
           const year = date.getFullYear()
           const month = date.getMonth() + 1
           const day = date.getDate()
           setLastUpdated(`${year}년 ${month}월 ${day}일`)
         }
         
+        // 비감사 텍스트 처리 - 타입별로 합치기
+        let combinedNonAuditText = ''
+        
+        const noneRecord = allRecords.find(r => r.type === 'none')
+        const 신규Record = allRecords.find(r => r.type === '신규')
+        const 기존Record = allRecords.find(r => r.type === '기존')
+        
+        if (noneRecord) {
+          // none 타입이 있으면 그것을 사용
+          combinedNonAuditText = noneRecord.goal_text || ''
+          console.log('✅ Using none type record for non-audit text')
+        } else if (신규Record || 기존Record) {
+          // 신규/기존 타입이 있으면 합쳐서 표시
+          const parts = []
+          if (신규Record && 신규Record.goal_text) {
+            parts.push('신규 서비스 개발')
+            parts.push(신규Record.goal_text)
+            parts.push('')
+          }
+          if (기존Record && 기존Record.goal_text) {
+            parts.push('기존 서비스 확장')
+            parts.push(기존Record.goal_text)
+          }
+          combinedNonAuditText = parts.join('\n')
+          console.log('✅ Combined 신규/기존 records for non-audit text')
+        }
+        
+        setNonAuditText(combinedNonAuditText)
+        
         // 원본 상태도 업데이트
-        setOriginalGoals(data.quality_goal || '')
+        setOriginalGoals(latestRecord.quality_goal || '')
         setOriginalAuditMetrics({
-          doaeRate: data.doae_rate || 0,
-          yraRatio: data.yra_ratio || 0
+          doaeRate: latestRecord.doae_rate || 0,
+          yraRatio: latestRecord.yra_ratio || 0
         })
-        setOriginalNonAuditText(data.goal_text || '')
+        setOriginalNonAuditText(combinedNonAuditText)
         
         console.log('✅ Data loaded successfully')
+        console.log('📝 Combined non-audit text:', combinedNonAuditText)
       } else {
         console.log('⚠️ No data found - using defaults')
         setGoals('')
@@ -266,31 +303,73 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
 
       console.log('🔧 Common data prepared:', commonData)
 
-      // 간단한 저장 로직: quality_goal이 있으면 하나의 레코드로 저장
-      const recordToSave = {
-        ...commonData,
-        type: 'none',
-        goal_text: nonAuditText.trim() || null,
-      }
+      // 비감사 텍스트 파싱해서 신규/기존 구분
+      const sections = parseNonAuditSections(nonAuditText.trim())
+      const has신규 = sections["신규 서비스 개발"] && sections["신규 서비스 개발"].trim()
+      const has기존 = sections["기존 서비스 확장"] && sections["기존 서비스 확장"].trim()
+      
+      console.log('🔍 Parsed sections:', { has신규: !!has신규, has기존: !!has기존 })
+      console.log('📝 신규 content:', has신규)
+      console.log('📝 기존 content:', has기존)
 
-      console.log('📝 Saving single record:', recordToSave)
-
-      try {
-        const { data, error } = await supabase
-          .from('quality_non_audit_performance')
-          .insert(recordToSave)
-          .select()
-          .single()
+      if (has신규 && has기존) {
+        // 신규와 기존 둘 다 있으면 각각 별도 레코드로 저장
+        console.log('💾 Saving as separate 신규/기존 records')
         
-        if (error) {
+        const 신규Record = {
+          ...commonData,
+          type: '신규',
+          goal_text: has신규,
+        }
+        
+        const 기존Record = {
+          ...commonData,
+          type: '기존', 
+          goal_text: has기존,
+        }
+        
+        try {
+          const [신규Result, 기존Result] = await Promise.all([
+            supabase.from('quality_non_audit_performance').insert(신규Record).select().single(),
+            supabase.from('quality_non_audit_performance').insert(기존Record).select().single()
+          ])
+          
+          if (신규Result.error) throw 신규Result.error
+          if (기존Result.error) throw 기존Result.error
+          
+          console.log('✅ 신규 inserted:', 신규Result.data)
+          console.log('✅ 기존 inserted:', 기존Result.data)
+        } catch (error) {
           console.error('❌ Insert failed:', error)
           throw error
         }
+      } else {
+        // 신규/기존 구분이 없거나 하나만 있으면 none 타입으로 저장
+        console.log('💾 Saving as single none record')
         
-        console.log('✅ Inserted successfully:', data)
-      } catch (error) {
-        console.error('❌ Error during insert:', error)
-        throw error
+        const recordToSave = {
+          ...commonData,
+          type: 'none',
+          goal_text: nonAuditText.trim() || null,
+        }
+
+        try {
+          const { data, error } = await supabase
+            .from('quality_non_audit_performance')
+            .insert(recordToSave)
+            .select()
+            .single()
+          
+          if (error) {
+            console.error('❌ Insert failed:', error)
+            throw error
+          }
+          
+          console.log('✅ Inserted successfully:', data)
+        } catch (error) {
+          console.error('❌ Error during insert:', error)
+          throw error
+        }
       }
 
       // Update states and UI after successful save
@@ -548,10 +627,10 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                 value={nonAuditText}
                 onChange={e => setNonAuditText(e.target.value)}
                 placeholder="비감사 목표를 입력하세요"
-                className="min-h-[120px]"
+                className="min-h-[400px]"
               />
             ) : nonAuditText ? (
-              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[120px]">
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[400px]">
                 {renderNonAuditView(nonAuditText)}
               </div>
             ) : (

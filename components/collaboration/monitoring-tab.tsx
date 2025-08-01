@@ -28,12 +28,6 @@ interface MonitoringData {
     losCollaboration: MetricData
     axNodeCollaboration: MetricData
   }
-  timeline: {
-    period: string
-    xlos: MetricValue
-    los: MetricValue
-    axNode: MetricValue
-  }[]
   recentProjects: {
     name: string
     type: string
@@ -47,77 +41,22 @@ const monitoringData: MonitoringData = {
   currentPeriod: "Q4 2023",
   metrics: {
     xlosCollaboration: {
-      target: { count: 10, amount: 1500 },
-      actual: { count: 8, amount: 1320 },
-      previous: { count: 6, amount: 980 },
+      target: { count: 0, amount: 0 },
+      actual: { count: 0, amount: 0 },
+      previous: { count: 0, amount: 0 },
     },
     losCollaboration: {
-      target: { count: 15, amount: 800 },
-      actual: { count: 17, amount: 920 },
-      previous: { count: 12, amount: 650 },
+      target: { count: 0, amount: 0 },
+      actual: { count: 0, amount: 0 },
+      previous: { count: 0, amount: 0 },
     },
     axNodeCollaboration: {
-      target: { count: 20, amount: 1200 },
-      actual: { count: 18, amount: 1050 },
-      previous: { count: 15, amount: 890 },
+      target: { count: 0, amount: 0 },
+      actual: { count: 0, amount: 0 },
+      previous: { count: 0, amount: 0 },
     },
   },
-  timeline: [
-    {
-      period: "Q1 2023",
-      xlos: { count: 4, amount: 650 },
-      los: { count: 8, amount: 420 },
-      axNode: { count: 10, amount: 580 },
-    },
-    {
-      period: "Q2 2023",
-      xlos: { count: 5, amount: 820 },
-      los: { count: 10, amount: 530 },
-      axNode: { count: 12, amount: 720 },
-    },
-    {
-      period: "Q3 2023",
-      xlos: { count: 6, amount: 980 },
-      los: { count: 12, amount: 650 },
-      axNode: { count: 15, amount: 890 },
-    },
-    {
-      period: "Q4 2023",
-      xlos: { count: 8, amount: 1320 },
-      los: { count: 17, amount: 920 },
-      axNode: { count: 18, amount: 1050 },
-    },
-  ],
-  recentProjects: [
-    {
-      name: "ABC 은행 디지털 전환 프로젝트",
-      type: "X-Los",
-      partner: "컨설팅팀",
-      amount: "₩280M",
-      status: "진행중",
-    },
-    {
-      name: "XYZ 제조업 세무 자문",
-      type: "Los내",
-      partner: "세무팀",
-      amount: "₩150M",
-      status: "완료",
-    },
-    {
-      name: "DEF 기업 ESG 보고서 작성",
-      type: "AX Node",
-      partner: "ESG팀",
-      amount: "₩120M",
-      status: "진행중",
-    },
-    {
-      name: "GHI 홀딩스 M&A 실사",
-      type: "X-Los",
-      partner: "어드바이저리팀",
-      amount: "₩450M",
-      status: "시작 예정",
-    },
-  ],
+  recentProjects: [],
 }
 
 interface CollaborationMonitoringTabProps {
@@ -238,9 +177,9 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
             <div>
               <div className="flex justify-between items-end mb-1">
                 <span className="text-sm text-muted-foreground">금액</span>
-                <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(mergedMonitoringData.metrics.xlosCollaboration.target.amount)}만</span>
+                <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(mergedMonitoringData.metrics.xlosCollaboration.target.amount)}M</span>
               </div>
-              <div className="text-2xl font-bold">₩{formatNumber(mergedMonitoringData.metrics.xlosCollaboration.actual.amount)}만</div>
+              <div className="text-2xl font-bold">₩{formatNumber(mergedMonitoringData.metrics.xlosCollaboration.actual.amount)}M</div>
               <Progress value={(mergedMonitoringData.metrics.xlosCollaboration.actual.amount / mergedMonitoringData.metrics.xlosCollaboration.target.amount) * 100} className="h-2 mt-2" />
               <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.xlosCollaboration.actual.amount / mergedMonitoringData.metrics.xlosCollaboration.target.amount) * 100)}%</div>
             </div>
@@ -267,9 +206,9 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
             <div>
               <div className="flex justify-between items-end mb-1">
                 <span className="text-sm text-muted-foreground">금액</span>
-                <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(mergedMonitoringData.metrics.losCollaboration.target.amount)}만</span>
+                <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(mergedMonitoringData.metrics.losCollaboration.target.amount)}M</span>
               </div>
-              <div className="text-2xl font-bold">₩{formatNumber(mergedMonitoringData.metrics.losCollaboration.actual.amount)}만</div>
+              <div className="text-2xl font-bold">₩{formatNumber(mergedMonitoringData.metrics.losCollaboration.actual.amount)}M</div>
               <Progress value={(mergedMonitoringData.metrics.losCollaboration.actual.amount / mergedMonitoringData.metrics.losCollaboration.target.amount) * 100} className="h-2 mt-2" />
               <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.losCollaboration.actual.amount / mergedMonitoringData.metrics.losCollaboration.target.amount) * 100)}%</div>
             </div>
@@ -296,9 +235,9 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
             <div>
               <div className="flex justify-between items-end mb-1">
                 <span className="text-sm text-muted-foreground">금액</span>
-                <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(mergedMonitoringData.metrics.axNodeCollaboration.target.amount)}만</span>
+                <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(mergedMonitoringData.metrics.axNodeCollaboration.target.amount)}M</span>
               </div>
-              <div className="text-2xl font-bold">₩{formatNumber(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount)}만</div>
+              <div className="text-2xl font-bold">₩{formatNumber(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount)}M</div>
               <Progress value={(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount / mergedMonitoringData.metrics.axNodeCollaboration.target.amount) * 100} className="h-2 mt-2" />
               <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.axNodeCollaboration.actual.amount / mergedMonitoringData.metrics.axNodeCollaboration.target.amount) * 100)}%</div>
             </div>
@@ -376,7 +315,7 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                       mergedMonitoringData.metrics.xlosCollaboration.actual.amount +
                       mergedMonitoringData.metrics.losCollaboration.actual.amount +
                       mergedMonitoringData.metrics.axNodeCollaboration.actual.amount
-                    )}만
+                    )}M
                   </td>
                   <td className="p-4 text-right text-muted-foreground">
                     ₩
@@ -384,7 +323,7 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                       mergedMonitoringData.metrics.xlosCollaboration.target.amount +
                       mergedMonitoringData.metrics.losCollaboration.target.amount +
                       mergedMonitoringData.metrics.axNodeCollaboration.target.amount
-                    )}만
+                    )}M
                   </td>
                   <td className="p-4 text-right">
                     {(

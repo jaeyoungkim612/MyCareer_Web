@@ -115,15 +115,18 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     }
   }, [currentEmployeeId])
 
-  // hr_master_dashboard에서 예산 정보 가져오기
+  // hr_master_dashboard에서 예산 정보 가져오기 (사번 정규화)
   const fetchBudgetData = async (empno: string) => {
     try {
-      console.log("조회할 사번:", empno); // ← 이 줄 추가
+      // ReviewerService import 및 사번 정규화
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log("조회할 사번:", empno, "→", normalizedEmpno); // ← 이 줄 수정
       const { data, error } = await supabase
         .from("hr_master_dashboard")
         .select("budget_audit, budget_non_audit, current_audit_adjusted_em, current_non_audit_adjusted_em")
-        .eq("EMPNO", empno)
-        .single()
+        .eq("EMPNO", normalizedEmpno)
+        .maybeSingle()
       console.log("Supabase 응답:", { data, error }); // ← 이 줄 추가
       if (!error && data) {
         console.log("받은 데이터:", data); // ← 이 줄 추가
@@ -162,13 +165,21 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
       setCurrentEmployeeId(targetEmpno)
       console.log("✅ Target empno set:", targetEmpno)
 
-      // 2. 대상 사용자의 정보 가져오기
+      // 2. 대상 사용자의 정보 가져오기 (사번 정규화)
       try {
-        const { data: hrData } = await supabase
+        // ReviewerService import 필요
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        console.log(`🔍 Querying HR master with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
+        const { data: hrData, error: hrError } = await supabase
           .from("a_hr_master")
           .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
-          .eq("EMPNO", targetEmpno)
-          .single()
+          .eq("EMPNO", normalizedEmpno)
+          .maybeSingle()
+        
+        if (hrError) {
+          console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
+        }
 
         if (hrData) {
           setUserInfo({
@@ -213,13 +224,18 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
   const loadLatestGoals = async () => {
     if (!currentEmployeeId) return;
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmployeeId = ReviewerService.normalizeEmpno(currentEmployeeId)
+      console.log(`🔧 BusinessPlanTab: Normalizing employee ID: ${currentEmployeeId} → ${normalizedEmployeeId}`)
+      
       const { data, error } = await supabase
         .from("business_goals")
         .select("*")
-        .eq("employee_id", currentEmployeeId)
+        .eq("employee_id", normalizedEmployeeId)
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (data) {
         setFormData({
           businessGoal: data.business_goal || "",
@@ -299,8 +315,13 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     }
     setIsLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmployeeId = ReviewerService.normalizeEmpno(currentEmployeeId)
+      console.log(`🔧 BusinessPlanTab: Normalizing employee ID for save: ${currentEmployeeId} → ${normalizedEmployeeId}`)
+      
       const insertData = {
-        employee_id: currentEmployeeId,
+        employee_id: normalizedEmployeeId,
         business_goal: formData.businessGoal,
         new_audit_count: Number(formData.newAuditCount || 0),
         new_audit_amount: Number(formData.newAuditAmount || 0),

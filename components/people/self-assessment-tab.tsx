@@ -61,17 +61,22 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
     if (!empno) return
     setLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log(`🔧 PeopleSelfAssessment: Normalizing empno: ${empno} → ${normalizedEmpno}`)
+      
       const { data: mid, error: midError } = await supabase
         .from("people_mid_assessments")
         .select("*")
-        .eq("empno", empno)
+        .eq("empno", normalizedEmpno)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       const { data: final, error: finalError } = await supabase
         .from("people_final_assessments")
         .select("*")
-        .eq("empno", empno)
+        .eq("empno", normalizedEmpno)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -116,8 +121,12 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
     if (!empno) return
     setLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      
       const payload = {
-        empno: empno,
+        empno: normalizedEmpno,
         comment: editMid,
         status,
         updated_at: new Date().toISOString()
@@ -137,8 +146,12 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
     if (!empno) return
     setLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      
       const payload = {
-        empno: empno,
+        empno: normalizedEmpno,
         comment: editFinal,
         status,
         updated_at: new Date().toISOString()

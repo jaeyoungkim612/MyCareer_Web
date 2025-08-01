@@ -526,9 +526,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.x_los_target_amount)}만</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.x_los_target_amount)}M</span>
                     </div>
-                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000))}만</div>
+                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000))}M</div>
                     <Progress value={(Math.floor(collabActuals.xlos.amount / 1_000_000) / collabGoal.x_los_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.xlos.amount / 1_000_000) / collabGoal.x_los_target_amount) * 100)}%</div>
                 </div>
@@ -555,9 +555,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.losllk_target_amount)}만</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.losllk_target_amount)}M</span>
                     </div>
-                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.los.amount / 1_000_000))}만</div>
+                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.los.amount / 1_000_000))}M</div>
                     <Progress value={(Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100)}%</div>
                 </div>
@@ -584,36 +584,70 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.ax_node_target_amount)}만</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.ax_node_target_amount)}M</span>
                     </div>
-                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.axnode.amount / 1_000_000))}만</div>
+                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.axnode.amount / 1_000_000))}M</div>
                     <Progress value={(Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100)}%</div>
                 </div>
               </CardContent>
             </Card>
           </div>
-          {/* Summary Card */}
+          {/* Performance Summary */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
                 <TrendingUp className="mr-2 h-5 w-5 text-orange-600" />
-                협업 성과 요약
+                성과 요약
               </CardTitle>
-              <CardDescription>전체 협업 성과 요약</CardDescription>
+              <CardDescription>전체 협업 성과 분석</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">총 협업 수익</h4>
-                    <div className="text-3xl font-bold">₩{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000))}만</div>
-                    <p className="text-xs text-muted-foreground">목표: ₩{formatNumber(collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount)}만 (달성률: {((Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000)) / (collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount) * 100).toFixed(1)}%)</p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">총 협업 건수</h4>
-                    <div className="text-3xl font-bold">{formatNumber(collabActuals.xlos.count + collabActuals.los.count + collabActuals.axnode.count)}건</div>
-                    <p className="text-xs text-muted-foreground">목표: {formatNumber(collabGoal.x_los_target_count + collabGoal.losllk_target_count + collabGoal.ax_node_target_count)}건 (달성률: {((collabActuals.xlos.count + collabActuals.los.count + collabActuals.axnode.count) / (collabGoal.x_los_target_count + collabGoal.losllk_target_count + collabGoal.ax_node_target_count) * 100).toFixed(1)}%)</p>
-                  </div>
+              <div className="overflow-hidden rounded-lg border">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-slate-50 dark:bg-slate-800">
+                      <th className="p-4 text-left font-medium text-muted-foreground">구분</th>
+                      <th className="p-4 text-right font-medium text-muted-foreground">실적</th>
+                      <th className="p-4 text-right font-medium text-muted-foreground">목표</th>
+                      <th className="p-4 text-right font-medium text-muted-foreground">달성률</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="p-4 font-medium">총 협업 건수</td>
+                      <td className="p-4 text-right font-bold text-2xl">
+                        {formatNumber(collabActuals.xlos.count + collabActuals.los.count + collabActuals.axnode.count)}건
+                      </td>
+                      <td className="p-4 text-right text-muted-foreground">
+                        {formatNumber(collabGoal.x_los_target_count + collabGoal.losllk_target_count + collabGoal.ax_node_target_count)}건
+                      </td>
+                      <td className="p-4 text-right">
+                        {((collabActuals.xlos.count + collabActuals.los.count + collabActuals.axnode.count) / (collabGoal.x_los_target_count + collabGoal.losllk_target_count + collabGoal.ax_node_target_count) * 100).toFixed(1)}%
+                        <Progress
+                          value={((collabActuals.xlos.count + collabActuals.los.count + collabActuals.axnode.count) / (collabGoal.x_los_target_count + collabGoal.losllk_target_count + collabGoal.ax_node_target_count)) * 100}
+                          className="h-1.5 mt-2"
+                        />
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="p-4 font-medium">총 협업 수익</td>
+                      <td className="p-4 text-right font-bold text-2xl">
+                        ₩{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000))}M
+                      </td>
+                      <td className="p-4 text-right text-muted-foreground">
+                        ₩{formatNumber(collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount)}M
+                      </td>
+                      <td className="p-4 text-right">
+                        {((Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000)) / (collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount) * 100).toFixed(1)}%
+                        <Progress
+                          value={((Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000)) / (collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount)) * 100}
+                          className="h-1.5 mt-2"
+                        />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>

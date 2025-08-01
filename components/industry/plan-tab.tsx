@@ -71,13 +71,21 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
           : empno || user.empno // 일반 모드일 때는 기존 로직
         setCurrentUser({ ...user, empno: targetEmpno })
         
-        // 대상 사용자의 정보 가져오기 (Business Plan과 동일한 로직)
+        // 대상 사용자의 정보 가져오기 (Business Plan과 동일한 로직, 사번 정규화)
         try {
-          const { data: hrData } = await supabase
+          // ReviewerService import 필요
+          const { ReviewerService } = await import("@/lib/reviewer-service")
+          const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+          console.log(`🔍 Querying HR master with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
+          const { data: hrData, error: hrError } = await supabase
             .from("a_hr_master")
             .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
-            .eq("EMPNO", targetEmpno)
-            .single()
+            .eq("EMPNO", normalizedEmpno)
+            .maybeSingle()
+          
+          if (hrError) {
+            console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
+          }
 
           if (hrData) {
             setUserInfo({

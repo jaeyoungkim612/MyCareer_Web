@@ -86,13 +86,22 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
         const targetEmpno = readOnly ? empno : (empno || user.empno)
         setCurrentUser({ ...user, empno: targetEmpno })
         
-        // 대상 사용자의 정보 가져오기 (Business Plan과 동일한 로직)
+        // 대상 사용자의 정보 가져오기 (Business Plan과 동일한 로직, 사번 정규화)
         try {
-          const { data: hrData } = await supabase
+          if (!targetEmpno) throw new Error("사번이 없습니다.")
+          // ReviewerService import 필요
+          const { ReviewerService } = await import("@/lib/reviewer-service")
+          const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+          console.log(`🔍 Querying HR master with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
+          const { data: hrData, error: hrError } = await supabase
             .from("a_hr_master")
             .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
-            .eq("EMPNO", targetEmpno)
-            .single()
+            .eq("EMPNO", normalizedEmpno)
+            .maybeSingle()
+          
+          if (hrError) {
+            console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
+          }
 
           if (hrData) {
             setUserInfo({
@@ -240,7 +249,10 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
       
       const { data, error } = await supabase
         .from("collaborations")
-        .insert([insertData])
+        .upsert([insertData], { 
+          onConflict: 'employee_id',
+          ignoreDuplicates: false 
+        })
         
       if (!error) {
         setCurrentStatus(status)
@@ -413,8 +425,9 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       id="xlos-count"
                       type="number"
                       min={0}
-                      value={formData.xlosCollaboration.count}
+                      value={formData.xlosCollaboration.count || ""}
                       onChange={e => handleMetricChange("xlosCollaboration", "count", e.target.value)}
+                      placeholder="0"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
@@ -432,8 +445,9 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       id="xlos-amount"
                       type="number"
                       min={0}
-                      value={formData.xlosCollaboration.amount}
+                      value={formData.xlosCollaboration.amount || ""}
                       onChange={e => handleMetricChange("xlosCollaboration", "amount", e.target.value)}
+                      placeholder="0"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
@@ -465,8 +479,9 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       id="los-count"
                       type="number"
                       min={0}
-                      value={formData.losCollaboration.count}
+                      value={formData.losCollaboration.count || ""}
                       onChange={e => handleMetricChange("losCollaboration", "count", e.target.value)}
+                      placeholder="0"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
@@ -484,8 +499,9 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       id="los-amount"
                       type="number"
                       min={0}
-                      value={formData.losCollaboration.amount}
+                      value={formData.losCollaboration.amount || ""}
                       onChange={e => handleMetricChange("losCollaboration", "amount", e.target.value)}
+                      placeholder="0"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
@@ -517,8 +533,9 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       id="specialized-count"
                       type="number"
                       min={0}
-                      value={formData.axNodeCollaboration.count}
+                      value={formData.axNodeCollaboration.count || ""}
                       onChange={e => handleMetricChange("axNodeCollaboration", "count", e.target.value)}
+                      placeholder="0"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
@@ -536,8 +553,9 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       id="specialized-amount"
                       type="number"
                       min={0}
-                      value={formData.axNodeCollaboration.amount}
+                      value={formData.axNodeCollaboration.amount || ""}
                       onChange={e => handleMetricChange("axNodeCollaboration", "amount", e.target.value)}
+                      placeholder="0"
                     />
                   ) : (
                     <div className="flex items-center gap-2">

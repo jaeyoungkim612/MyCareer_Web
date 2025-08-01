@@ -67,17 +67,22 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
     if (!empno) return
     setLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log(`🔧 IndustrySelfAssessment: Normalizing empno: ${empno} → ${normalizedEmpno}`)
+      
       const { data: mid, error: midError } = await supabase
         .from("industry_tl_mid_assessments")
         .select("*")
-        .eq("empno", empno)
+        .eq("empno", normalizedEmpno)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       const { data: final, error: finalError } = await supabase
         .from("industry_tl_final_assessments")
         .select("*")
-        .eq("empno", empno)
+        .eq("empno", normalizedEmpno)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -122,8 +127,12 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
     if (!empno) return
     setLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      
       const payload = {
-        empno: empno,
+        empno: normalizedEmpno,
         comment: editMid,
         status,
         updated_at: new Date().toISOString()
@@ -143,8 +152,12 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
     if (!empno) return
     setLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      
       const payload = {
-        empno: empno,
+        empno: normalizedEmpno,
         comment: editFinal,
         status,
         updated_at: new Date().toISOString()

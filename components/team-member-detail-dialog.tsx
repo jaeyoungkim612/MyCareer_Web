@@ -96,10 +96,16 @@ export function TeamMemberDetailDialog({
 
     setIsLoadingComment(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedReviewedEmpno = ReviewerService.normalizeEmpno(empno)
+      const normalizedReviewerEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      console.log(`🔧 TeamMemberDetailDialog: Normalizing empnos for feedback: ${empno} → ${normalizedReviewedEmpno}, ${currentUser.empno} → ${normalizedReviewerEmpno}`)
+      
       // RLS 정책을 우회하기 위해 직접 쿼리 실행
       const { data: feedback, error } = await supabase.rpc('get_reviewer_feedback', {
-        p_reviewed_empno: empno,
-        p_reviewer_empno: currentUser.empno
+        p_reviewed_empno: normalizedReviewedEmpno,
+        p_reviewer_empno: normalizedReviewerEmpno
       })
 
       if (error) {
@@ -108,8 +114,8 @@ export function TeamMemberDetailDialog({
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('reviewer_feedback')
           .select('*')
-          .eq('reviewed_empno', empno)
-          .eq('reviewer_empno', currentUser.empno)
+          .eq('reviewed_empno', normalizedReviewedEmpno)
+          .eq('reviewer_empno', normalizedReviewerEmpno)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -197,10 +203,15 @@ export function TeamMemberDetailDialog({
         console.log('✅ Feedback updated successfully')
         alert('코멘트가 수정되었습니다.')
       } else {
+        // 사번 정규화 (95129 → 095129)
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedReviewedEmpno = ReviewerService.normalizeEmpno(empno)
+        const normalizedReviewerEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+        
         // 새 피드백 생성 - RPC 함수 사용
         const { error } = await supabase.rpc('insert_reviewer_feedback', {
-          p_reviewed_empno: empno,
-          p_reviewer_empno: currentUser.empno,
+          p_reviewed_empno: normalizedReviewedEmpno,
+          p_reviewer_empno: normalizedReviewerEmpno,
           p_reviewer_name: currentReviewer.EMPNM,
           p_reviewer_grade: currentReviewer.GRADNM,
           p_comment: reviewComment.trim()
@@ -212,8 +223,8 @@ export function TeamMemberDetailDialog({
           const { error: directError } = await supabase
             .from('reviewer_feedback')
             .insert([{
-              reviewed_empno: empno,
-              reviewer_empno: currentUser.empno,
+              reviewed_empno: normalizedReviewedEmpno,
+              reviewer_empno: normalizedReviewerEmpno,
               reviewer_name: currentReviewer.EMPNM,
               reviewer_grade: currentReviewer.GRADNM,
               comment: reviewComment.trim()
@@ -248,12 +259,19 @@ export function TeamMemberDetailDialog({
       
       setIsLoadingUserInfo(true)
       try {
+        // 사번 정규화 (95129 → 095129)
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+        console.log(`🔍 TeamMemberDetailDialog: Normalizing empno: ${empno} → ${normalizedEmpno}`)
+        
         // a_hr_master 테이블에서 해당 empno의 정보 조회 (GRADNM 포함)
         const { data, error } = await supabase
           .from('a_hr_master')
           .select('EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM')
-          .eq('EMPNO', empno)
-          .single()
+          .eq('EMPNO', normalizedEmpno)
+          .maybeSingle()
+        
+        console.log(`🔍 TeamMemberDetailDialog: Query result for ${normalizedEmpno}:`, { data, error })
         
         if (error) {
           console.error('Error fetching target user info:', error)

@@ -16,10 +16,15 @@ export interface IndustryTLPlanning {
 
 export class IndustryTLPlanningService {
   static async getByEmployeeId(employee_id: string): Promise<IndustryTLPlanning | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
+    console.log(`🔧 IndustryTLPlanningService: Normalizing employee ID: ${employee_id} → ${normalizedEmployeeId}`)
+    
     const { data, error } = await supabase
       .from("industry_tl_planning")
       .select("*")
-      .eq("employee_id", employee_id)
+      .eq("employee_id", normalizedEmployeeId)
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -28,9 +33,19 @@ export class IndustryTLPlanningService {
   }
 
   static async upsertPlanning(planning: Omit<IndustryTLPlanning, "id" | "created_at">): Promise<IndustryTLPlanning | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(planning.employee_id)
+    console.log(`🔧 IndustryTLPlanningService: Normalizing employee ID for upsert: ${planning.employee_id} → ${normalizedEmployeeId}`)
+    
+    const normalizedPlanning = {
+      ...planning,
+      employee_id: normalizedEmployeeId
+    }
+    
     const { data, error } = await supabase
       .from("industry_tl_planning")
-      .insert(planning)
+      .insert(normalizedPlanning)
       .select()
       .maybeSingle();
     console.log("insert result", { data, error });
@@ -40,11 +55,16 @@ export class IndustryTLPlanningService {
   }
 
   static async updateSpecificFields(employee_id: string, changes: Partial<IndustryTLPlanning>): Promise<IndustryTLPlanning | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
+    console.log(`🔧 IndustryTLPlanningService: Normalizing employee ID for update: ${employee_id} → ${normalizedEmployeeId}`)
+    
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("industry_tl_planning")
       .update({ ...changes, updated_at: now })
-      .eq("employee_id", employee_id)
+      .eq("employee_id", normalizedEmployeeId)
       .select()
       .maybeSingle();
     if (error || !data) return null;

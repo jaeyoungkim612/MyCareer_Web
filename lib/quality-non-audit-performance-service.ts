@@ -18,10 +18,15 @@ export interface QualityNonAuditPerformance {
 export class QualityNonAuditPerformanceService {
   // 특정 사용자의 최신 레코드 조회 (신규/기존은 세트로)
   static async getByEmployeeId(employeeId: string): Promise<QualityNonAuditPerformance[]> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import("./reviewer-service")
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+    console.log(`🔧 QualityNonAuditPerformanceService: Normalizing employee ID: ${employeeId} → ${normalizedEmployeeId}`)
+    
     const { data, error } = await supabase
       .from('quality_non_audit_performance')
       .select('*')
-      .eq('employee_id', employeeId)
+      .eq('employee_id', normalizedEmployeeId)
       .order('created_at', { ascending: false })  // 최신순으로 정렬
     
     if (error) {
@@ -61,10 +66,14 @@ export class QualityNonAuditPerformanceService {
 
   // 특정 사용자의 타입별 최신 데이터 조회 (기존 로직)
   static async getByEmployeeIdByType(employeeId: string): Promise<QualityNonAuditPerformance[]> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import("./reviewer-service")
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+    
     const { data, error } = await supabase
       .from('quality_non_audit_performance')
       .select('*')
-      .eq('employee_id', employeeId)
+      .eq('employee_id', normalizedEmployeeId)
       .order('created_at', { ascending: false })  // 최신순으로 정렬
     
     if (error) {
@@ -88,10 +97,14 @@ export class QualityNonAuditPerformanceService {
 
   // 특정 사용자의 특정 타입 조회
   static async getByEmployeeIdAndType(employeeId: string, type: '신규' | '기존' | 'none'): Promise<QualityNonAuditPerformance | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import("./reviewer-service")
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+    
     const { data, error } = await supabase
       .from('quality_non_audit_performance')
       .select('*')
-      .eq('employee_id', employeeId)
+      .eq('employee_id', normalizedEmployeeId)
       .eq('type', type)
       .single()
     
@@ -196,10 +209,14 @@ export class QualityNonAuditPerformanceService {
 
   // 삭제
   static async delete(employeeId: string, type: '신규' | '기존' | 'none'): Promise<void> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import("./reviewer-service")
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
+    
     const { error } = await supabase
       .from('quality_non_audit_performance')
       .delete()
-      .eq('employee_id', employeeId)
+      .eq('employee_id', normalizedEmployeeId)
       .eq('type', type)
     
     if (error) {

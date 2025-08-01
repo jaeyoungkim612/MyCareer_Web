@@ -25,10 +25,15 @@ export class IndustryTLActivitiesService {
 
   // 특정 사용자의 활동만 조회
   static async getByEmployeeId(employee_id: string): Promise<IndustryTLActivity[]> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
+    console.log(`🔧 IndustryTLActivitiesService: Normalizing employee ID: ${employee_id} → ${normalizedEmployeeId}`)
+    
     const { data, error } = await supabase
       .from("industry_tl_activities")
       .select("*")
-      .eq("employee_id", employee_id)
+      .eq("employee_id", normalizedEmployeeId)
       .order("date", { ascending: false })
     if (error) throw error
     return data || []

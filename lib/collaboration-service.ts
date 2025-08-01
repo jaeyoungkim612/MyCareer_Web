@@ -17,10 +17,15 @@ export interface CollaborationGoal {
 
 export class CollaborationService {
   static async getByEmployeeId(employee_id: string): Promise<CollaborationGoal | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
+    console.log(`🔧 CollaborationService: Normalizing employee ID: ${employee_id} → ${normalizedEmployeeId}`)
+    
     const { data, error } = await supabase
       .from("collaborations")
       .select("*")
-      .eq("employee_id", employee_id)
+      .eq("employee_id", normalizedEmployeeId)
       .order("created_at", { ascending: false })
       .limit(1)
     if (error || !data || data.length === 0) return null
@@ -28,10 +33,20 @@ export class CollaborationService {
   }
 
   static async upsertGoal(goal: Omit<CollaborationGoal, "id" | "created_at" | "updated_at">): Promise<CollaborationGoal | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(goal.employee_id)
+    console.log(`🔧 CollaborationService: Normalizing employee ID for upsert: ${goal.employee_id} → ${normalizedEmployeeId}`)
+    
+    const normalizedGoal = {
+      ...goal,
+      employee_id: normalizedEmployeeId
+    }
+    
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from("collaborations")
-      .upsert({ ...goal, updated_at: now }, { onConflict: "employee_id" })
+      .upsert({ ...normalizedGoal, updated_at: now }, { onConflict: "employee_id" })
       .select()
     if (error || !data || data.length === 0) return null
     return data[0]
@@ -42,10 +57,15 @@ export class CollaborationService {
     los: { count: number, amount: number },
     axnode: { count: number, amount: number }
   } | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
+    console.log(`🔧 CollaborationService: Normalizing employee ID for actuals: ${employee_id} → ${normalizedEmployeeId}`)
+    
     const { data, error } = await supabase
       .from('v_collaboration')
       .select('GUBUN, REFCNT, TOTREV')
-      .eq('EMPLNO', employee_id)
+      .eq('EMPLNO', normalizedEmployeeId)
       .in('GUBUN', ['X-LoS', 'LoS', 'PwCC']);
     if (error) return null;
     const result = {

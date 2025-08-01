@@ -15,10 +15,15 @@ export interface QualityGoal {
 
 export class QualityGoalsService {
   static async getByEmployeeId(employee_id: string): Promise<QualityGoal | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
+    console.log(`🔧 QualityGoalsService: Normalizing employee ID: ${employee_id} → ${normalizedEmployeeId}`)
+    
     const { data, error } = await supabase
       .from("quality_goals")
       .select("*")
-      .eq("employee_id", employee_id)
+      .eq("employee_id", normalizedEmployeeId)
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -27,10 +32,20 @@ export class QualityGoalsService {
   }
 
   static async upsertGoal(goal: Omit<QualityGoal, "id" | "created_at" | "updated_at">): Promise<QualityGoal | null> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmployeeId = ReviewerService.normalizeEmpno(goal.employee_id)
+    console.log(`🔧 QualityGoalsService: Normalizing employee ID for upsert: ${goal.employee_id} → ${normalizedEmployeeId}`)
+    
+    const normalizedGoal = {
+      ...goal,
+      employee_id: normalizedEmployeeId
+    }
+    
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("quality_goals")
-      .upsert({ ...goal, updated_at: now }, { onConflict: "employee_id" })
+      .upsert({ ...normalizedGoal, updated_at: now }, { onConflict: "employee_id" })
       .select()
       .maybeSingle();
     if (error || !data) return null;

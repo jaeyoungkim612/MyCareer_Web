@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TrendingUp, TrendingDown, Minus, CheckCircle, Percent, Award, Filter, Edit, Save, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { QualityNonAuditPerformanceService } from "@/lib/quality-non-audit-performance-service"
+import { QualityMonitoringService } from "@/lib/quality-monitoring-service"
 import { AuthService, User } from "@/lib/auth-service"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -73,8 +73,8 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
   const [originalNonAuditStatus, setOriginalNonAuditStatus] = useState(nonAuditStatus)
   // 비감사 목표 전체 텍스트 (Target)
   const [nonAuditGoalText, setNonAuditGoalText] = useState("")
-  // 상태값 (pending, in_progress, completed)
-  const [performanceStatus, setPerformanceStatus] = useState<{신규: 'pending'|'in_progress'|'completed', 기존: 'pending'|'in_progress'|'completed'}>({신규: 'pending', 기존: 'pending'})
+  // 상태값 (Draft, 작성중, 완료)
+  const [performanceStatus, setPerformanceStatus] = useState<{신규: 'Draft'|'작성중'|'완료', 기존: 'Draft'|'작성중'|'완료'}>({신규: 'Draft', 기존: 'Draft'})
 
   // --- Edit/Save/Cancel Handlers ---
   const handleEditNonAuditStatus = () => {
@@ -92,48 +92,53 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       console.log('Status to save:', performanceStatus)
       console.log('Progress to save:', nonAuditStatus)
       
-      // 기존 데이터 불러오기
-      const existingPerformances = await QualityNonAuditPerformanceService.getByEmployeeId(currentUser.empno);
-      console.log('📊 Existing performances:', existingPerformances)
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      console.log(`🔧 Monitoring: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`)
       
-      // 각 레코드를 직접 업데이트
-      for (const performance of existingPerformances) {
-        console.log(`🔄 Updating record ID ${performance.id}, type: ${performance.type}`)
-        
+      // 기존 모니터링 데이터 불러오기 (정규화된 사번 사용)
+      const existingMonitorings = await QualityMonitoringService.getByEmployeeId(normalizedEmpno);
+      console.log('📊 Existing monitorings:', existingMonitorings)
+      
+      // 각 모니터링 타입별로 업데이트/생성
+      const typesToProcess = ['none', '신규', '기존']
+      
+      for (const type of typesToProcess) {
         let newProgressText = ''
-        let newStatus = 'pending'
+        let newStatus = 'Draft'
         
-        if (performance.type === 'none') {
+        if (type === 'none') {
           // none 타입은 신규 슬롯의 값 사용
           newProgressText = nonAuditStatus.신규.progress
           newStatus = performanceStatus.신규
-        } else if (performance.type === '신규') {
+        } else if (type === '신규') {
           newProgressText = nonAuditStatus.신규.progress
           newStatus = performanceStatus.신규
-        } else if (performance.type === '기존') {
+        } else if (type === '기존') {
           newProgressText = nonAuditStatus.기존.progress
           newStatus = performanceStatus.기존
         }
         
-        console.log(`📝 Updating ${performance.type}: progress="${newProgressText}", status="${newStatus}"`)
-        
-        // 직접 supabase로 업데이트
-        const { data, error } = await supabase
-          .from('quality_non_audit_performance')
-          .update({
-            progress_text: newProgressText,
-            status: newStatus,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', performance.id)
-          .select()
-        
-        if (error) {
-          console.error(`❌ Update failed for ${performance.type}:`, error)
-          throw error
+        // 내용이 있을 때만 저장
+        if (newProgressText.trim()) {
+          console.log(`📝 Saving ${type}: progress="${newProgressText}", status="${newStatus}"`)
+          
+          try {
+            const monitoringData = {
+              employee_id: normalizedEmpno,
+              type: type as '신규' | '기존' | 'none',
+              progress_text: newProgressText,
+              status: newStatus as 'Draft' | '작성중' | '완료'
+            }
+            
+            const result = await QualityMonitoringService.upsert(monitoringData)
+            console.log(`✅ ${type} monitoring saved successfully:`, result)
+          } catch (error) {
+            console.error(`❌ Save failed for ${type}:`, error)
+            throw error
+          }
         }
-        
-        console.log(`✅ Updated successfully: ${performance.type}`, data)
       }
       
       setIsEditingNonAuditStatus(false);
@@ -156,67 +161,96 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
     async function fetchTargets() {
       if (!currentUser?.empno) return
       try {
-        // 새로운 quality_non_audit_performance 테이블에서 데이터 가져오기
-        const performances = await QualityNonAuditPerformanceService.getByEmployeeId(currentUser.empno)
-        console.log('🔍 Monitoring Tab - Loaded performances:', performances)
+        // 사번 정규화 (95129 → 095129)
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+        console.log(`🔧 Monitoring fetchTargets: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`)
         
-        if (performances.length > 0) {
-          // 첫 번째 레코드에서 감사 메트릭 가져오기 (모든 타입에 동일하게 저장됨)
-          const firstRecord = performances[0]
+        // Plan 테이블에서 목표 정보 가져오기 (정규화된 사번 사용)
+        const { data: planData, error: planError } = await supabase
+          .from('quality_non_audit_performance')
+          .select('*')
+          .eq('employee_id', normalizedEmpno)
+          .order('created_at', { ascending: false })
+        
+        if (planError) {
+          console.error('Error fetching plan data:', planError)
+          throw planError
+        }
+        
+        // Monitoring 테이블에서 진행상황 가져오기
+        const monitorings = await QualityMonitoringService.getByEmployeeId(normalizedEmpno)
+        console.log('🔍 Monitoring Tab - Loaded plan data:', planData)
+        console.log('🔍 Monitoring Tab - Loaded monitorings:', monitorings)
+        
+        if (planData && planData.length > 0) {
+          // Plan 데이터에서 목표 정보 가져오기
+          const latestPlan = planData[0]
           setTargetMetrics({
-            doae: firstRecord.doae_rate || 0,
-            yra: firstRecord.yra_ratio || 0,
+            doae: latestPlan.doae_rate || 0,
+            yra: latestPlan.yra_ratio || 0,
           })
           
-          // 최신 레코드부터 확인 (created_at DESC로 정렬되어 있음)
-          const latestRecord = performances[0]
-          console.log('🔍 Latest record:', latestRecord)
+          console.log('🔍 Latest plan record:', latestPlan)
           
-          if (latestRecord.type === 'none') {
-            // 최신 레코드가 none 타입이면 단일 카드로 표시
-            console.log('✅ Using NONE type data (latest):', latestRecord.goal_text)
-            setNonAuditGoalText(latestRecord.goal_text || '')
-            setNonAuditGoal({ 신규: "", 기존: "" }) // none 타입은 단일 카드로 표시
+          // Plan 데이터에서 목표 텍스트 설정
+          if (latestPlan.type === 'none') {
+            // none 타입이면 단일 카드로 표시
+            console.log('✅ Using NONE type plan data:', latestPlan.goal_text)
+            setNonAuditGoalText(latestPlan.goal_text || '')
+            setNonAuditGoal({ 신규: "", 기존: "" })
+          } else {
+            // 신규/기존 타입이면 합쳐서 표시
+            console.log('✅ Using 신규/기존 type plan data')
+            const 신규Plan = planData.find(p => p.type === '신규')
+            const 기존Plan = planData.find(p => p.type === '기존')
             
-            // none 타입 상태 설정
-            const validStatus = ['pending', 'in_progress', 'completed'];
+            // 목표 텍스트 합치기
+            const parts = []
+            if (신규Plan && 신규Plan.goal_text) {
+              parts.push('신규 서비스 개발')
+              parts.push(신규Plan.goal_text)
+              parts.push('')
+            }
+            if (기존Plan && 기존Plan.goal_text) {
+              parts.push('기존 서비스 확장')
+              parts.push(기존Plan.goal_text)
+            }
+            const combinedGoal = parts.join('\n')
+            
+            setNonAuditGoalText(combinedGoal)
+            setNonAuditGoal(parseNonAuditGoal(combinedGoal))
+          }
+          
+          // Monitoring 데이터에서 진행상황 설정
+          const validStatus = ['Draft', '작성중', '완료'];
+          const noneMonitoring = monitorings.find(m => m.type === 'none')
+          const 신규Monitoring = monitorings.find(m => m.type === '신규')
+          const 기존Monitoring = monitorings.find(m => m.type === '기존')
+          
+          if (latestPlan.type === 'none' || (!신규Monitoring && !기존Monitoring)) {
+            // none 타입이거나 모니터링 데이터가 없으면 단순 표시
             setPerformanceStatus({
-              신규: validStatus.includes(latestRecord.status || '') ? latestRecord.status as any : 'pending',
-              기존: 'pending',
+              신규: validStatus.includes(noneMonitoring?.status || '') ? noneMonitoring?.status as any : 'Draft',
+              기존: 'Draft',
             })
             
-            // none 타입 진행상황 설정
             setNonAuditStatus({
-              신규: { progress: latestRecord.progress_text || '' },
+              신규: { progress: noneMonitoring?.progress_text || '' },
               기존: { progress: '' },
             })
           } else {
-            // 최신 레코드가 신규/기존 타입이면 기존 로직 사용
-            console.log('✅ Using 신규/기존 type data (latest)')
-            const 신규Performance = performances.find(p => p.type === '신규')
-            const 기존Performance = performances.find(p => p.type === '기존')
-            
-            const combinedGoal = QualityNonAuditPerformanceService.combineToOriginalFormat(
-              신규Performance?.goal_text || '',
-              기존Performance?.goal_text || ''
-            )
-            setNonAuditGoalText(combinedGoal)
-            setNonAuditGoal(parseNonAuditGoal(combinedGoal))
-            
-            // 신규/기존 상태 설정
-            const validStatus = ['pending', 'in_progress', 'completed'];
+            // 신규/기존 모니터링 데이터 설정
             setPerformanceStatus({
-              신규: validStatus.includes(신규Performance?.status || '') ? 신규Performance?.status as any : 'pending',
-              기존: validStatus.includes(기존Performance?.status || '') ? 기존Performance?.status as any : 'pending',
+              신규: validStatus.includes(신규Monitoring?.status || '') ? 신규Monitoring?.status as any : 'Draft',
+              기존: validStatus.includes(기존Monitoring?.status || '') ? 기존Monitoring?.status as any : 'Draft',
             })
             
-            // 신규/기존 진행상황 설정
             setNonAuditStatus({
-              신규: { progress: 신규Performance?.progress_text || '' },
-              기존: { progress: 기존Performance?.progress_text || '' },
+              신규: { progress: 신규Monitoring?.progress_text || '' },
+              기존: { progress: 기존Monitoring?.progress_text || '' },
             })
           }
-
         }
       } catch (error) {
         console.error('Error fetching targets:', error)
@@ -230,12 +264,9 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-                          <h2 className="text-lg font-bold">Quality Monitoring</h2>
+          <h2 className="text-lg font-bold">Quality Monitoring</h2>
           <p className="text-sm text-muted-foreground">Real-time tracking of quality metrics</p>
         </div>
-        <Button onClick={() => window.location.reload()} variant="outline" size="sm">
-          강제 새로고침
-        </Button>
       </div>
 
       {/* Audit Metrics */}
@@ -358,18 +389,18 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="in_progress">On Track</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="Draft">Draft</SelectItem>
+                              <SelectItem value="작성중">작성중</SelectItem>
+                              <SelectItem value="완료">완료</SelectItem>
                             </SelectContent>
                           </Select>
                         ) : (
-                          performanceStatus.신규 === 'completed' ? (
-                            <Badge className="bg-green-500">Completed</Badge>
-                          ) : performanceStatus.신규 === 'in_progress' ? (
-                            <Badge className="bg-orange-500">On Track</Badge>
+                          performanceStatus.신규 === '완료' ? (
+                            <Badge className="bg-green-500">완료</Badge>
+                          ) : performanceStatus.신규 === '작성중' ? (
+                            <Badge className="bg-orange-500">작성중</Badge>
                           ) : (
-                            <Badge className="bg-gray-400">Pending</Badge>
+                            <Badge className="bg-gray-400">Draft</Badge>
                           )
                         )}
                       </div>
@@ -407,18 +438,18 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in_progress">On Track</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
+                                  <SelectItem value="Draft">Draft</SelectItem>
+                                  <SelectItem value="작성중">작성중</SelectItem>
+                                  <SelectItem value="완료">완료</SelectItem>
                                 </SelectContent>
                               </Select>
                             ) : (
-                              performanceStatus.신규 === 'completed' ? (
-                                <Badge className="bg-green-500">Completed</Badge>
-                              ) : performanceStatus.신규 === 'in_progress' ? (
-                                <Badge className="bg-orange-500">On Track</Badge>
+                              performanceStatus.신규 === '완료' ? (
+                                <Badge className="bg-green-500">완료</Badge>
+                              ) : performanceStatus.신규 === '작성중' ? (
+                                <Badge className="bg-orange-500">작성중</Badge>
                               ) : (
-                                <Badge className="bg-gray-400">Pending</Badge>
+                                <Badge className="bg-gray-400">Draft</Badge>
                               )
                             )}
                           </div>
@@ -455,18 +486,18 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in_progress">On Track</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
+                                  <SelectItem value="Draft">Draft</SelectItem>
+                                  <SelectItem value="작성중">작성중</SelectItem>
+                                  <SelectItem value="완료">완료</SelectItem>
                                 </SelectContent>
                               </Select>
                             ) : (
-                              performanceStatus.기존 === 'completed' ? (
-                                <Badge className="bg-green-500">Completed</Badge>
-                              ) : performanceStatus.기존 === 'in_progress' ? (
-                                <Badge className="bg-orange-500">On Track</Badge>
+                              performanceStatus.기존 === '완료' ? (
+                                <Badge className="bg-green-500">완료</Badge>
+                              ) : performanceStatus.기존 === '작성중' ? (
+                                <Badge className="bg-orange-500">작성중</Badge>
                               ) : (
-                                <Badge className="bg-gray-400">Pending</Badge>
+                                <Badge className="bg-gray-400">Draft</Badge>
                               )
                             )}
                           </div>

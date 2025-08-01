@@ -81,29 +81,31 @@ export default function Intro() {
     for (const reviewee of reviewees) {
       try {
         const empno = reviewee.사번
-        console.log(`📋 Loading status for ${reviewee.성명} (${empno})`)
+        // 사번 정규화 (95129 → 095129)
+        const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+        console.log(`📋 Loading status for ${reviewee.성명} (${empno} → ${normalizedEmpno})`)
         
-        // Plan Status 조회
+        // Plan Status 조회 (정규화된 사번 사용)
         const [businessPlan, peoplePlan, collaborationPlan, qualityPlan, industryPlan] = await Promise.all([
-          supabase.from('business_goals').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('people_goals').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('collaborations').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('quality_non_audit_performance').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('industry_tl_planning').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle()
+          supabase.from('business_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('people_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('collaborations').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('quality_non_audit_performance').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('industry_tl_planning').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
         ])
 
-        // Self Assessment Status 조회
+        // Self Assessment Status 조회 (정규화된 사번 사용)
         const [businessMid, businessFinal, peopleMid, peopleFinal, collaborationMid, collaborationFinal, qualityMid, qualityFinal, industryMid, industryFinal] = await Promise.all([
-          supabase.from('business_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('business_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('people_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('people_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('collaboration_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('collaboration_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('quality_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('quality_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('industry_tl_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('industry_tl_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle()
+          supabase.from('business_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('business_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('people_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('people_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('collaboration_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('collaboration_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('quality_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('quality_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('industry_tl_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('industry_tl_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
         ])
 
         const memberStatus: TeamMemberStatus = {
@@ -158,12 +160,39 @@ export default function Intro() {
         return teamMemberInfo.get(empno) || null
       }
 
-      // HR 마스터 정보 조회
-        const { data: hrData } = await supabase
+      // HR 마스터 정보 조회 (사번 정규화 디버깅)
+        console.log(`🔍 Original empno: "${empno}" (type: ${typeof empno}, length: ${empno.length})`)
+        const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+        console.log(`🔍 Normalized empno: "${normalizedEmpno}" (type: ${typeof normalizedEmpno}, length: ${normalizedEmpno.length})`)
+        
+        // 먼저 해당 사번이 존재하는지 확인
+        console.log(`🔍 About to query a_hr_master with EMPNO = "${normalizedEmpno}"`)
+        const { data: testData, error: testError } = await supabase
           .from("a_hr_master")
-          .select("*")
-        .eq("EMPNO", empno)
-          .single()
+          .select("EMPNO")
+          .eq("EMPNO", normalizedEmpno)
+          .limit(1)
+        
+        console.log(`📊 테스트 조회 결과:`, { 
+          queried_empno: normalizedEmpno,
+          testData, 
+          testError,
+          error_code: testError?.code,
+          error_message: testError?.message,
+          error_details: testError?.details
+        })
+        
+        const { data: hrData, error: hrError } = await supabase
+          .from("a_hr_master")
+          .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
+        .eq("EMPNO", normalizedEmpno)
+          .maybeSingle()
+        
+        console.log(`🔍 HR 데이터 조회 결과:`, { hrData, hrError })
+        
+        if (hrError) {
+          console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
+        }
 
         if (hrData) {
         // 사진 정보는 캐시에서 가져오기 (이미 미리 로딩됨)
@@ -196,7 +225,9 @@ export default function Intro() {
   // 🚀 개별 직원 평가 상태 로딩 (지연 로딩용)
   const loadIndividualMemberStatus = async (empno: string, name: string): Promise<TeamMemberStatus | null> => {
     try {
-      console.log(`📋 Loading individual status for ${name} (${empno})`)
+      // 사번 정규화 (95129 → 095129)
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log(`📋 Loading individual status for ${name} (${empno} → ${normalizedEmpno})`)
       
       // 이미 캐시에 있으면 반환
       if (teamPlanAssessmentStatus.has(empno)) {
@@ -204,27 +235,27 @@ export default function Intro() {
         return teamPlanAssessmentStatus.get(empno) || null
       }
 
-      // Plan Status 조회
+      // Plan Status 조회 (정규화된 사번 사용)
       const [businessPlan, peoplePlan, collaborationPlan, qualityPlan, industryPlan] = await Promise.all([
-        supabase.from('business_goals').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('people_goals').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('collaborations').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('quality_non_audit_performance').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('industry_tl_planning').select('status, updated_at').eq('employee_id', empno).order('created_at', { ascending: false }).limit(1).maybeSingle()
+        supabase.from('business_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('people_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('collaborations').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('quality_non_audit_performance').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('industry_tl_planning').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
       ])
 
-      // Self Assessment Status 조회
+      // Self Assessment Status 조회 (정규화된 사번 사용)
       const [businessMid, businessFinal, peopleMid, peopleFinal, collaborationMid, collaborationFinal, qualityMid, qualityFinal, industryMid, industryFinal] = await Promise.all([
-        supabase.from('business_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('business_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('people_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('people_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('collaboration_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('collaboration_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('quality_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('quality_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('industry_tl_mid_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('industry_tl_final_assessments').select('status, updated_at').eq('empno', empno).order('created_at', { ascending: false }).limit(1).maybeSingle()
+        supabase.from('business_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('business_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('people_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('people_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('collaboration_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('collaboration_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('quality_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('quality_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('industry_tl_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('industry_tl_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
       ])
 
       const memberStatus: TeamMemberStatus = {
@@ -273,24 +304,35 @@ export default function Intro() {
       console.log("📷 Loading employee photos for", employees.length, "employees")
       
       const empnos = employees.map(emp => emp.사번)
-      if (empnos.length === 0) return
+      console.log("📷 Original employee numbers:", empnos)
+      
+      // 사번들을 정규화 (95129 → 095129)
+      const normalizedEmpnos = empnos.map(empno => ReviewerService.normalizeEmpno(empno))
+      console.log("📷 Normalized employee numbers for photos:", normalizedEmpnos)
+      
+      if (normalizedEmpnos.length === 0) return
 
-      // 배치로 모든 사진 정보 조회
+      // 배치로 모든 사진 정보 조회 (정규화된 사번 사용)
       const { data: photosData, error } = await supabase
         .from("employee_photos")
         .select("empno, photo_url")
-        .in("empno", empnos)
+        .in("empno", normalizedEmpnos)
 
       if (error) {
         console.error("❌ Error loading employee photos:", error)
         return
       }
 
-      // Map으로 변환하여 캐시에 저장
+      // Map으로 변환하여 캐시에 저장 (원본 사번으로 매핑)
       const photosMap = new Map<string, string>()
       photosData?.forEach(photo => {
         if (photo.photo_url) {
-          photosMap.set(photo.empno, photo.photo_url)
+          // 정규화된 사번을 원본 사번으로 역변환해서 매핑
+          const originalEmpno = empnos.find(orig => ReviewerService.normalizeEmpno(orig) === photo.empno)
+          if (originalEmpno) {
+            photosMap.set(originalEmpno, photo.photo_url)
+            console.log(`📷 Photo mapped: ${originalEmpno} (${photo.empno}) → ${photo.photo_url}`)
+          }
         }
       })
 
@@ -362,10 +404,18 @@ export default function Intro() {
           
           console.log("✅ User info and role loaded:", {
             userName: info?.empnm,
+            empno: currentUser.empno,
             isSelf: role.isSelf,
             isReviewer: role.isReviewer,
-            revieweesCount: role.reviewees.length
+            isMaster: role.isMaster,
+            revieweesCount: role.reviewees.length,
+            allEmployeesCount: role.allEmployees.length
           })
+          
+          // 🔍 추가 디버깅: 리뷰어 정보가 없을 때 상세 정보 출력
+          if (!role.isReviewer && !role.isMaster) {
+            console.log("❓ No reviewer/master role found. User role details:", role)
+          }
 
           // 🚀 성능 개선: 상세 정보는 지연 로딩, 사진만 미리 로딩
           // 리뷰어 권한이 있으면 팀원들의 사진 미리 로딩
