@@ -646,16 +646,16 @@ export default function Intro() {
       {/* 메인 탭 */}
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="space-y-4">
         <TabsList className={`grid w-full ${
-          // 실제 탭 개수에 따라 그리드 설정 (더 깔끔한 방식)
-          userRole?.isReviewer && userRole?.isMaster ? 'grid-cols-3' :  // 내 평가 + 평가 대상자 + ALL
-          (userRole?.isReviewer || userRole?.isMaster) ? 'grid-cols-2' : // 내 평가 + (평가 대상자 OR ALL)
+          // 실제 탭 개수에 따라 그리드 설정
+          userRole?.isMaster && userRole?.isReviewer && userRole?.reviewees.length > 0 ? 'grid-cols-3' :  // 마스터 + 리뷰어 = 3개 탭
+          (userRole?.isMaster || (userRole?.isReviewer && userRole?.reviewees.length > 0)) ? 'grid-cols-2' : // 마스터만 또는 리뷰어만 = 2개 탭
           'grid-cols-1' // 내 평가만
         }`}>
           <TabsTrigger value="my-evaluation" className="text-sm flex items-center gap-2">
             <User className="h-4 w-4" />
             내 평가
           </TabsTrigger>
-          {userRole?.isReviewer && (
+          {userRole?.isReviewer && userRole?.reviewees.length > 0 && (
             <TabsTrigger value="team-evaluation" className="text-sm flex items-center gap-2">
               <Users className="h-4 w-4" />
               평가 대상자 ({userRole.reviewees.length})
@@ -845,7 +845,7 @@ export default function Intro() {
         </TabsContent>
 
         {/* 팀원 평가 탭 */}
-        {userRole?.isReviewer && (
+        {userRole?.isReviewer && userRole?.reviewees.length > 0 && (
           <TabsContent value="team-evaluation" className="mt-4">
             <Card>
               <CardHeader>
