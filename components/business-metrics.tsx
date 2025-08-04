@@ -28,7 +28,7 @@ export function BusinessMetrics() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>신규 감사 BD</span>
-                  <span className="font-medium">₩450M/₩600M</span>
+                  <span className="font-medium">450M/600M</span>
                 </div>
                 <Progress value={75} className="h-1.5" />
               </div>
@@ -42,7 +42,7 @@ export function BusinessMetrics() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>UI Revenue</span>
-                  <span className="font-medium">₩1.2B/₩1.5B</span>
+                  <span className="font-medium">1.2B/1.5B</span>
                 </div>
                 <Progress value={80} className="h-1.5" />
               </div>
@@ -68,7 +68,7 @@ export function BusinessMetrics() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>UI Revenue</span>
-                  <span className="font-medium">₩850M/₩1B</span>
+                  <span className="font-medium">850M/1B</span>
                 </div>
                 <Progress value={85} className="h-1.5" />
               </div>
@@ -148,7 +148,7 @@ export function BusinessMetrics() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>디지털 매출</span>
-                  <span className="font-medium">₩180M/₩300M</span>
+                  <span className="font-medium">180M/300M</span>
                 </div>
                 <Progress value={60} className="h-1.5" />
               </div>
@@ -174,7 +174,7 @@ export function BusinessMetrics() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>매출 목표</span>
-                  <span className="font-medium">₩2.3B/₩2.6B</span>
+                  <span className="font-medium">2.3B/2.6B</span>
                 </div>
                 <Progress value={88} className="h-1.5" />
               </div>

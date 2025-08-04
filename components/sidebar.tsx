@@ -25,7 +25,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { LucideIcon } from "lucide-react"
 
 type NavItemType = {
@@ -154,6 +154,7 @@ export function Sidebar() {
         <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
+              <DialogTitle className="text-lg font-semibold">문의하기</DialogTitle>
               <DialogDescription className="text-base">My Career+ 시스템 관리자에게 연락하세요</DialogDescription>
             </DialogHeader>
 
@@ -174,7 +175,7 @@ export function Sidebar() {
                 </div>
                 <div className="flex-1">
                   <p className="text-base font-medium">부서</p>
-                  <p className="text-base text-muted-foreground">Assurance DA</p>
+                  <p className="text-base text-muted-foreground">AX Node / Assurance DA</p>
                 </div>
               </div>
 

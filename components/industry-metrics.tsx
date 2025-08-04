@@ -101,7 +101,7 @@ export function IndustryMetrics() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>예상 매출</span>
-                  <span className="font-medium">₩250M</span>
+                  <span className="font-medium">250M</span>
                 </div>
                 <Progress value={63} className="h-1.5" />
               </div>

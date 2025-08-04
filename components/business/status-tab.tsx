@@ -276,7 +276,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   // 목표탭의 '신규 BD 금액', 'UI Revenue 계약금액'만 백만단위 환산 및 콤마
                   (title === '신규 BD 금액' || title === 'UI Revenue 계약금액') ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` :
                   displayType === 'amount' ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` :
-                  displayType === 'tenThousand' ? `₩ ${actual.toLocaleString('ko-KR')}/h` :
+                  displayType === 'tenThousand' ? `${actual.toLocaleString('ko-KR')}/h` :
                   actual !== undefined && actual !== null ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` : '-'}
               </div>
             </div>
@@ -285,7 +285,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               <div className="text-xl font-bold text-gray-900">
                 {displayType === 'count' ? `${budget}건` :
                   displayType === 'amount' ? `${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M` :
-                  displayType === 'tenThousand' ? `₩ ${budget.toLocaleString('ko-KR')}/h` :
+                  displayType === 'tenThousand' ? `${budget.toLocaleString('ko-KR')}/h` :
                   budget !== undefined && budget !== null ? `${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M` : '-'}
               </div>
             </div>

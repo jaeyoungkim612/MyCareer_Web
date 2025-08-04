@@ -439,7 +439,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="xlos-amount">목표 금액 (₩M)</Label>
+                  <Label htmlFor="xlos-amount">목표 금액 (M)</Label>
                   {isEditMode ? (
                     <Input
                       id="xlos-amount"
@@ -453,7 +453,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-lg">
                         {planData.selfAssessment.xlosCollaboration.amount ? 
-                          `₩${formatAmountM(planData.selfAssessment.xlosCollaboration.amount)}` : 
+                          `${formatAmountM(planData.selfAssessment.xlosCollaboration.amount)}` : 
                           "-"
                         }
                       </span>
@@ -493,7 +493,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="los-amount">목표 금액 (₩M)</Label>
+                  <Label htmlFor="los-amount">목표 금액 (M)</Label>
                   {isEditMode ? (
                     <Input
                       id="los-amount"
@@ -507,7 +507,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-lg">
                         {planData.selfAssessment.losCollaboration.amount ? 
-                          `₩${formatAmountM(planData.selfAssessment.losCollaboration.amount)}` : 
+                          `${formatAmountM(planData.selfAssessment.losCollaboration.amount)}` : 
                           "-"
                         }
                       </span>
@@ -547,7 +547,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="specialized-amount">목표 금액 (₩M)</Label>
+                  <Label htmlFor="specialized-amount">목표 금액 (M)</Label>
                   {isEditMode ? (
                     <Input
                       id="specialized-amount"
@@ -561,7 +561,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-lg">
                         {planData.selfAssessment.axNodeCollaboration.amount ? 
-                          `₩${formatAmountM(planData.selfAssessment.axNodeCollaboration.amount)}` : 
+                          `${formatAmountM(planData.selfAssessment.axNodeCollaboration.amount)}` : 
                           "-"
                         }
                       </span>

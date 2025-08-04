@@ -280,7 +280,6 @@ export function LoginForm() {
 
           <div className="mt-8 text-center text-lg text-gray-500">
             <p>최초 로그인 시 기본 비밀번호는 <strong className="text-orange-600">3131</strong>입니다.</p>
-            <p className="mt-2">문의사항이 있으시면 Assurance DA로 연락해주세요.</p>
           </div>
         </CardContent>
       </Card>

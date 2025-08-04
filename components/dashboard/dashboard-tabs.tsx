@@ -361,8 +361,8 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                   </CardHeader>
                   <CardContent>
                     <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{businessGoal.hourly_revenue ? `₩ ${businessGoal.hourly_revenue.toLocaleString('ko-KR')}/h` : '₩ 0/h'}</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.hourly_revenue ? `₩ ${businessGoal.hourly_revenue.toLocaleString('ko-KR')}/h` : '₩ 0/h'}</div>
+                      <div className="text-2xl font-bold">{businessGoal.hourly_revenue ? `${businessGoal.hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
+                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.hourly_revenue ? `${businessGoal.hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
                     </div>
                     <Progress value={100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: 100%</div>
@@ -409,8 +409,8 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                   </CardHeader>
                   <CardContent>
                     <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{businessGoal.non_audit_hourly_revenue ? `₩ ${businessGoal.non_audit_hourly_revenue.toLocaleString('ko-KR')}/h` : '₩ 0/h'}</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.non_audit_hourly_revenue ? `₩ ${businessGoal.non_audit_hourly_revenue.toLocaleString('ko-KR')}/h` : '₩ 0/h'}</div>
+                      <div className="text-2xl font-bold">{businessGoal.non_audit_hourly_revenue ? `${businessGoal.non_audit_hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
+                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.non_audit_hourly_revenue ? `${businessGoal.non_audit_hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
                 </div>
                     <Progress value={100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: 100%</div>
@@ -526,9 +526,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.x_los_target_amount)}M</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(collabGoal.x_los_target_amount)}M</span>
                     </div>
-                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000))}M</div>
+                    <div className="text-2xl font-bold">{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000))}M</div>
                     <Progress value={(Math.floor(collabActuals.xlos.amount / 1_000_000) / collabGoal.x_los_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.xlos.amount / 1_000_000) / collabGoal.x_los_target_amount) * 100)}%</div>
                 </div>
@@ -555,9 +555,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.losllk_target_amount)}M</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(collabGoal.losllk_target_amount)}M</span>
                     </div>
-                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.los.amount / 1_000_000))}M</div>
+                    <div className="text-2xl font-bold">{formatNumber(Math.floor(collabActuals.los.amount / 1_000_000))}M</div>
                     <Progress value={(Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100)}%</div>
                 </div>
@@ -584,9 +584,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: ₩{formatNumber(collabGoal.ax_node_target_amount)}M</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(collabGoal.ax_node_target_amount)}M</span>
                     </div>
-                    <div className="text-2xl font-bold">₩{formatNumber(Math.floor(collabActuals.axnode.amount / 1_000_000))}M</div>
+                    <div className="text-2xl font-bold">{formatNumber(Math.floor(collabActuals.axnode.amount / 1_000_000))}M</div>
                     <Progress value={(Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100)}%</div>
                 </div>
@@ -633,10 +633,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                     <tr>
                       <td className="p-4 font-medium">총 협업 수익</td>
                       <td className="p-4 text-right font-bold text-2xl">
-                        ₩{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000))}M
+                        {formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000))}M
                       </td>
                       <td className="p-4 text-right text-muted-foreground">
-                        ₩{formatNumber(collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount)}M
+                        {formatNumber(collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount)}M
                       </td>
                       <td className="p-4 text-right">
                         {((Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000)) / (collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount) * 100).toFixed(1)}%

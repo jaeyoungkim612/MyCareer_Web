@@ -35,7 +35,7 @@ export function CollaborationMetrics() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span>Revenue Generated</span>
-                  <span className="font-medium">₩320M/₩500M</span>
+                  <span className="font-medium">320M/500M</span>
                 </div>
                 <Progress value={64} className="h-1.5" />
               </div>

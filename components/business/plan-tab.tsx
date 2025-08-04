@@ -559,7 +559,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 </div>
                 <span className="text-lg font-bold text-foreground mt-1 block">
                   {budgetData
-                    ? `₩${(Number(budgetData.budget_audit) + Number(budgetData.budget_non_audit)).toLocaleString('ko-KR')}`
+                    ? `${(Number(budgetData.budget_audit) + Number(budgetData.budget_non_audit)).toLocaleString('ko-KR')}M`
                     : "-"}
                 </span>
               </div>
@@ -570,7 +570,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <span className="text-sm text-foreground">감사 Budget</span>
                 </div>
                 <span className="text-lg font-bold text-foreground mt-1 block">
-                  {budgetData ? `₩${Number(budgetData.budget_audit).toLocaleString('ko-KR')}` : "-"}
+                  {budgetData ? `${Number(budgetData.budget_audit).toLocaleString('ko-KR')}M` : "-"}
                 </span>
                 {/* Audit Adjusted EM (실제 값 표시, M단위) */}
                 <div className="flex items-center gap-2 mt-4">
@@ -578,7 +578,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <span className="text-sm text-foreground">Audit Adjusted EM</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-lg font-bold text-foreground">{budgetData ? `₩${toMillionString(budgetData.current_audit_adjusted_em)}` : '-'}</span>
+                  <span className="text-lg font-bold text-foreground">{budgetData ? `${toMillionString(budgetData.current_audit_adjusted_em)}` : '-'}</span>
                 </div>
               </div>
               {/* 비감사서비스 Budget (DB에서, 원단위) */}
@@ -588,7 +588,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <span className="text-sm text-foreground">비감사서비스 Budget</span>
                 </div>
                 <span className="text-lg font-bold text-foreground mt-1 block">
-                  {budgetData ? `₩${Number(budgetData.budget_non_audit).toLocaleString('ko-KR')}` : "-"}
+                  {budgetData ? `${Number(budgetData.budget_non_audit).toLocaleString('ko-KR')}M` : "-"}
                 </span>
                 {/* Non Audit Adjusted EM (실제 값 표시, M단위) */}
                 <div className="flex items-center gap-2 mt-4">
@@ -596,7 +596,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <span className="text-sm text-foreground">Non Audit Adjusted EM</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-lg font-bold text-foreground">{budgetData ? `₩${toMillionString(budgetData.current_non_audit_adjusted_em)}` : '-'}</span>
+                  <span className="text-lg font-bold text-foreground">{budgetData ? `${toMillionString(budgetData.current_non_audit_adjusted_em)}` : '-'}</span>
                 </div>
               </div>
             </div>
@@ -658,7 +658,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Building2 className="h-4 w-4 text-orange-600" />
-                    <span className="text-lg font-bold">₩{Number(formData.newAuditAmount).toLocaleString("ko-KR")}M</span>
+                    <span className="text-lg font-bold">{Number(formData.newAuditAmount).toLocaleString("ko-KR")}M</span>
                   </div>
                 )}
               </div>
@@ -683,7 +683,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                       <span className="text-lg font-bold">/h</span>
                     </>
                   ) : (
-                    <span className="text-lg font-bold">₩ {Number(formData.hourlyRevenue).toLocaleString()}/h</span>
+                    <span className="text-lg font-bold">{Number(formData.hourlyRevenue).toLocaleString()}/h</span>
                   )}
                 </div>
               </div>
@@ -746,7 +746,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Building2 className="h-4 w-4 text-orange-600" />
-                    <span className="text-lg font-bold">₩{Number(formData.uiRevenueAmount).toLocaleString("ko-KR")}M</span>
+                    <span className="text-lg font-bold">{Number(formData.uiRevenueAmount).toLocaleString("ko-KR")}M</span>
                   </div>
                 )}
               </div>
@@ -772,7 +772,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                     </>
                   ) : (
                     <span className="text-lg font-bold">
-                      ₩ {Number(formData.nonAuditHourlyRevenue).toLocaleString()}/h
+                      {Number(formData.nonAuditHourlyRevenue).toLocaleString()}/h
                     </span>
                   )}
                 </div>
