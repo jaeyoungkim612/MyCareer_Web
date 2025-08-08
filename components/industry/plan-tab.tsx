@@ -159,8 +159,8 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
     }
     if (!formData) return
     
-    // Validation
-    if (!formData.goals.trim()) {
+    // 최종완료일 때만 validation 적용
+    if (status === '완료' && !formData.goals.trim()) {
       alert("Industry Goal을 입력해 주세요.")
       return
     }
@@ -284,16 +284,18 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleDraftSave} disabled={isLoading}>
-                <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "임시저장"}
-              </Button>
+              {currentStatus !== '완료' && (
+                <Button onClick={handleDraftSave} disabled={isLoading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {isLoading ? "Saving..." : "임시저장"}
+                </Button>
+              )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
                 {isLoading ? "Saving..." : "최종완료"}
               </Button>
             </>
-          ) : !readOnly && currentStatus !== '완료' ? (
+          ) : !readOnly ? (
             <Button onClick={() => setIsEditing(true)} disabled={isLoading}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
@@ -319,11 +321,11 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
                 <Textarea
                   value={formData?.goals || ""}
                   onChange={(e) => setFormData(f => f ? { ...f, goals: e.target.value } : f)}
-                  className="min-h-[100px] mb-2"
+                  className="min-h-[600px] mb-2"
                   placeholder="산업전문화 목표를 입력하세요"
                 />
               ) : (
-                <p className="text-sm">{formData?.goals || ""}</p>
+                <p className="text-sm whitespace-pre-line">{formData?.goals || ""}</p>
               )}
             </div>
           </CardContent>
@@ -365,7 +367,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Lightbulb className="h-4 w-4 text-orange-600" />
-                <label className="text-sm font-medium">Thought Leadership 활동을 통한 Revenue 연결 또는 성공</label>
+                <label className="text-sm font-medium">BD연계 Thought Leadership 계획</label>
               </div>
               <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                 {isEditing ? (
@@ -385,7 +387,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-orange-600" />
-                <label className="text-sm font-medium">산업별 감사 효율화/집중화의 기여도</label>
+                <label className="text-sm font-medium">산업별 감사 효율화/집중화</label>
               </div>
               <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                 {isEditing ? (
@@ -405,7 +407,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-orange-600" />
-                <label className="text-sm font-medium">산업전문화 활동 참여도</label>
+                <label className="text-sm font-medium">산업전문화 활동 참여</label>
               </div>
               <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                 {isEditing ? (

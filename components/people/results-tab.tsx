@@ -19,13 +19,10 @@ interface ResultsTabProps {
 }
 
 export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
-  const [isPerfEdit, setIsPerfEdit] = useState(false)
-  const [perfTier, setPerfTier] = useState("HP")
-  const [perfComment, setPerfComment] = useState(
+  const [perfTier] = useState("HP")
+  const [perfComment] = useState(
     "탁월한 리더십과 팀워크를 바탕으로 프로젝트를 성공적으로 이끌었으며, 동료들과의 소통 능력이 매우 뛰어납니다. 새로운 과제에 대한 빠른 적응력과 문제 해결 능력도 돋보입니다. 또한, 팀원들의 성장을 적극적으로 지원하며 긍정적인 조직 문화를 조성하는 데 큰 기여를 하였습니다."
   )
-  const [tempTier, setTempTier] = useState(perfTier)
-  const [tempComment, setTempComment] = useState(perfComment)
   
   // HR 정보 상태
   const [userInfo, setUserInfo] = useState<any>(null)
@@ -235,63 +232,25 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         {/* Upward Feedback Card */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-lg font-bold">성과평가</CardTitle>
-            {isPerfEdit ? (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => { setIsPerfEdit(false); setTempTier(perfTier); setTempComment(perfComment); }}>
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={() => { setIsPerfEdit(false); setPerfTier(tempTier); setPerfComment(tempComment); }}>
-                  Save
-                </Button>
-              </div>
-            ) : !readOnly ? (
-              <Button size="sm" onClick={() => setIsPerfEdit(true)}>
-                Edit
-              </Button>
-            ) : null}
+            <CardTitle className="text-lg font-bold">Upward Feedback</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-[120px_1fr]">
               {/* 티어 */}
               <div className="p-6 flex flex-col items-center justify-center border-r border-slate-200 dark:border-slate-600">
                 <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">Tier</div>
-                <div className={`w-14 h-14 ${getTierColor(isPerfEdit ? tempTier : perfTier)} rounded-full flex items-center justify-center shadow-lg`}>
+                <div className={`w-14 h-14 ${getTierColor(perfTier)} rounded-full flex items-center justify-center shadow-lg`}>
                   <span className="text-white font-bold text-xl">
-                    {isPerfEdit ? (
-                      <select
-                        className="bg-transparent text-white font-bold text-xl outline-none"
-                        value={tempTier}
-                        onChange={e => setTempTier(e.target.value)}
-                        style={{
-                          background: "transparent",
-                          color: "white",
-                          textAlign: "center",
-                          width: "56px"
-                        }}
-                      >
-                        <option style={{ color: "white", background: "#2563eb" }} value="EP">EP</option>
-                        <option style={{ color: "white", background: "#E76200" }} value="HP">HP</option>
-                        <option style={{ color: "white", background: "#f59e42" }} value="ME">ME</option>
-                      </select>
-                    ) : perfTier}
+                    {perfTier}
                   </span>
                 </div>
               </div>
               {/* 코멘트 */}
               <div className="p-6 flex flex-col">
                 <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">Comment</div>
-                {isPerfEdit ? (
-                  <Textarea
-                    value={tempComment}
-                    onChange={e => setTempComment(e.target.value)}
-                    className="min-h-[120px]"
-                  />
-                ) : (
-                  <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                    {perfComment}
-                  </div>
-                )}
+                <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                  {perfComment}
+                </div>
               </div>
             </div>
           </CardContent>

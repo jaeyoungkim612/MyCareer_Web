@@ -277,8 +277,8 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
       console.log('📊 Audit metrics:', auditMetrics)
       console.log('📄 Non-audit text:', nonAuditText)
       
-      // Validation
-      if (!goals.trim()) {
+      // 최종완료일 때만 validation 적용
+      if (status === '완료' && !goals.trim()) {
         alert("Quality Goal을 입력해 주세요.")
         setLoading(false)
         return
@@ -479,16 +479,18 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleDraftSave} disabled={loading}>
-                <Save className="mr-2 h-4 w-4" />
-                {loading ? "Saving..." : "임시저장"}
-              </Button>
+              {currentStatus !== '완료' && (
+                <Button onClick={handleDraftSave} disabled={loading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {loading ? "Saving..." : "임시저장"}
+                </Button>
+              )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={loading}>
                 <Save className="mr-2 h-4 w-4" />
                 {loading ? "Saving..." : "최종완료"}
               </Button>
             </>
-          ) : !readOnly && currentStatus !== '완료' ? (
+          ) : !readOnly ? (
             <Button onClick={handleEdit} disabled={loading}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
@@ -512,7 +514,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
             <div className="space-y-4">
               <div>
                 {isEditing ? (
-                  <Textarea value={goals} onChange={(e) => setGoals(e.target.value)} className="min-h-[60px]" />
+                  <Textarea value={goals} onChange={(e) => setGoals(e.target.value)} className="min-h-[600px]" />
                 ) : goals ? (
                   <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[60px] flex items-start">
                     <p className="text-sm whitespace-pre-line">{goals}</p>
@@ -618,6 +620,9 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
               <CardTitle className="flex items-center">
                 <TrendingUp className="mr-2 h-5 w-5 text-orange-600" />
                 비감사 목표
+                <span className="ml-2 font-normal text-muted-foreground">
+                  (비감사 Quality 향상, 효율화 계획, 신상품 개발 등)
+                </span>
               </CardTitle>
             </div>
           </CardHeader>

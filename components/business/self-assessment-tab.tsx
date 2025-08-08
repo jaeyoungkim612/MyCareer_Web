@@ -98,12 +98,18 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
 
   // Edit 진입 시 기존 값 세팅 (최신 comment 그대로, 없으면 default)
   const handleEditMid = () => {
-    setEditMid(midAssessment?.comment || defaultComment)
+    // 이미 편집 중이 아닐 때만 값을 설정
+    if (!isEditingMid) {
+      setEditMid(midAssessment?.comment || defaultComment)
+    }
     setIsEditingMid(true)
     setTabValueMid("edit")
   }
   const handleEditFinal = () => {
-    setEditFinal(finalAssessment?.comment || defaultComment)
+    // 이미 편집 중이 아닐 때만 값을 설정
+    if (!isEditingFinal) {
+      setEditFinal(finalAssessment?.comment || defaultComment)
+    }
     setIsEditingFinal(true)
     setTabValueFinal("edit")
   }
@@ -195,9 +201,13 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
     return lines.map((line, idx) => {
       const trimmed = line.trim();
       if (sectionTitles.includes(trimmed)) {
-        return <p key={idx} className="font-bold">{trimmed}</p>;
+        return <p key={idx} className="font-bold mt-4 first:mt-0">{trimmed}</p>;
       }
-      return <p key={idx} className="text-sm">{line}</p>;
+      // 빈 줄도 렌더링하여 줄바꿈 유지
+      if (line.trim() === '') {
+        return <div key={idx} className="h-4" />;
+      }
+      return <p key={idx} className="text-sm whitespace-pre-wrap">{line}</p>;
     });
   }
 
@@ -225,13 +235,12 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
               <TabsTrigger
                 value="view"
                 onClick={() => {
-                  setIsEditingMid(false)
                   setTabValueMid("view")
                 }}
               >
                 View
               </TabsTrigger>
-              {!readOnly && !midSubmitted && (
+              {!readOnly && (
                 <TabsTrigger value="edit" onClick={handleEditMid}>
                   Edit
                 </TabsTrigger>
@@ -242,7 +251,7 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
                 {renderSectionedView(midAssessment?.comment)}
               </div>
             </TabsContent>
-            {!readOnly && !midSubmitted && (
+            {!readOnly && (
               <TabsContent value="edit" className="space-y-6">
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
                   <Textarea
@@ -257,10 +266,12 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
                     <X className="mr-2 h-4 w-4" />
                     Cancel
                   </Button>
-                  <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
-                    <Save className="mr-2 h-4 w-4" />
-                    임시저장
-                  </Button>
+                  {!midSubmitted && (
+                    <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
+                      <Save className="mr-2 h-4 w-4" />
+                      임시저장
+                    </Button>
+                  )}
                   <Button onClick={() => handleSaveMid("submitted") } className="bg-green-600 text-white" disabled={loading}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     최종제출
@@ -290,7 +301,6 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
               <TabsTrigger
                 value="view"
                 onClick={() => {
-                  setIsEditingFinal(false)
                   setTabValueFinal("view")
                 }}
               >

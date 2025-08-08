@@ -5,6 +5,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { GSPService } from "@/lib/gsp-service"
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, user } = useAuth()
@@ -15,6 +16,23 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const publicPaths = ["/login", "/verify"]
   const isPublicPath = publicPaths.includes(pathname)
   const isSettingsPath = pathname === "/settings"
+  const isGSPInputPath = pathname === "/gsp-input"
+
+  // GSP 입력 필요 여부 체크 함수
+  const checkGSPInputNeeded = async () => {
+    if (!user?.empno) return
+
+    try {
+      const gspStatus = await GSPService.checkGSPStatus(user.empno)
+      
+      if (gspStatus.needsInput) {
+        console.log("🎯 AuthGuard: User needs GSP input, redirecting to /gsp-input")
+        router.push("/gsp-input")
+      }
+    } catch (error) {
+      console.error("❌ AuthGuard: Error checking GSP status:", error)
+    }
+  }
 
   useEffect(() => {
     // AuthContext가 로딩 중이면 아무것도 하지 않음
@@ -43,7 +61,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     // 🔐 인증된 사용자 중 비밀번호 변경이 필요한 사용자 체크
-    if (isAuthenticated && user && !isSettingsPath) {
+    if (isAuthenticated && user && !isSettingsPath && !isGSPInputPath) {
       if (user.is_password_changed === false) {
         console.log("🔄 AuthGuard: User needs password change, redirecting to /settings")
         router.push("/settings")
@@ -51,8 +69,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // 🎯 비밀번호 변경이 완료된 사용자의 GSP 입력 상태 체크
+    if (isAuthenticated && user && user.is_password_changed === true && !isGSPInputPath && !isSettingsPath) {
+      // GSP 입력 필요 여부 체크 (비동기)
+      checkGSPInputNeeded()
+    }
+
     console.log("🔄 AuthGuard: No redirect needed")
-  }, [isAuthenticated, isLoading, pathname, router, isPublicPath, user, isSettingsPath])
+  }, [isAuthenticated, isLoading, pathname, router, isPublicPath, user, isSettingsPath, isGSPInputPath])
 
   // AuthContext 로딩 중일 때
   if (isLoading) {

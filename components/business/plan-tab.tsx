@@ -50,6 +50,10 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     current_audit_adjusted_em: number;
     current_non_audit_adjusted_em: number;
   } | null>(null)
+  const [revenueData, setRevenueData] = useState<{
+    audit_revenue: number;
+    non_audit_revenue: number;
+  } | null>(null)
 
   // 현재 사용자 ID (props에서 받은 empno 또는 로그인한 사용자)
   const [currentEmployeeId, setCurrentEmployeeId] = useState<string>("")
@@ -112,6 +116,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
   useEffect(() => {
     if (currentEmployeeId) {
       fetchBudgetData(currentEmployeeId)
+      fetchRevenueData(currentEmployeeId)
     }
   }, [currentEmployeeId])
 
@@ -143,6 +148,35 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     } catch (e) {
       console.log("에러 발생:", e); // ← 이 줄 추가
       setBudgetData(null)
+    }
+  }
+
+  // L_Revenue_Table에서 Revenue 정보 가져오기 (사번 정규화)
+  const fetchRevenueData = async (empno: string) => {
+    try {
+      // ReviewerService import 및 사번 정규화
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log("Revenue 조회할 사번:", empno, "→", normalizedEmpno);
+      const { data, error } = await supabase
+        .from("L_Revenue_Table")
+        .select("`감사`, `비감사`")
+        .eq("`사번`", normalizedEmpno)
+        .maybeSingle()
+      console.log("Revenue Supabase 응답:", { data, error });
+      if (!error && data) {
+        console.log("받은 Revenue 데이터:", data);
+        setRevenueData({
+          audit_revenue: Number((data as any)['감사']) || 0,
+          non_audit_revenue: Number((data as any)['비감사']) || 0,
+        })
+      } else {
+        console.log("Revenue 데이터 없음 또는 에러");
+        setRevenueData(null)
+      }
+    } catch (e) {
+      console.log("Revenue 에러 발생:", e);
+      setRevenueData(null)
     }
   }
 
@@ -309,7 +343,8 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
       alert("사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.")
       return
     }
-    if (!formData.businessGoal.trim()) {
+    // 최종완료일 때만 validation 적용
+    if (status === '완료' && !formData.businessGoal.trim()) {
       alert("Business Goal을 입력해 주세요.");
       return;
     }
@@ -486,16 +521,18 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleDraftSave} disabled={isLoading}>
-                <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "임시저장"}
-              </Button>
+              {currentStatus !== '완료' && (
+                <Button onClick={handleDraftSave} disabled={isLoading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {isLoading ? "Saving..." : "임시저장"}
+                </Button>
+              )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
                 {isLoading ? "Saving..." : "최종완료"}
               </Button>
             </>
-          ) : !readOnly && currentStatus !== '완료' ? (
+          ) : !readOnly ? (
             <Button onClick={() => setIsEditing(true)} disabled={isLoading}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
@@ -526,14 +563,14 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                     value={formData.businessGoal}
                     onChange={handleChange}
                     placeholder="Describe your business strategy and goals..."
-                    className="min-h-[120px]"
+                    className="min-h-[600px]"
                   />
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
-                  <p className="text-sm">{formData.businessGoal || "목표가 설정되지 않았습니다."}</p>
+                  <p className="text-sm whitespace-pre-line">{formData.businessGoal || "목표가 설정되지 않았습니다."}</p>
                 </div>
               </div>
             )}
@@ -572,10 +609,18 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 <span className="text-lg font-bold text-foreground mt-1 block">
                   {budgetData ? `${Number(budgetData.budget_audit).toLocaleString('ko-KR')}M` : "-"}
                 </span>
+                {/* Audit Revenue (실제 값 표시, M단위) */}
+                <div className="flex items-center gap-2 mt-4">
+                  <FileText className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm text-foreground">감사 Revenue</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-lg font-bold text-foreground">{revenueData ? `${Number(revenueData.audit_revenue).toLocaleString('ko-KR')}M` : '0M'}</span>
+                </div>
                 {/* Audit Adjusted EM (실제 값 표시, M단위) */}
                 <div className="flex items-center gap-2 mt-4">
-                  <FileText className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm text-foreground">Audit Adjusted EM</span>
+                  <FileText className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm text-foreground">감사 Adjusted EM</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-lg font-bold text-foreground">{budgetData ? `${toMillionString(budgetData.current_audit_adjusted_em)}` : '-'}</span>
@@ -590,10 +635,18 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 <span className="text-lg font-bold text-foreground mt-1 block">
                   {budgetData ? `${Number(budgetData.budget_non_audit).toLocaleString('ko-KR')}M` : "-"}
                 </span>
+                {/* Non Audit Revenue (실제 값 표시, M단위) */}
+                <div className="flex items-center gap-2 mt-4">
+                  <BarChart3 className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm text-foreground">비감사서비스 Revenue</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-lg font-bold text-foreground">{revenueData ? `${Number(revenueData.non_audit_revenue).toLocaleString('ko-KR')}M` : '0M'}</span>
+                </div>
                 {/* Non Audit Adjusted EM (실제 값 표시, M단위) */}
                 <div className="flex items-center gap-2 mt-4">
-                  <BarChart3 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-foreground">Non Audit Adjusted EM</span>
+                  <BarChart3 className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm text-foreground">비감사서비스 Adjusted EM</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-lg font-bold text-foreground">{budgetData ? `${toMillionString(budgetData.current_non_audit_adjusted_em)}` : '-'}</span>

@@ -219,7 +219,8 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       alert("사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.")
       return
     }
-    if (!formData.comment.trim()) {
+    // 최종완료일 때만 validation 적용
+    if (status === '완료' && !formData.comment.trim()) {
       alert("People Goal을 입력해 주세요.")
       return
     }
@@ -354,16 +355,18 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleDraftSave} disabled={isLoading}>
-                <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "임시저장"}
-              </Button>
+              {currentStatus !== '완료' && (
+                <Button onClick={handleDraftSave} disabled={isLoading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {isLoading ? "Saving..." : "임시저장"}
+                </Button>
+              )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
                 {isLoading ? "Saving..." : "최종완료"}
               </Button>
             </>
-          ) : !readOnly && currentStatus !== '완료' ? (
+          ) : !readOnly ? (
             <Button onClick={() => setIsEditMode(true)} disabled={isLoading}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
@@ -393,14 +396,14 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     value={formData.comment}
                     onChange={(e) => handleInputChange("comment", e.target.value)}
                     placeholder="Provide your self assessment comments..."
-                    className="min-h-[120px]"
+                    className="min-h-[600px]"
                   />
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
-                  <p className="text-sm">{formData.comment?.trim() ? formData.comment : "목표가 설정되지 않았습니다."}</p>
+                  <p className="text-sm whitespace-pre-line">{formData.comment?.trim() ? formData.comment : "목표가 설정되지 않았습니다."}</p>
                 </div>
               </div>
             )}

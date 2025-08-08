@@ -15,18 +15,22 @@ import { AuthService } from "@/lib/auth-service"
 import { UserInfoMapper } from "@/data/user-info"
 import { ReviewerService, type UserRole } from "@/lib/reviewer-service"
 import { PerformanceScoresService, type PerformanceScore } from "@/lib/performance-scores-service"
+import { GSPService, type GSPData } from "@/lib/gsp-service"
 import { supabase } from "@/lib/supabase"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { TeamMemberDetailDialog } from "@/components/team-member-detail-dialog"
+import { ApprovalPanel } from "@/components/approval/approval-panel"
+import { RejectionNotification } from "@/components/rejection/rejection-notification"
 
 export default function Intro() {
   const [userInfo, setUserInfo] = useState<UserMasterInfo | null>(null)
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentEmpno, setCurrentEmpno] = useState<string>("")
+  const [gspData, setGspData] = useState<GSPData | null>(null)
   const [teamMemberInfo, setTeamMemberInfo] = useState<Map<string, UserMasterInfo>>(new Map())
   const [teamPlanAssessmentStatus, setTeamPlanAssessmentStatus] = useState<Map<string, TeamMemberStatus>>(new Map())
   const [employeePhotos, setEmployeePhotos] = useState<Map<string, string>>(new Map()) // 직원 사진 캐시
@@ -43,6 +47,9 @@ export default function Intro() {
     info: UserMasterInfo | null
     status: TeamMemberStatus | null
   } | null>(null)
+
+  // 반려 상태 관리
+  const [hasRejection, setHasRejection] = useState(false)
 
   // 팀원 Plan과 Self Assessment 상태 타입 정의
   interface PlanStatus {
@@ -432,6 +439,9 @@ export default function Intro() {
 
           // 현재 사용자에 대한 평가 피드백 로드
           await loadReviewerFeedback(currentUser.empno)
+          
+          // GSP 데이터 로드
+          await loadGSPData(currentUser.empno)
         } else {
           console.error("로그인된 사용자 정보가 없습니다.")
         }
@@ -560,6 +570,30 @@ export default function Intro() {
       console.error("Error loading reviewer feedback:", error)
     } finally {
       setIsLoadingFeedback(false)
+    }
+  }
+
+  // GSP 데이터 로드
+  const loadGSPData = async (empno: string) => {
+    try {
+      console.log("🔍 Loading GSP data for empno:", empno)
+      
+      const gspStatus = await GSPService.checkGSPStatus(empno)
+      
+      if (gspStatus.exists && gspStatus.data) {
+        setGspData(gspStatus.data)
+        console.log("✅ GSP data loaded:", {
+          status: gspStatus.data.STATUS,
+          hasGSP: !!gspStatus.data.GSP,
+          hasFocus30: !!gspStatus.data["Focus 30"]
+        })
+      } else {
+        console.log("ℹ️ No GSP data found for user")
+        setGspData(null)
+      }
+    } catch (error) {
+      console.error("❌ Error loading GSP data:", error)
+      setGspData(null)
     }
   }
 
@@ -735,21 +769,59 @@ export default function Intro() {
                       </div>
                     </div>
                   </div>
-                  {/* 오른쪽 컬럼: GSP, Forcus 30 */}
+                  {/* 오른쪽 컬럼: GSP, Focus 30 */}
                   <div className="space-y-4 flex flex-col justify-start">
                     <div className="flex flex-col items-start">
                       <div className="flex items-center space-x-1">
                         <div className="h-2 w-2 bg-yellow-500 rounded-full"></div>
                         <span className="text-xs font-bold">GSP</span>
+                        {gspData?.STATUS && gspData.STATUS !== '승인완료' && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs px-1 py-0 ${
+                              gspData.STATUS === '반려' 
+                                ? 'border-red-500 text-red-600 bg-red-50' 
+                                : gspData.STATUS === '승인대기'
+                                ? 'border-yellow-500 text-yellow-600 bg-yellow-50'
+                                : ''
+                            }`}
+                          >
+                            {gspData.STATUS}
+                          </Badge>
+                        )}
                       </div>
-                      <span className="text-xs text-muted-foreground mt-1">Global Strategic Projects</span>
+                      <span className="text-xs text-muted-foreground mt-1">
+                        {gspData?.GSP ? 
+                          (gspData.GSP.length > 50 ? gspData.GSP.substring(0, 50) + "..." : gspData.GSP) : 
+                          "미입력"
+                        }
+                      </span>
                     </div>
                     <div className="flex flex-col items-start">
                       <div className="flex items-center space-x-1">
                         <div className="h-2 w-2 bg-pink-500 rounded-full"></div>
-                        <span className="text-xs font-bold">Forcus 30</span>
+                        <span className="text-xs font-bold">Focus 30</span>
+                        {gspData?.STATUS && gspData.STATUS !== '승인완료' && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs px-1 py-0 ${
+                              gspData.STATUS === '반려' 
+                                ? 'border-red-500 text-red-600 bg-red-50' 
+                                : gspData.STATUS === '승인대기'
+                                ? 'border-yellow-500 text-yellow-600 bg-yellow-50'
+                                : ''
+                            }`}
+                          >
+                            {gspData.STATUS}
+                          </Badge>
+                        )}
                       </div>
-                      <span className="text-xs text-muted-foreground mt-1">2025년 선정</span>
+                      <span className="text-xs text-muted-foreground mt-1">
+                        {gspData?.["Focus 30"] ? 
+                          (gspData["Focus 30"].length > 50 ? gspData["Focus 30"].substring(0, 50) + "..." : gspData["Focus 30"]) : 
+                          "미입력"
+                        }
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1282,6 +1354,12 @@ export default function Intro() {
           }}
         />
       )}
+      
+      {/* 승인 요청 패널 (1차 Reviewer에게만 표시) */}
+      <ApprovalPanel hasRejection={hasRejection} />
+      
+      {/* 반려 알림 (반려당한 사용자에게만 표시) */}
+      <RejectionNotification onRejectionStatusChange={setHasRejection} />
     </div>
   )
 }

@@ -228,7 +228,8 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
     try {
       const empno = currentUser?.empno
       if (!empno) throw new Error("로그인 필요")
-      if (!formData.comment.trim()) {
+      // 최종완료일 때만 validation 적용
+      if (status === '완료' && !formData.comment.trim()) {
         alert("Collaboration Strategy를 입력해 주세요.")
         return
       }
@@ -346,16 +347,18 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleDraftSave} disabled={isLoading}>
-                <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "임시저장"}
-              </Button>
+              {currentStatus !== '완료' && (
+                <Button onClick={handleDraftSave} disabled={isLoading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {isLoading ? "Saving..." : "임시저장"}
+                </Button>
+              )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
                 {isLoading ? "Saving..." : "최종완료"}
               </Button>
             </>
-          ) : !readOnly && currentStatus !== '완료' ? (
+          ) : !readOnly ? (
             <Button onClick={() => setIsEditMode(true)} disabled={isLoading}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
@@ -381,13 +384,13 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                 value={formData.comment ?? ""}
                 onChange={(e) => handleInputChange("comment", e.target.value)}
                 placeholder="Describe your collaboration strategy and goals..."
-                className="min-h-[120px]"
+                className="min-h-[600px]"
               />
             ) : (
               <div className="space-y-4">
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
                   {planData.selfAssessment.comment ? (
-                    <p className="text-sm">{planData.selfAssessment.comment}</p>
+                    <p className="text-sm whitespace-pre-line">{planData.selfAssessment.comment}</p>
                   ) : (
                     <div className="text-muted-foreground italic">협업 전략과 목표를 입력하세요</div>
                   )}
