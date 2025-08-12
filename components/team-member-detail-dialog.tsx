@@ -590,7 +590,7 @@ export function TeamMemberDetailDialog({
                       <CardTitle className="text-base">현재 저장된 코멘트</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-base whitespace-pre-wrap">{existingFeedback.comment}</p>
+                      <p className="text-base whitespace-pre-line">{existingFeedback.comment}</p>
                       <div className="mt-2 text-sm text-muted-foreground">
                         작성일: {new Date(existingFeedback.created_at).toLocaleDateString('ko-KR')}
                       </div>

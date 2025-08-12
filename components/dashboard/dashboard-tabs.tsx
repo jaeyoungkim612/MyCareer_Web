@@ -28,8 +28,6 @@ import {
   Calendar,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getIndustrySummary } from "@/data/industry-metrics"
-import { industryActivities } from "@/data/industry-activities"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AuthService } from "@/lib/auth-service"
 import { BusinessGoalsService, type BusinessGoal } from "@/lib/business-goals-service"
@@ -55,6 +53,23 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
   const [peopleGoal, setPeopleGoal] = useState<PeopleGoal | null>(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleError, setPeopleError] = useState<string | null>(null)
+  
+  // 실제 People 데이터 (results-tab.tsx와 동일한 로직)
+  const [peopleActualData, setPeopleActualData] = useState<{
+    gpsScore: string | null
+    peiScore: string | null
+    coachingTimeHours: number
+    refreshOffUsageRate: number | null
+    utilAAverage: number | null
+    utilBAverage: number | null
+  }>({
+    gpsScore: null,
+    peiScore: null,
+    coachingTimeHours: 0,
+    refreshOffUsageRate: null,
+    utilAAverage: null,
+    utilBAverage: null
+  })
   const [collabGoal, setCollabGoal] = useState<CollaborationGoal | null>(null)
   const [collabActuals, setCollabActuals] = useState<{ xlos: { count: number, amount: number }, los: { count: number, amount: number }, axnode: { count: number, amount: number } } | null>(null)
   const [collabLoading, setCollabLoading] = useState(false)
@@ -105,8 +120,117 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
       setPeopleError(null)
       try {
         if (!targetEmpno) throw new Error("사용자 정보가 없습니다.")
-        const goal = await PeopleGoalsService.getLatestGoals(targetEmpno)
-        setPeopleGoal(goal)
+        
+        // 사번 정규화 (results-tab.tsx와 동일)
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
+        
+        // 병렬로 모든 데이터 가져오기
+        const [goalResult, scoreResult, refreshOffResult, coachingResult] = await Promise.all([
+          // 1. 목표 데이터
+          PeopleGoalsService.getLatestGoals(targetEmpno),
+          
+          // 2. GPS/PEI 실제 데이터
+          supabase
+            .from("L_GPS_PEI_Table")
+            .select("GPS, PEI")
+            .eq("EMPNO", fiveDigitEmpno)
+            .maybeSingle(),
+            
+          // 3. TL의 팀원들 조회 (Refresh Off, Util A/B 계산용)
+          supabase
+            .from("a_hr_master")
+            .select("EMPNO, EMPNM, CM_NM")
+            .eq("TL_EMPNO", normalizedEmpno),
+            
+          // 4. 코칭타임 실제 데이터
+          (async () => {
+            try {
+              const now = new Date()
+              const year = now.getFullYear()
+              const quarter = Math.ceil((now.getMonth() + 1) / 3)
+              const { quarterHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
+              return quarterHours
+            } catch {
+              return 0
+            }
+          })()
+        ])
+        
+        // 목표 데이터 설정
+        setPeopleGoal(goalResult)
+        
+        // GPS/PEI 실제 데이터 설정
+        const { data: scoreData } = scoreResult
+        let gpsScore = null, peiScore = null
+        if (scoreData) {
+          gpsScore = scoreData.GPS
+          peiScore = scoreData.PEI
+        }
+        
+        // 코칭타임 실제 데이터
+        const coachingTimeHours = coachingResult || 0
+        
+        // 팀원들 데이터로 Refresh Off, Util A/B 계산
+        const { data: teamMembers } = refreshOffResult
+        let refreshOffUsageRate = null, utilAAverage = null, utilBAverage = null
+        
+        if (teamMembers && teamMembers.length > 0) {
+          const teamEmpnos = teamMembers.map(member => member.EMPNO)
+          
+          // Refresh Off 계산
+          const { data: leaveData } = await supabase
+            .from("a_leave_info")
+            .select("EMPNO, SUM_TIME, RMN_TIME")
+            .in("EMPNO", teamEmpnos)
+            .order("BASE_YMD", { ascending: false })
+          
+          if (leaveData && leaveData.length > 0) {
+            // 각 사번별 최신 데이터만 추출
+            const latestLeaveData = teamEmpnos.map(empno => {
+              const memberLeave = leaveData.find(leave => leave.EMPNO === empno)
+              return memberLeave || { EMPNO: empno, SUM_TIME: 0, RMN_TIME: 0 }
+            })
+            
+            let totalSumTime = 0, totalRmnTime = 0
+            latestLeaveData.forEach(leave => {
+              totalSumTime += parseFloat(leave.SUM_TIME || 0) || 0
+              totalRmnTime += parseFloat(leave.RMN_TIME || 0) || 0
+            })
+            
+            const totalUsedTime = totalSumTime - totalRmnTime
+            refreshOffUsageRate = totalSumTime > 0 ? Math.round((totalUsedTime / totalSumTime) * 100 * 100) / 100 : 0
+          }
+          
+          // Util A/B 계산
+          const { data: utilData } = await supabase
+            .from("v_employee_core")
+            .select("EMPNO, UTIL_A, UTIL_B")
+            .in("EMPNO", teamEmpnos)
+          
+          if (utilData && utilData.length > 0) {
+            const validUtilA = utilData.filter(item => item.UTIL_A !== null && item.UTIL_A !== "")
+            const validUtilB = utilData.filter(item => item.UTIL_B !== null && item.UTIL_B !== "")
+            
+            const utilASum = validUtilA.reduce((sum, item) => sum + (parseFloat(item.UTIL_A) || 0), 0)
+            const utilBSum = validUtilB.reduce((sum, item) => sum + (parseFloat(item.UTIL_B) || 0), 0)
+            
+            utilAAverage = validUtilA.length > 0 ? Math.round((utilASum / validUtilA.length) * 100) / 100 : 0
+            utilBAverage = validUtilB.length > 0 ? Math.round((utilBSum / validUtilB.length) * 100) / 100 : 0
+          }
+        }
+        
+        // 실제 데이터 설정
+        setPeopleActualData({
+          gpsScore,
+          peiScore,
+          coachingTimeHours,
+          refreshOffUsageRate,
+          utilAAverage,
+          utilBAverage
+        })
+        
       } catch (e: any) {
         setPeopleError(e.message || String(e))
       } finally {
@@ -322,103 +446,257 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
           <div className="p-8 text-center text-gray-500">입력된 목표 데이터가 없습니다.</div>
         ) : (
             <div className="space-y-8">
-              {/* 감사 */}
+              {/* TBA 기준 요약 테이블 */}
               <div>
-                <div className="flex items-center mb-3">
+                <div className="flex items-center mb-4">
                   <FileText className="mr-2 h-5 w-5 text-orange-600" />
-                  <span className="text-lg font-bold">Audit</span>
+                  <span className="text-lg font-bold">TBA 기준 요약</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-semibold">신규 감사 건수</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{budgetData?.audit_pjt_count ?? 0}건</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.new_audit_count ?? 0}건</div>
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted">
+                            <TableHead className="w-[100px]">구분</TableHead>
+                            <TableHead className="text-center border-r" colSpan={3}>My Budget</TableHead>
+                            <TableHead className="text-center" colSpan={3}>Team Budget</TableHead>
+                          </TableRow>
+                          <TableRow className="bg-muted/50">
+                            <TableHead></TableHead>
+                            <TableHead className="text-center text-xs">실적</TableHead>
+                            <TableHead className="text-center text-xs">예산</TableHead>
+                            <TableHead className="text-center text-xs border-r">달성률</TableHead>
+                            <TableHead className="text-center text-xs">실적</TableHead>
+                            <TableHead className="text-center text-xs">예산</TableHead>
+                            <TableHead className="text-center text-xs">달성률</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-semibold text-gray-800">감사</TableCell>
+                            <TableCell className="text-center font-medium">
+                              {((budgetData?.current_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {(budgetData?.budget_audit ?? 0).toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center border-r">
+                              <Badge className={
+                                (((budgetData?.current_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100) >= 100 
+                                ? "bg-green-500" 
+                                : (((budgetData?.current_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {Math.round(((budgetData?.current_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {((budgetData?.dept_revenue_audit ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {(budgetData?.dept_budget_audit ?? 0).toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={
+                                (((budgetData?.dept_revenue_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100) >= 100 
+                                ? "bg-green-500" 
+                                : (((budgetData?.dept_revenue_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {Math.round(((budgetData?.dept_revenue_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100)}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-semibold text-gray-800">비감사</TableCell>
+                            <TableCell className="text-center font-medium">
+                              {((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {(budgetData?.budget_non_audit ?? 0).toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center border-r">
+                              <Badge className={
+                                (((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100) >= 100 
+                                ? "bg-green-500" 
+                                : (((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {Math.round(((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {(budgetData?.dept_budget_non_audit ?? 0).toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={
+                                (((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100) >= 100 
+                                ? "bg-green-500" 
+                                : (((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {Math.round(((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100)}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-t-2 bg-muted/20">
+                            <TableCell className="font-bold text-gray-900">총합</TableCell>
+                            <TableCell className="text-center font-bold">
+                              {(((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-bold">
+                              {((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)).toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center border-r">
+                              <Badge className={
+                                ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100) >= 100 
+                                ? "bg-green-500" 
+                                : ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {Math.round(((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100))}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center font-bold">
+                              {(((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-bold">
+                              {((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)).toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={
+                                ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100) >= 100 
+                                ? "bg-green-500" 
+                                : ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {Math.round(((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100))}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
                     </div>
-                    <Progress value={businessGoal.new_audit_count ? Math.min(Math.round((budgetData?.audit_pjt_count ?? 0) / businessGoal.new_audit_count * 100), 100) : 0} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: {businessGoal.new_audit_count ? Math.round((budgetData?.audit_pjt_count ?? 0) / businessGoal.new_audit_count * 100) : 0}%</div>
                   </CardContent>
                 </Card>
-                <Card className="h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-semibold">신규 BD 금액</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{((budgetData?.audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.new_audit_amount?.toLocaleString('ko-KR')}M</div>
-                    </div>
-                    <Progress value={businessGoal.new_audit_amount ? Math.min(Math.round(((budgetData?.audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.new_audit_amount * 100), 100) : 0} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: {businessGoal.new_audit_amount ? Math.round(((budgetData?.audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.new_audit_amount * 100) : 0}%</div>
-                  </CardContent>
-                </Card>
-                <Card className="h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-semibold">시간 당 Revenue (만원)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{businessGoal.hourly_revenue ? `${businessGoal.hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.hourly_revenue ? `${businessGoal.hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
-                    </div>
-                    <Progress value={100} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: 100%</div>
-                  </CardContent>
-                </Card>
-                </div>
               </div>
-              {/* 비감사 */}
+
+              {/* 계약금액 기준 요약 테이블 */}
               <div>
-                <div className="flex items-center mb-3">
+                <div className="flex items-center mb-4">
                   <BarChart3 className="mr-2 h-5 w-5 text-blue-600" />
-                  <span className="text-lg font-bold">Non-Audit</span>
+                  <span className="text-lg font-bold">계약금액 기준 요약</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-semibold">UI Revenue 건수</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{budgetData?.non_audit_pjt_count ?? 0}건</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.ui_revenue_count ?? 0}건</div>
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted">
+                            <TableHead className="w-[200px]">구분</TableHead>
+                            <TableHead className="text-center">실적</TableHead>
+                            <TableHead className="text-center">목표</TableHead>
+                            <TableHead className="text-center">달성률</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-semibold text-gray-800">신규 감사 건수</TableCell>
+                            <TableCell className="text-center font-medium">
+                              {budgetData?.audit_pjt_count ?? 0}건
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {businessGoal.new_audit_count ?? 0}건
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={
+                                (businessGoal.new_audit_count ? Math.round((budgetData?.audit_pjt_count ?? 0) / businessGoal.new_audit_count * 100) : 0) >= 100 
+                                ? "bg-green-500" 
+                                : (businessGoal.new_audit_count ? Math.round((budgetData?.audit_pjt_count ?? 0) / businessGoal.new_audit_count * 100) : 0) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {businessGoal.new_audit_count ? Math.round((budgetData?.audit_pjt_count ?? 0) / businessGoal.new_audit_count * 100) : 0}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-semibold text-gray-800">신규 감사 BD 금액</TableCell>
+                            <TableCell className="text-center font-medium">
+                              {((budgetData?.audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {businessGoal.new_audit_amount?.toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={
+                                (businessGoal.new_audit_amount ? Math.round(((budgetData?.audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.new_audit_amount * 100) : 0) >= 100 
+                                ? "bg-green-500" 
+                                : (businessGoal.new_audit_amount ? Math.round(((budgetData?.audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.new_audit_amount * 100) : 0) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {businessGoal.new_audit_amount ? Math.round(((budgetData?.audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.new_audit_amount * 100) : 0}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-semibold text-gray-800">신규 비감사서비스 건수</TableCell>
+                            <TableCell className="text-center font-medium">
+                              {budgetData?.non_audit_pjt_count ?? 0}건
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {businessGoal.ui_revenue_count ?? 0}건
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={
+                                (businessGoal.ui_revenue_count ? Math.round((budgetData?.non_audit_pjt_count ?? 0) / businessGoal.ui_revenue_count * 100) : 0) >= 100 
+                                ? "bg-green-500" 
+                                : (businessGoal.ui_revenue_count ? Math.round((budgetData?.non_audit_pjt_count ?? 0) / businessGoal.ui_revenue_count * 100) : 0) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {businessGoal.ui_revenue_count ? Math.round((budgetData?.non_audit_pjt_count ?? 0) / businessGoal.ui_revenue_count * 100) : 0}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-semibold text-gray-800">신규 비감사서비스 BD 금액</TableCell>
+                            <TableCell className="text-center font-medium">
+                              {((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {businessGoal.ui_revenue_amount?.toLocaleString('ko-KR')}M
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={
+                                (businessGoal.ui_revenue_amount ? Math.round(((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.ui_revenue_amount * 100) : 0) >= 100 
+                                ? "bg-green-500" 
+                                : (businessGoal.ui_revenue_amount ? Math.round(((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.ui_revenue_amount * 100) : 0) >= 80 
+                                ? "bg-orange-500" 
+                                : "bg-red-500"
+                              }>
+                                {businessGoal.ui_revenue_amount ? Math.round(((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.ui_revenue_amount * 100) : 0}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
                     </div>
-                    <Progress value={businessGoal.ui_revenue_count ? Math.min(Math.round((budgetData?.non_audit_pjt_count ?? 0) / businessGoal.ui_revenue_count * 100), 100) : 0} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: {businessGoal.ui_revenue_count ? Math.round((budgetData?.non_audit_pjt_count ?? 0) / businessGoal.ui_revenue_count * 100) : 0}%</div>
-                  </CardContent>
-                </Card>
-                <Card className="h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-semibold">UI Revenue 계약금액</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.ui_revenue_amount?.toLocaleString('ko-KR')}M</div>
-                    </div>
-                    <Progress value={businessGoal.ui_revenue_amount ? Math.min(Math.round(((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.ui_revenue_amount * 100), 100) : 0} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: {businessGoal.ui_revenue_amount ? Math.round(((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000) / businessGoal.ui_revenue_amount * 100) : 0}%</div>
-                  </CardContent>
-                </Card>
-                <Card className="h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-semibold">시간 당 Revenue (만원)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-end mb-1">
-                      <div className="text-2xl font-bold">{businessGoal.non_audit_hourly_revenue ? `${businessGoal.non_audit_hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
-                      <div className="text-xs text-muted-foreground text-right">목표: {businessGoal.non_audit_hourly_revenue ? `${businessGoal.non_audit_hourly_revenue.toLocaleString('ko-KR')}/h` : '0/h'}</div>
-                </div>
-                    <Progress value={100} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: 100%</div>
                   </CardContent>
                 </Card>
               </div>
             </div>
-          </div>
         )}
       </TabsContent>
 
@@ -431,66 +709,148 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         ) : !peopleGoal ? (
           <div className="p-8 text-center text-gray-500">입력된 People 데이터가 없습니다.</div>
         ) : (
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* GPS Score Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">GPS Score</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-end mb-1">
-                    <div className="text-2xl font-bold">{peopleGoal.gps_score}/10</div>
-                    <div className="text-xs text-muted-foreground text-right">목표: 10</div>
-                </div>
-                  <Progress value={(peopleGoal.gps_score / 10) * 100} className="h-2 mt-2" />
-                  <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((peopleGoal.gps_score / 10) * 100)}%</div>
-              </CardContent>
-            </Card>
-            {/* PEI Score Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">PEI Score</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-end mb-1">
-                    <div className="text-2xl font-bold">{peopleGoal.pei_score}/10</div>
-                    <div className="text-xs text-muted-foreground text-right">목표: 10</div>
-                </div>
-                  <Progress value={(peopleGoal.pei_score / 10) * 100} className="h-2 mt-2" />
-                  <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((peopleGoal.pei_score / 10) * 100)}%</div>
-              </CardContent>
-            </Card>
-            {/* Staff Coaching Time Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">Staff Coaching Time</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-end mb-1">
-                    <div className="text-2xl font-bold">{peopleGoal.coaching_time ?? 0} 시간</div>
-                    <div className="text-xs text-muted-foreground text-right">목표: 40 시간</div>
-                </div>
-                  <Progress value={((peopleGoal.coaching_time ?? 0) / 40) * 100} className="h-2 mt-2" />
-                  <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round(((peopleGoal.coaching_time ?? 0) / 40) * 100)}%</div>
-              </CardContent>
-            </Card>
-            {/* Refresh Off Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">Refresh Off 사용률(%)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-end mb-1">
-                    <div className="text-2xl font-bold">{peopleGoal.refresh_off_usage_rate ?? 0}%</div>
-                    <div className="text-xs text-muted-foreground text-right">목표: 100%</div>
-                </div>
-                  <Progress value={peopleGoal.refresh_off_usage_rate ?? 0} className="h-2 mt-2" />
-                  <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round(peopleGoal.refresh_off_usage_rate ?? 0)}%</div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                 <div className="space-y-4">
+           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+             {/* Util A Card */}
+             <Card>
+               <CardHeader className="pb-2">
+                 <CardTitle className="text-base font-semibold">Util A</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="flex justify-between items-end mb-1">
+                     <div className="text-2xl font-bold">
+                       {peopleActualData.utilAAverage !== null ? `${peopleActualData.utilAAverage}%` : '-%'}
+                     </div>
+                     <div className="text-xs text-muted-foreground text-right">팀 평균</div>
+                 </div>
+                 <div className="space-y-2">
+                   <div className="flex justify-between text-xs">
+                     <span>평균: {peopleActualData.utilAAverage !== null ? `${peopleActualData.utilAAverage}%` : '-%'}</span>
+                     <span>기준: 100%</span>
+                   </div>
+                   <Progress value={peopleActualData.utilAAverage !== null ? Math.min(peopleActualData.utilAAverage, 100) : 0} className="h-1.5" />
+                 </div>
+               </CardContent>
+             </Card>
+             {/* Util B Card */}
+             <Card>
+               <CardHeader className="pb-2">
+                 <CardTitle className="text-base font-semibold">Util B</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="flex justify-between items-end mb-1">
+                     <div className="text-2xl font-bold">
+                       {peopleActualData.utilBAverage !== null ? `${peopleActualData.utilBAverage}%` : '-%'}
+                     </div>
+                     <div className="text-xs text-muted-foreground text-right">팀 평균</div>
+                 </div>
+                 <div className="space-y-2">
+                   <div className="flex justify-between text-xs">
+                     <span>평균: {peopleActualData.utilBAverage !== null ? `${peopleActualData.utilBAverage}%` : '-%'}</span>
+                     <span>기준: 100%</span>
+                   </div>
+                   <Progress value={peopleActualData.utilBAverage !== null ? Math.min(peopleActualData.utilBAverage, 100) : 0} className="h-1.5" />
+                 </div>
+               </CardContent>
+             </Card>
+             {/* GPS Score Card */}
+             <Card>
+               <CardHeader className="pb-2">
+                 <CardTitle className="text-base font-semibold">GPS Score</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="flex justify-between items-end mb-1">
+                     <div className="text-2xl font-bold">
+                       {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-%'}
+                     </div>
+                     <div className="text-xs text-muted-foreground text-right">FY25 기준</div>
+                 </div>
+                 <div className="space-y-2">
+                   <div className="flex justify-between text-xs">
+                     <span>실제: {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-'}</span>
+                     <span>목표: {peopleGoal?.gps_score || '-'}%</span>
+                   </div>
+                   <Progress value={
+                     peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' && peopleGoal?.gps_score 
+                     ? Math.min(Math.round((parseFloat(peopleActualData.gpsScore) * 100) / peopleGoal.gps_score * 100), 100) 
+                     : 0
+                   } className="h-1.5" />
+                 </div>
+               </CardContent>
+             </Card>
+             {/* PEI Score Card */}
+             <Card>
+               <CardHeader className="pb-2">
+                 <CardTitle className="text-base font-semibold">PEI Score</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="flex justify-between items-end mb-1">
+                     <div className="text-2xl font-bold">
+                       {peopleActualData.peiScore && peopleActualData.peiScore !== '-' ? `${Math.round(parseFloat(peopleActualData.peiScore) * 100)}%` : '-%'}
+                     </div>
+                     <div className="text-xs text-muted-foreground text-right">FY25 기준</div>
+                 </div>
+                 <div className="space-y-2">
+                   <div className="flex justify-between text-xs">
+                     <span>실제: {peopleActualData.peiScore && peopleActualData.peiScore !== '-' ? `${Math.round(parseFloat(peopleActualData.peiScore) * 100)}%` : '-'}</span>
+                     <span>목표: {peopleGoal?.pei_score || '-'}%</span>
+                   </div>
+                   <Progress value={
+                     peopleActualData.peiScore && peopleActualData.peiScore !== '-' && peopleGoal?.pei_score 
+                     ? Math.min(Math.round((parseFloat(peopleActualData.peiScore) * 100) / peopleGoal.pei_score * 100), 100) 
+                     : 0
+                   } className="h-1.5" />
+                 </div>
+               </CardContent>
+             </Card>
+             {/* Staff Coaching Time Card */}
+             <Card>
+               <CardHeader className="pb-2">
+                 <CardTitle className="text-base font-semibold">Staff Coaching Time</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="flex justify-between items-end mb-1">
+                     <div className="text-2xl font-bold">{peopleActualData.coachingTimeHours > 0 ? `${peopleActualData.coachingTimeHours} 시간` : '- 시간'}</div>
+                     <div className="text-xs text-muted-foreground text-right">목표: {peopleGoal?.coaching_time || 40} 시간</div>
+                 </div>
+                 <div className="space-y-2">
+                   <div className="flex justify-between text-xs">
+                     <span>실제: {peopleActualData.coachingTimeHours > 0 ? `${peopleActualData.coachingTimeHours} 시간` : '- 시간'}</span>
+                     <span>목표: {peopleGoal?.coaching_time || 40} 시간</span>
+                   </div>
+                   <Progress value={
+                     peopleActualData.coachingTimeHours > 0 && peopleGoal?.coaching_time 
+                     ? Math.min(Math.round((peopleActualData.coachingTimeHours / peopleGoal.coaching_time) * 100), 100) 
+                     : 0
+                   } className="h-1.5" />
+                 </div>
+               </CardContent>
+             </Card>
+             {/* Refresh Off Card */}
+             <Card>
+               <CardHeader className="pb-2">
+                 <CardTitle className="text-base font-semibold">Refresh Off 사용률(%)</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="flex justify-between items-end mb-1">
+                     <div className="text-2xl font-bold">{peopleActualData.refreshOffUsageRate !== null ? `${peopleActualData.refreshOffUsageRate}%` : '-%'}</div>
+                     <div className="text-xs text-muted-foreground text-right">목표: {peopleGoal?.refresh_off_usage_rate || 100}%</div>
+                 </div>
+                 <div className="space-y-2">
+                   <div className="flex justify-between text-xs">
+                     <span>실제: {peopleActualData.refreshOffUsageRate !== null ? `${peopleActualData.refreshOffUsageRate}%` : '-%'}</span>
+                     <span>목표: {peopleGoal?.refresh_off_usage_rate || 100}%</span>
+                   </div>
+                   <Progress value={
+                     peopleActualData.refreshOffUsageRate !== null && peopleGoal?.refresh_off_usage_rate 
+                     ? Math.min(Math.round((peopleActualData.refreshOffUsageRate / peopleGoal.refresh_off_usage_rate) * 100), 100) 
+                     : peopleActualData.refreshOffUsageRate !== null ? peopleActualData.refreshOffUsageRate : 0
+                   } className="h-1.5" />
+                 </div>
+               </CardContent>
+             </Card>
+           </div>
+         </div>
         )}
       </TabsContent>
 

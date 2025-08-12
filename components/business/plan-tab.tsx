@@ -50,10 +50,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     current_audit_adjusted_em: number;
     current_non_audit_adjusted_em: number;
   } | null>(null)
-  const [revenueData, setRevenueData] = useState<{
-    audit_revenue: number;
-    non_audit_revenue: number;
-  } | null>(null)
+
 
   // 현재 사용자 ID (props에서 받은 empno 또는 로그인한 사용자)
   const [currentEmployeeId, setCurrentEmployeeId] = useState<string>("")
@@ -69,10 +66,8 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     businessGoal: "",
     newAuditCount: "0",
     newAuditAmount: "0",
-    hourlyRevenue: "0",
     uiRevenueCount: "0",
     uiRevenueAmount: "0",
-    nonAuditHourlyRevenue: "0",
   })
 
   // 천 단위 콤마 함수 (이것만 남기세요!)
@@ -116,7 +111,6 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
   useEffect(() => {
     if (currentEmployeeId) {
       fetchBudgetData(currentEmployeeId)
-      fetchRevenueData(currentEmployeeId)
     }
   }, [currentEmployeeId])
 
@@ -151,34 +145,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     }
   }
 
-  // L_Revenue_Table에서 Revenue 정보 가져오기 (사번 정규화)
-  const fetchRevenueData = async (empno: string) => {
-    try {
-      // ReviewerService import 및 사번 정규화
-      const { ReviewerService } = await import("@/lib/reviewer-service")
-      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
-      console.log("Revenue 조회할 사번:", empno, "→", normalizedEmpno);
-      const { data, error } = await supabase
-        .from("L_Revenue_Table")
-        .select("`감사`, `비감사`")
-        .eq("`사번`", normalizedEmpno)
-        .maybeSingle()
-      console.log("Revenue Supabase 응답:", { data, error });
-      if (!error && data) {
-        console.log("받은 Revenue 데이터:", data);
-        setRevenueData({
-          audit_revenue: Number((data as any)['감사']) || 0,
-          non_audit_revenue: Number((data as any)['비감사']) || 0,
-        })
-      } else {
-        console.log("Revenue 데이터 없음 또는 에러");
-        setRevenueData(null)
-      }
-    } catch (e) {
-      console.log("Revenue 에러 발생:", e);
-      setRevenueData(null)
-    }
-  }
+
 
   const loadUserInfoAndInitialize = async () => {
     console.log("🔍 BusinessPlanTab: Quick initialization...")
@@ -275,19 +242,15 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
           businessGoal: data.business_goal || "",
           newAuditCount: data.new_audit_count?.toString() || "0",
           newAuditAmount: data.new_audit_amount?.toString() || "0",
-          hourlyRevenue: data.hourly_revenue?.toString() || "0",
           uiRevenueCount: data.ui_revenue_count?.toString() || "0",
           uiRevenueAmount: data.ui_revenue_amount?.toString() || "0",
-          nonAuditHourlyRevenue: data.non_audit_hourly_revenue?.toString() || "0",
         });
         setOriginalData({
           businessGoal: data.business_goal || "",
           newAuditCount: data.new_audit_count?.toString() || "0",
           newAuditAmount: data.new_audit_amount?.toString() || "0",
-          hourlyRevenue: data.hourly_revenue?.toString() || "0",
           uiRevenueCount: data.ui_revenue_count?.toString() || "0",
           uiRevenueAmount: data.ui_revenue_amount?.toString() || "0",
-          nonAuditHourlyRevenue: data.non_audit_hourly_revenue?.toString() || "0",
         });
         // Set status from database
         setCurrentStatus(data.status || 'Draft');
@@ -321,17 +284,11 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     if (formData.newAuditAmount !== originalData.newAuditAmount) {
       changes.new_audit_amount = Number(formData.newAuditAmount.replace(/,/g, "")) || 0
     }
-    if (formData.hourlyRevenue !== originalData.hourlyRevenue) {
-      changes.hourly_revenue = Number(formData.hourlyRevenue.replace(/,/g, "")) || 0
-    }
     if (formData.uiRevenueCount !== originalData.uiRevenueCount) {
       changes.ui_revenue_count = Number(formData.uiRevenueCount.replace(/,/g, "")) || 0
     }
     if (formData.uiRevenueAmount !== originalData.uiRevenueAmount) {
       changes.ui_revenue_amount = Number(formData.uiRevenueAmount.replace(/,/g, "")) || 0
-    }
-    if (formData.nonAuditHourlyRevenue !== originalData.nonAuditHourlyRevenue) {
-      changes.non_audit_hourly_revenue = Number(formData.nonAuditHourlyRevenue.replace(/,/g, "")) || 0
     }
 
     console.log("Detected changes:", changes)
@@ -343,7 +300,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
       alert("사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.")
       return
     }
-    // 최종완료일 때만 validation 적용
+    // 제출일 때만 validation 적용
     if (status === '완료' && !formData.businessGoal.trim()) {
       alert("Business Goal을 입력해 주세요.");
       return;
@@ -360,10 +317,8 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
         business_goal: formData.businessGoal,
         new_audit_count: Number(formData.newAuditCount || 0),
         new_audit_amount: Number(formData.newAuditAmount || 0),
-        hourly_revenue: Number(formData.hourlyRevenue || 0),
         ui_revenue_count: Number(formData.uiRevenueCount || 0),
         ui_revenue_amount: Number(formData.uiRevenueAmount || 0),
-        non_audit_hourly_revenue: Number(formData.nonAuditHourlyRevenue || 0),
         status: status,
         updated_at: new Date().toISOString()
       }
@@ -380,7 +335,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
         const month = now.getMonth() + 1
         const day = now.getDate()
         setLastUpdated(`${year}년 ${month}월 ${day}일`)
-        alert(status === '작성중' ? "임시저장 완료!" : "최종완료 저장!")
+        alert(status === '작성중' ? "임시저장 완료!" : "제출 완료!")
       } else {
         throw new Error(error.message)
       }
@@ -411,7 +366,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
         {currentStatus === '완료' ? (
           <Badge className="bg-green-500 text-white">
             <CheckCircle2 className="mr-1 h-3 w-3" />
-            완료
+            제출
           </Badge>
         ) : currentStatus === '작성중' ? (
           <Badge className="bg-orange-500 text-white">
@@ -450,15 +405,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     return `${(num / 1_000_000).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}M`
   }
 
-  // 백만(M) 단위 변환 함수
-  const toMillionString = (value: number | string) => {
-    const num = Number(value);
-    if (isNaN(num)) return '-';
-    if (num < 0) {
-      return `(-)${Math.abs(num / 1_000_000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}M`;
-    }
-    return `${(num / 1_000_000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}M`;
-  };
+
 
   // 초기화 중일 때 (빠른 로딩)
   if (isInitializing) {
@@ -529,7 +476,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
               )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "최종완료"}
+                {isLoading ? "Saving..." : "제출"}
               </Button>
             </>
           ) : !readOnly ? (
@@ -609,22 +556,6 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 <span className="text-lg font-bold text-foreground mt-1 block">
                   {budgetData ? `${Number(budgetData.budget_audit).toLocaleString('ko-KR')}M` : "-"}
                 </span>
-                {/* Audit Revenue (실제 값 표시, M단위) */}
-                <div className="flex items-center gap-2 mt-4">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-foreground">감사 Revenue</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-lg font-bold text-foreground">{revenueData ? `${Number(revenueData.audit_revenue).toLocaleString('ko-KR')}M` : '0M'}</span>
-                </div>
-                {/* Audit Adjusted EM (실제 값 표시, M단위) */}
-                <div className="flex items-center gap-2 mt-4">
-                  <FileText className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm text-foreground">감사 Adjusted EM</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-lg font-bold text-foreground">{budgetData ? `${toMillionString(budgetData.current_audit_adjusted_em)}` : '-'}</span>
-                </div>
               </div>
               {/* 비감사서비스 Budget (DB에서, 원단위) */}
               <div className="text-left">
@@ -635,22 +566,6 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 <span className="text-lg font-bold text-foreground mt-1 block">
                   {budgetData ? `${Number(budgetData.budget_non_audit).toLocaleString('ko-KR')}M` : "-"}
                 </span>
-                {/* Non Audit Revenue (실제 값 표시, M단위) */}
-                <div className="flex items-center gap-2 mt-4">
-                  <BarChart3 className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-foreground">비감사서비스 Revenue</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-lg font-bold text-foreground">{revenueData ? `${Number(revenueData.non_audit_revenue).toLocaleString('ko-KR')}M` : '0M'}</span>
-                </div>
-                {/* Non Audit Adjusted EM (실제 값 표시, M단위) */}
-                <div className="flex items-center gap-2 mt-4">
-                  <BarChart3 className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm text-foreground">비감사서비스 Adjusted EM</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-lg font-bold text-foreground">{budgetData ? `${toMillionString(budgetData.current_non_audit_adjusted_em)}` : '-'}</span>
-                </div>
               </div>
             </div>
           </CardContent>
@@ -671,7 +586,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2">
               {/* New Audit Count */}
               <div className="space-y-2">
                 <Label htmlFor="newAuditCount">신규 감사 건수</Label>
@@ -694,7 +609,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
 
               {/* New Audit Amount */}
               <div className="space-y-2">
-                <Label htmlFor="newAuditAmount">신규 BD 금액</Label>
+                <Label htmlFor="newAuditAmount">신규 감사 BD 금액</Label>
                 {isEditing ? (
                   <div className="flex items-center">
                     <Input
@@ -715,31 +630,6 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   </div>
                 )}
               </div>
-
-              {/* 시간 당 Revenue */}
-              <div className="space-y-2">
-                <Label>시간 당 Revenue</Label>
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-orange-600" />
-                  {isEditing ? (
-                    <>
-                      <Input
-                        id="hourlyRevenue"
-                        name="hourlyRevenue"
-                        type="text"
-                        value={displayFormattedValue(formData.hourlyRevenue)}
-                        onChange={handleNumberChange}
-                        className="w-28 text-lg font-bold px-2 py-1"
-                        style={{ minWidth: 0, width: "6.5rem" }}
-                        placeholder="0"
-                      />
-                      <span className="text-lg font-bold">/h</span>
-                    </>
-                  ) : (
-                    <span className="text-lg font-bold">{Number(formData.hourlyRevenue).toLocaleString()}/h</span>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         </CardContent>
@@ -759,10 +649,10 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {/* UI Revenue Count */}
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* 신규 비감사서비스 건수 */}
               <div className="space-y-2">
-                <Label htmlFor="uiRevenueCount">UI Revenue 건수</Label>
+                <Label htmlFor="uiRevenueCount">신규 비감사서비스 건수</Label>
                 {isEditing ? (
                   <Input
                     id="uiRevenueCount"
@@ -780,9 +670,9 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 )}
               </div>
 
-              {/* UI Revenue Amount */}
+              {/* 신규 비감사서비스 BD 금액 */}
               <div className="space-y-2">
-                <Label htmlFor="uiRevenueAmount">UI Revenue 계약금액</Label>
+                <Label htmlFor="uiRevenueAmount">신규 비감사서비스 BD 금액</Label>
                 {isEditing ? (
                   <div className="flex items-center">
                     <Input
@@ -802,33 +692,6 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                     <span className="text-lg font-bold">{Number(formData.uiRevenueAmount).toLocaleString("ko-KR")}M</span>
                   </div>
                 )}
-              </div>
-
-              {/* Non-Audit 시간 당 Revenue */}
-              <div className="space-y-2">
-                <Label>시간 당 Revenue</Label>
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-orange-600" />
-                  {isEditing ? (
-                    <>
-                      <Input
-                        id="nonAuditHourlyRevenue"
-                        name="nonAuditHourlyRevenue"
-                        type="text"
-                        value={displayFormattedValue(formData.nonAuditHourlyRevenue)}
-                        onChange={handleNumberChange}
-                        className="w-28 text-lg font-bold px-2 py-1"
-                        style={{ minWidth: 0, width: "6.5rem" }}
-                        placeholder="0"
-                      />
-                      <span className="text-lg font-bold">/h</span>
-                    </>
-                  ) : (
-                    <span className="text-lg font-bold">
-                      {Number(formData.nonAuditHourlyRevenue).toLocaleString()}/h
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
           </div>

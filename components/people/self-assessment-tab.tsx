@@ -272,7 +272,7 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
                   )}
                   <Button onClick={() => handleSaveMid("submitted") } className="bg-green-600 text-white" disabled={loading}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    최종제출
+                    제출
                   </Button>
                 </div>
               </TabsContent>
@@ -336,7 +336,7 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
                   </Button>
                   <Button onClick={() => handleSaveFinal("submitted") } className="bg-green-600 text-white" disabled={loading}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    최종제출
+                    제출
                   </Button>
                 </div>
               </TabsContent>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
@@ -17,6 +17,9 @@ export function GSPInputForm() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
+    보직: "",
+    산업전문화: "",
+    tfCouncil: "",
     gsp: "",
     focus30: ""
   })
@@ -29,15 +32,22 @@ export function GSPInputForm() {
       return
     }
 
-    if (!formData.gsp.trim() || !formData.focus30.trim()) {
-      toast.error("GSP와 Focus 30을 모두 입력해주세요.")
+    if (!formData.보직.trim() || !formData.산업전문화.trim() || !formData.tfCouncil.trim() || !formData.gsp.trim() || !formData.focus30.trim()) {
+      toast.error("모든 기본정보를 입력해주세요.")
       return
     }
 
     setIsLoading(true)
 
     try {
-      const result = await GSPService.updateGSP(user.empno, formData.gsp, formData.focus30)
+      const result = await GSPService.updateGSP(
+        user.empno, 
+        formData.gsp, 
+        formData.focus30,
+        formData.보직,
+        formData.산업전문화,
+        formData.tfCouncil
+      )
       
       if (result.success) {
         toast.success(result.message)
@@ -54,7 +64,7 @@ export function GSPInputForm() {
     }
   }
 
-  const handleChange = (field: 'gsp' | 'focus30', value: string) => {
+  const handleChange = (field: '보직' | '산업전문화' | 'tfCouncil' | 'gsp' | 'focus30', value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -68,12 +78,12 @@ export function GSPInputForm() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            최초 로그인 시 GSP와 Focus 30 정보를 입력해주세요. 
+            최초 로그인 시 기본정보를 입력해주세요. 
             입력 후 1차 Reviewer의 승인을 기다려주시면 됩니다.
           </AlertDescription>
         </Alert>
 
-        {/* GSP 입력 폼 */}
+        {/* 기본정보 입력 폼 */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -81,20 +91,55 @@ export function GSPInputForm() {
               기본정보 입력
             </CardTitle>
             <CardDescription>
-              {user?.empnm}님의 GSP와 Focus 30 정보를 입력해주세요.
+              {user?.empnm}님의 기본정보를 입력해주세요.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* 보직(HC) 입력 */}
+              <div className="space-y-2">
+                <Label htmlFor="position">보직(HC)</Label>
+                <Input
+                  id="position"
+                  value={formData.보직}
+                  onChange={(e) => handleChange('보직', e.target.value)}
+                  placeholder="보직을 입력해주세요 (예: Senior Associate)"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* 산업전문화(TMA/IMA) 입력 */}
+              <div className="space-y-2">
+                <Label htmlFor="specialty">산업전문화(TMA/IMA)</Label>
+                <Input
+                  id="specialty"
+                  value={formData.산업전문화}
+                  onChange={(e) => handleChange('산업전문화', e.target.value)}
+                  placeholder="산업전문화 분야를 입력해주세요 (예: Technology, Financial Services)"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* TF&Council 입력 */}
+              <div className="space-y-2">
+                <Label htmlFor="tf-council">TF&Council</Label>
+                <Input
+                  id="tf-council"
+                  value={formData.tfCouncil}
+                  onChange={(e) => handleChange('tfCouncil', e.target.value)}
+                  placeholder="TF & Council 활동을 입력해주세요"
+                  disabled={isLoading}
+                />
+              </div>
+
               {/* GSP 입력 */}
               <div className="space-y-2">
                 <Label htmlFor="gsp">GSP</Label>
-                <Textarea
+                <Input
                   id="gsp"
                   value={formData.gsp}
                   onChange={(e) => handleChange('gsp', e.target.value)}
                   placeholder="GSP 내용을 입력해주세요"
-                  className="min-h-[200px]"
                   disabled={isLoading}
                 />
               </div>
@@ -102,12 +147,11 @@ export function GSPInputForm() {
               {/* Focus 30 입력 */}
               <div className="space-y-2">
                 <Label htmlFor="focus30">Focus 30</Label>
-                <Textarea
+                <Input
                   id="focus30"
                   value={formData.focus30}
                   onChange={(e) => handleChange('focus30', e.target.value)}
                   placeholder="Focus 30 내용을 입력해주세요"
-                  className="min-h-[200px]"
                   disabled={isLoading}
                 />
               </div>

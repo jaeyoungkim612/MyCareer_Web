@@ -5,13 +5,15 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TrendingUp, TrendingDown, Minus, CheckCircle, Percent, Award, Filter, Edit, Save, X } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, CheckCircle, Percent, Award, Filter, Edit, Save, X, Table, Eye } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { QualityMonitoringService } from "@/lib/quality-monitoring-service"
 import { AuthService, User } from "@/lib/auth-service"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Table as TableComponent, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { supabase } from "@/lib/supabase"
 
 function parseNonAuditGoal(text: string) {
@@ -45,20 +47,39 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
 
   // 실제값과 목표값을 받아 상태 자동 판정
   const getStatusBadge = (actual: number, target: number) => {
-    if (actual >= target + 5) return <Badge className="bg-green-500">Exceeded</Badge>;
-    if (actual >= target) return <Badge className="bg-orange-500">On Track</Badge>;
-    return <Badge className="bg-red-500">Needs Attention</Badge>;
+    if (actual >= target + 5) return <Badge className="bg-red-500">Over Budget</Badge>;
+    if (actual >= target) return <Badge className="bg-orange-500">Near Target</Badge>;
+    return <Badge className="bg-green-500">On Track</Badge>;
   }
 
   const getTrendIcon = (trend: number) => {
-    if (trend > 0) return <TrendingUp className="h-4 w-4 text-green-600" />
-    if (trend < 0) return <TrendingDown className="h-4 w-4 text-red-600" />
+    if (trend > 0) return <TrendingUp className="h-4 w-4 text-red-600" />  // 초과는 나쁨
+    if (trend < 0) return <TrendingDown className="h-4 w-4 text-green-600" />  // 절약은 좋음
     return <Minus className="h-4 w-4 text-gray-600" />
   }
 
-  const [targetMetrics, setTargetMetrics] = useState({ doae: 0, yra: 0 })
+  const [targetMetrics, setTargetMetrics] = useState({ 
+    yearEndTimeRatio: 0, 
+    elInputHours: 0, 
+    axTransitionRatio: 0, 
+    eerEvaluationScore: 0 
+  })
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [nonAuditGoal, setNonAuditGoal] = useState<{ 신규: string; 기존: string }>({ 신규: "", 기존: "" })
+  
+  // EPC 데이터 state 추가
+  const [epcData, setEpcData] = useState<any[]>([])
+  const [isLoadingEpc, setIsLoadingEpc] = useState(false)
+  const [actualYearEndRatio, setActualYearEndRatio] = useState(0)
+  const [totalBudget, setTotalBudget] = useState(0)
+  const [totalOccurTime, setTotalOccurTime] = useState(0)
+  
+  // EL 투입시간 관련 state 추가
+  const [actualElInputRatio, setActualElInputRatio] = useState(0)
+  const [isLoadingElData, setIsLoadingElData] = useState(false)
+  const [elTotalTime, setElTotalTime] = useState(0)
+  const [elMyTime, setElMyTime] = useState(0)
+  const [elDetailData, setElDetailData] = useState<any[]>([])
 
   // --- Non-Audit Status State ---
   const [isEditingNonAuditStatus, setIsEditingNonAuditStatus] = useState(false)
@@ -75,6 +96,147 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
   const [nonAuditGoalText, setNonAuditGoalText] = useState("")
   // 상태값 (Draft, 작성중, 완료)
   const [performanceStatus, setPerformanceStatus] = useState<{신규: 'Draft'|'작성중'|'완료', 기존: 'Draft'|'작성중'|'완료'}>({신규: 'Draft', 기존: 'Draft'})
+
+  // EPC 데이터 가져오기 함수
+  const fetchEpcData = async () => {
+    if (!currentUser?.empno) return;
+    
+    setIsLoadingEpc(true);
+    try {
+      const { ReviewerService } = await import("@/lib/reviewer-service");
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno);
+      
+      const { data, error } = await supabase
+        .from('epc_view')
+        .select('*')
+        .eq('EMPLNO', normalizedEmpno);
+      
+      if (error) {
+        console.error('Error fetching EPC data:', error);
+        return;
+      }
+      
+      console.log('📊 EPC Data loaded:', data);
+      setEpcData(data || []);
+      
+      // Year End 시간 비율 계산 (총합)
+      if (data && data.length > 0) {
+        const totalOccurTimeValue = data.reduce((sum: number, item: any) => sum + (parseFloat(item.OCCURTIME) || 0), 0);
+        const totalBudgetValue = data.reduce((sum: number, item: any) => sum + (parseFloat(item.CUMULATIVEBUDGET) || 0), 0);
+        const ratio = totalBudgetValue > 0 ? (totalOccurTimeValue / totalBudgetValue) * 100 : 0;
+        
+        setActualYearEndRatio(Math.round(ratio * 100) / 100); // 소수점 2자리
+        setTotalBudget(totalBudgetValue);
+        setTotalOccurTime(totalOccurTimeValue);
+        
+        console.log(`📈 Year End Ratio: ${totalOccurTimeValue}/${totalBudgetValue} = ${ratio}%`);
+      }
+    } catch (error) {
+      console.error('Error loading EPC data:', error);
+    } finally {
+      setIsLoadingEpc(false);
+    }
+  };
+
+  // EL 투입시간 비율 계산 함수
+  const fetchElInputData = async () => {
+    if (!currentUser?.empno) return;
+    
+    setIsLoadingElData(true);
+    try {
+      const { ReviewerService } = await import("@/lib/reviewer-service");
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno);
+      
+      // 1. 접속한 사람이 CHARGPTR인 프로젝트들 조회 (직접 테이블에서)
+      const { data: chargeProjects, error: chargeError } = await supabase
+        .from('a_project_info')
+        .select('PRJTCD, PRJTNM, CHARGPTR')
+        .eq('CHARGPTR', normalizedEmpno)
+        .not('PRJTNM', 'ilike', '%코칭%')
+        .not('PRJTNM', 'like', '%24%')
+        .not('PRJTNM', 'like', '%2024%');
+      
+      if (chargeError) {
+        console.error('Error fetching charge projects:', chargeError);
+        // 에러 시 빈 데이터로 처리
+        setActualElInputRatio(0);
+        setElTotalTime(0);
+        setElMyTime(0);
+        setElDetailData([]);
+        return;
+      }
+      
+      const projectCodes = (chargeProjects || []).map(item => item.PRJTCD);
+      
+      if (projectCodes.length > 0) {
+        // 2. 해당 프로젝트들의 모든 사람 시간 데이터 조회 (총시간 계산용)
+        const { data: allTimeData, error: allTimeError } = await supabase
+          .from('v_project_time')
+          .select('PRJTCD, EMPNO, EMPNM, total_use_time')
+          .in('PRJTCD', projectCodes);
+        
+        if (allTimeError) {
+          console.error('Error fetching all time data:', allTimeError);
+          return;
+        }
+        
+        // 3. 내가 투입한 시간만 필터링
+        const myTimeData = (allTimeData || []).filter(item => item.EMPNO === normalizedEmpno);
+        
+        // 4. 프로젝트별 상세 데이터 생성
+        const detailData = (chargeProjects || []).map(project => {
+          const projectCode = project.PRJTCD;
+          const projectName = project.PRJTNM;
+          
+          // 이 프로젝트의 전체 팀원 시간 합계
+          const projectTotalTime = (allTimeData || [])
+            .filter(item => item.PRJTCD === projectCode)
+            .reduce((sum: number, item: any) => sum + (parseFloat(item.total_use_time) || 0), 0);
+          
+          // 이 프로젝트에서 내가 투입한 시간
+          const myProjectTime = (myTimeData || [])
+            .filter(item => item.PRJTCD === projectCode)
+            .reduce((sum: number, item: any) => sum + (parseFloat(item.total_use_time) || 0), 0);
+          
+          // 비율 계산
+          const ratio = projectTotalTime > 0 ? (myProjectTime / projectTotalTime) * 100 : 0;
+          
+          return {
+            PRJTCD: projectCode,
+            PRJTNM: projectName,
+            el_time: myProjectTime,
+            total_time: projectTotalTime,
+            ratio: Math.round(ratio * 100) / 100
+          };
+        });
+        
+        // 5. 전체 합계 계산
+        const totalProjectTime = detailData.reduce((sum, item) => sum + item.total_time, 0);
+        const myTotalTime = detailData.reduce((sum, item) => sum + item.el_time, 0);
+        const overallRatio = totalProjectTime > 0 ? (myTotalTime / totalProjectTime) * 100 : 0;
+        
+        // 6. State 업데이트
+        setElTotalTime(totalProjectTime);
+        setElMyTime(myTotalTime);
+        setActualElInputRatio(Math.round(overallRatio * 100) / 100);
+        setElDetailData(detailData);
+        
+        console.log(`📈 EL Input Ratio: ${myTotalTime}/${totalProjectTime} = ${overallRatio}%`);
+        console.log('📊 EL Detail Data:', detailData);
+      } else {
+        setActualElInputRatio(0);
+        setElTotalTime(0);
+        setElMyTime(0);
+        setElDetailData([]);
+        console.log('📈 No projects where user is CHARGPTR');
+      }
+      
+    } catch (error) {
+      console.error('Error loading EL input data:', error);
+    } finally {
+      setIsLoadingElData(false);
+    }
+  };
 
   // --- Edit/Save/Cancel Handlers ---
   const handleEditNonAuditStatus = () => {
@@ -157,6 +319,14 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
     }
   }, [empno])
 
+  // EPC 데이터 및 EL 데이터 로드
+  useEffect(() => {
+    if (currentUser?.empno) {
+      fetchEpcData();
+      fetchElInputData();
+    }
+  }, [currentUser])
+
   useEffect(() => {
     async function fetchTargets() {
       if (!currentUser?.empno) return
@@ -184,11 +354,13 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         console.log('🔍 Monitoring Tab - Loaded monitorings:', monitorings)
         
         if (planData && planData.length > 0) {
-          // Plan 데이터에서 목표 정보 가져오기
+          // Plan 데이터에서 목표 정보 가져오기 (새로운 4개 평가 항목)
           const latestPlan = planData[0]
           setTargetMetrics({
-            doae: latestPlan.doae_rate || 0,
-            yra: latestPlan.yra_ratio || 0,
+            yearEndTimeRatio: latestPlan.year_end_time_ratio || 0,
+            elInputHours: latestPlan.el_input_hours || 0,
+            axTransitionRatio: latestPlan.ax_transition_ratio || 0,
+            eerEvaluationScore: latestPlan.eer_evaluation_score || 0,
           })
           
           console.log('🔍 Latest plan record:', latestPlan)
@@ -279,59 +451,333 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
           <CardDescription>감사 품질 및 효율성 관련 실적 추적</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-            {/* DoAE Application Rate */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Year End 이전 시간 비율 */}
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium flex items-center justify-between">
                   <span className="flex items-center">
-                    <Percent className="mr-1 h-4 w-4" />
-                    DoAE 적용율
+                    <Percent className="mr-2 h-5 w-5" />
+                    Year End 이전 시간 비율
                   </span>
-                  {getStatusBadge(87, targetMetrics.doae)}
+                  {getStatusBadge(actualYearEndRatio, targetMetrics.yearEndTimeRatio)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-2xl font-bold">87%</span>
-                    <span className="text-sm text-muted-foreground">/ {targetMetrics.doae}%</span>
+                    <span className="text-3xl font-bold">
+                      {actualYearEndRatio > 0 ? `${actualYearEndRatio}%` : '-%'}
+                    </span>
+                    <span className="text-base text-muted-foreground">/ {targetMetrics.yearEndTimeRatio}%</span>
                   </div>
-                  <Progress value={102} className="h-2" />
+                  
+                  {/* 시간 정보 표시 */}
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="bg-slate-50 dark:bg-slate-900 p-2 rounded text-center">
+                      <div className="text-xs text-muted-foreground">누적 Budget</div>
+                      <div className="font-bold">{totalBudget.toLocaleString()}h</div>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-900 p-2 rounded text-center">
+                      <div className="text-xs text-muted-foreground">발생 시간</div>
+                      <div className="font-bold">{totalOccurTime.toLocaleString()}h</div>
+                    </div>
+                  </div>
+                  
+                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
+                    <div 
+                      className="h-full transition-all"
+                      style={{ 
+                        width: `${targetMetrics.yearEndTimeRatio > 0 ? Math.min((actualYearEndRatio / targetMetrics.yearEndTimeRatio) * 100, 100) : 0}%`,
+                        backgroundColor: actualYearEndRatio >= targetMetrics.yearEndTimeRatio ? '#ef4444' : 'hsl(var(--primary))'
+                      }}
+                    />
+                  </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">vs Target</span>
-                    <span className="flex items-center text-green-600">
-                      {getTrendIcon(3.5)}
-                      <span className="ml-1">+3.5%</span>
+                    <span className="flex items-center">
+                      {actualYearEndRatio > 0 && targetMetrics.yearEndTimeRatio > 0 ? (
+                        actualYearEndRatio >= targetMetrics.yearEndTimeRatio ? (
+                          <span className="text-red-600 flex items-center">
+                            {getTrendIcon(actualYearEndRatio - targetMetrics.yearEndTimeRatio)}
+                            <span className="ml-1">+{(actualYearEndRatio - targetMetrics.yearEndTimeRatio).toFixed(1)}%</span>
+                          </span>
+                        ) : (
+                          <span className="text-green-600 flex items-center">
+                            {getTrendIcon(actualYearEndRatio - targetMetrics.yearEndTimeRatio)}
+                            <span className="ml-1">{(actualYearEndRatio - targetMetrics.yearEndTimeRatio).toFixed(1)}%</span>
+                          </span>
+                        )
+                      ) : (
+                        <span className="flex items-center text-gray-600">
+                          {getTrendIcon(0)}
+                          <span className="ml-1">-</span>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {/* EPC 데이터 보기 버튼 */}
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full" onClick={fetchEpcData}>
+                        <Table className="mr-2 h-4 w-4" />
+                        EPC 상세 데이터 보기
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                      <DialogHeader>
+                        <DialogTitle>EPC 데이터 (사번: {currentUser?.empno})</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            총 {epcData.length}개 프로젝트
+                          </span>
+                          <span className="text-lg font-bold">
+                            전체 비율: {actualYearEndRatio}%
+                          </span>
+                        </div>
+                        <TableComponent>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>프로젝트 코드</TableHead>
+                              <TableHead>프로젝트명</TableHead>
+                              <TableHead className="text-right">누적 Budget</TableHead>
+                              <TableHead className="text-right">발생 시간</TableHead>
+                              <TableHead className="text-right">비율 (%)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {isLoadingEpc ? (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8">
+                                  데이터를 불러오는 중...
+                                </TableCell>
+                              </TableRow>
+                            ) : epcData.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                  EPC 데이터가 없습니다.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              epcData.map((item, index) => {
+                                const ratio = parseFloat(item.CUMULATIVEBUDGET) > 0 
+                                  ? (parseFloat(item.OCCURTIME) / parseFloat(item.CUMULATIVEBUDGET)) * 100 
+                                  : 0;
+                                return (
+                                  <TableRow key={index}>
+                                    <TableCell className="font-medium">{item.PRJTCD}</TableCell>
+                                    <TableCell>{item.PRJTNM || '-'}</TableCell>
+                                    <TableCell className="text-right">
+                                      {parseFloat(item.CUMULATIVEBUDGET || 0).toLocaleString()}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {parseFloat(item.OCCURTIME || 0).toLocaleString()}
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold">
+                                      {ratio.toFixed(2)}%
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })
+                            )}
+                          </TableBody>
+                        </TableComponent>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* EL 투입시간 */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium flex items-center justify-between">
+                  <span className="flex items-center">
+                    <Award className="mr-2 h-5 w-5" />
+                    EL 투입시간 비율
+                  </span>
+                  {getStatusBadge(actualElInputRatio, targetMetrics.elInputHours)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-3xl font-bold">
+                      {isLoadingElData ? "..." : actualElInputRatio > 0 ? `${actualElInputRatio}%` : '-%'}
+                    </span>
+                    <span className="text-base text-muted-foreground">/ {targetMetrics.elInputHours}%</span>
+                  </div>
+                  
+                  {/* 시간 정보 표시 */}
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="bg-slate-50 dark:bg-slate-900 p-2 rounded text-center">
+                      <div className="text-xs text-muted-foreground">EL 시간</div>
+                      <div className="font-bold">{elMyTime.toLocaleString()}h</div>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-900 p-2 rounded text-center">
+                      <div className="text-xs text-muted-foreground">총 시간</div>
+                      <div className="font-bold">{elTotalTime.toLocaleString()}h</div>
+                    </div>
+                  </div>
+                  
+                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
+                    <div 
+                      className="h-full transition-all"
+                      style={{ 
+                        width: `${targetMetrics.elInputHours > 0 ? Math.min((actualElInputRatio / targetMetrics.elInputHours) * 100, 100) : 0}%`,
+                        backgroundColor: actualElInputRatio >= targetMetrics.elInputHours ? '#ef4444' : 'hsl(var(--primary))'
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">vs Target</span>
+                    <span className="flex items-center">
+                      {actualElInputRatio > 0 && targetMetrics.elInputHours > 0 ? (
+                        actualElInputRatio >= targetMetrics.elInputHours ? (
+                          <span className="text-green-600 flex items-center">
+                            {getTrendIcon(actualElInputRatio - targetMetrics.elInputHours)}
+                            <span className="ml-1">+{(actualElInputRatio - targetMetrics.elInputHours).toFixed(1)}%</span>
+                          </span>
+                        ) : (
+                          <span className="text-red-600 flex items-center">
+                            {getTrendIcon(actualElInputRatio - targetMetrics.elInputHours)}
+                            <span className="ml-1">{(actualElInputRatio - targetMetrics.elInputHours).toFixed(1)}%</span>
+                          </span>
+                        )
+                      ) : (
+                        <span className="flex items-center text-gray-600">
+                          {getTrendIcon(0)}
+                          <span className="ml-1">-</span>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  
+                  {/* EL 상세 데이터 다이얼로그 */}
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full" onClick={fetchElInputData}>
+                        <Table className="mr-2 h-4 w-4" />
+                        투입시간 상세 보기
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                      <DialogHeader>
+                        <DialogTitle>EL 투입시간 상세 (사번: {currentUser?.empno})</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            총 {elDetailData.length}개 담당 프로젝트
+                          </span>
+                          <span className="text-lg font-bold">
+                            전체 비율: {actualElInputRatio}%
+                          </span>
+                        </div>
+                        <TableComponent>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>프로젝트 코드</TableHead>
+                              <TableHead>프로젝트명</TableHead>
+                              <TableHead className="text-right">EL 시간</TableHead>
+                              <TableHead className="text-right">발생 시간</TableHead>
+                              <TableHead className="text-right">비율 (%)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {isLoadingElData ? (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8">
+                                  데이터를 불러오는 중...
+                                </TableCell>
+                              </TableRow>
+                            ) : elDetailData.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                  담당하는 프로젝트가 없습니다.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              elDetailData.map((item, index) => (
+                                <TableRow key={index}>
+                                  <TableCell className="font-medium">{item.PRJTCD}</TableCell>
+                                  <TableCell>{item.PRJTNM || '-'}</TableCell>
+                                  <TableCell className="text-right font-bold text-blue-600">
+                                    {item.el_time.toLocaleString()}h
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {item.total_time.toLocaleString()}h
+                                  </TableCell>
+                                  <TableCell className="text-right font-bold">
+                                    {item.ratio.toFixed(2)}%
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </TableComponent>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AX/Transition 비율 */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium flex items-center justify-between">
+                  <span className="flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5" />
+                    AX/Transition 비율
+                  </span>
+                  {getStatusBadge(0, targetMetrics.axTransitionRatio)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-3xl font-bold">-%</span>
+                    <span className="text-base text-muted-foreground">/ {targetMetrics.axTransitionRatio}%</span>
+                  </div>
+                  <Progress value={0} className="h-3" />
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">vs Target</span>
+                    <span className="flex items-center text-gray-600">
+                      {getTrendIcon(0)}
+                      <span className="ml-1">-</span>
                     </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* YRA Ratio */}
+            {/* EER 평가 결과 */}
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium flex items-center justify-between">
                   <span className="flex items-center">
-                    <Percent className="mr-1 h-4 w-4" />
-                    YRA 비율
+                    <CheckCircle className="mr-2 h-5 w-5" />
+                    EER 평가 결과
                   </span>
-                  {getStatusBadge(70, targetMetrics.yra)}
+                  {getStatusBadge(0, targetMetrics.eerEvaluationScore)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-2xl font-bold">70%</span>
-                    <span className="text-sm text-muted-foreground">/ {targetMetrics.yra}%</span>
+                    <span className="text-3xl font-bold">-</span>
+                    <span className="text-base text-muted-foreground">/ {targetMetrics.eerEvaluationScore}</span>
                   </div>
-                  <Progress value={93} className="h-2" />
+                  <Progress value={0} className="h-3" />
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">vs Target</span>
-                    <span className="flex items-center text-red-600">
-                      {getTrendIcon(-5)}
-                      <span className="ml-1">-5%</span>
+                    <span className="flex items-center text-gray-600">
+                      {getTrendIcon(0)}
+                      <span className="ml-1">-</span>
                     </span>
                   </div>
                 </div>
@@ -391,12 +837,12 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                             <SelectContent>
                               <SelectItem value="Draft">Draft</SelectItem>
                               <SelectItem value="작성중">작성중</SelectItem>
-                              <SelectItem value="완료">완료</SelectItem>
+                              <SelectItem value="완료">제출</SelectItem>
                             </SelectContent>
                           </Select>
                         ) : (
                           performanceStatus.신규 === '완료' ? (
-                            <Badge className="bg-green-500">완료</Badge>
+                            <Badge className="bg-green-500">제출</Badge>
                           ) : performanceStatus.신규 === '작성중' ? (
                             <Badge className="bg-orange-500">작성중</Badge>
                           ) : (
@@ -440,12 +886,12 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                                 <SelectContent>
                                   <SelectItem value="Draft">Draft</SelectItem>
                                   <SelectItem value="작성중">작성중</SelectItem>
-                                  <SelectItem value="완료">완료</SelectItem>
+                                  <SelectItem value="완료">제출</SelectItem>
                                 </SelectContent>
                               </Select>
                             ) : (
                               performanceStatus.신규 === '완료' ? (
-                                <Badge className="bg-green-500">완료</Badge>
+                                <Badge className="bg-green-500">제출</Badge>
                               ) : performanceStatus.신규 === '작성중' ? (
                                 <Badge className="bg-orange-500">작성중</Badge>
                               ) : (
@@ -488,12 +934,12 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                                 <SelectContent>
                                   <SelectItem value="Draft">Draft</SelectItem>
                                   <SelectItem value="작성중">작성중</SelectItem>
-                                  <SelectItem value="완료">완료</SelectItem>
+                                  <SelectItem value="완료">제출</SelectItem>
                                 </SelectContent>
                               </Select>
                             ) : (
                               performanceStatus.기존 === '완료' ? (
-                                <Badge className="bg-green-500">완료</Badge>
+                                <Badge className="bg-green-500">제출</Badge>
                               ) : performanceStatus.기존 === '작성중' ? (
                                 <Badge className="bg-orange-500">작성중</Badge>
                               ) : (

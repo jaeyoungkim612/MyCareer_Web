@@ -166,7 +166,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     const formatDisplayValue = (value: number, type: string, isBudget = false) => {
       switch (type) {
         case "count":
-          return `${value}건`
+          return `${Math.round(value)}건`
         case "amount":
           return isBudget
             ? `${value.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M`
@@ -192,7 +192,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     const CustomTooltip = ({ active, payload, label }: any) => {
       if (active && payload && payload.length) {
         // Goal 탭이면 예산 -> 목표로 표시
-        const isGoalTab = title.includes('신규 감사 건수') || title.includes('신규 BD 금액') || title.includes('UI Revenue') || title.includes('시간 당 Revenue');
+        const isGoalTab = title.includes('신규 감사 건수') || title.includes('신규 감사 BD 금액') || title.includes('신규 비감사서비스') || title.includes('시간 당 Revenue');
         return (
           <div className="bg-white p-3 shadow-md rounded-md border">
             <p className="font-medium">{label}</p>
@@ -229,7 +229,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           <div className="flex items-center justify-center space-x-4 mb-4">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-gray-300 border border-gray-400 rounded"></div>
-              <span className="text-xs text-gray-600">{(title.includes('신규 감사 건수') || title.includes('신규 BD 금액') || title.includes('UI Revenue') || title.includes('시간 당 Revenue')) ? '목표' : '예산'}</span>
+              <span className="text-xs text-gray-600">{(title.includes('신규 감사 건수') || title.includes('신규 감사 BD 금액') || title.includes('신규 비감사서비스') || title.includes('시간 당 Revenue')) ? '목표' : '예산'}</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: color }}></div>
@@ -272,18 +272,18 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="space-y-1">
               <div className="text-sm text-gray-500">실제</div>
               <div className="text-xl font-bold text-gray-900">
-                {displayType === 'count' ? `${actual}건` :
-                  // 목표탭의 '신규 BD 금액', 'UI Revenue 계약금액'만 백만단위 환산 및 콤마
-                  (title === '신규 BD 금액' || title === 'UI Revenue 계약금액') ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` :
+                {displayType === 'count' ? `${Math.round(actual)}건` :
+                  // 목표탭의 '신규 감사 BD 금액', '신규 비감사서비스 BD 금액'만 백만단위 환산 및 콤마
+                  (title === '신규 감사 BD 금액' || title === '신규 비감사서비스 BD 금액') ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` :
                   displayType === 'amount' ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` :
                   displayType === 'tenThousand' ? `${actual.toLocaleString('ko-KR')}/h` :
                   actual !== undefined && actual !== null ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` : '-'}
               </div>
             </div>
             <div className="space-y-1 text-right">
-              <div className="text-sm text-gray-500">{(title.includes('신규 감사 건수') || title.includes('신규 BD 금액') || title.includes('UI Revenue') || title.includes('시간 당 Revenue')) ? '목표' : '예산'}</div>
+              <div className="text-sm text-gray-500">{(title.includes('신규 감사 건수') || title.includes('신규 감사 BD 금액') || title.includes('신규 비감사서비스') || title.includes('시간 당 Revenue')) ? '목표' : '예산'}</div>
               <div className="text-xl font-bold text-gray-900">
-                {displayType === 'count' ? `${budget}건` :
+                {displayType === 'count' ? `${Math.round(budget)}건` :
                   displayType === 'amount' ? `${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M` :
                   displayType === 'tenThousand' ? `${budget.toLocaleString('ko-KR')}/h` :
                   budget !== undefined && budget !== null ? `${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M` : '-'}
@@ -296,6 +296,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               className={`text-sm font-medium ${percentage >= 100 ? "text-green-600" : percentage >= 80 ? "text-amber-600" : "text-red-600"}`}
             >
               {Math.round(percentage)}% {percentage >= 100 ? "초과달성" : "달성"}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {displayType === 'count' 
+                ? `(실제: ${Math.round(actual)}건 / 목표: ${Math.round(budget)}건 × 100 = ${Math.round(percentage)}%)`
+                : `(실제: ${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M / 목표: ${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M × 100 = ${Math.round(percentage)}%)`
+              }
             </div>
           </div>
         </CardContent>
@@ -347,11 +353,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           <div className="bg-white p-3 shadow-md rounded-md border">
             <p className="font-medium">{label}</p>
             <p className="text-sm">
-              <span className="font-medium">Audit: </span>
+              <span className="font-medium">감사: </span>
               {auditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M ({totalActual > 0 ? Math.round((auditActual / totalActual) * 100) : 0}%)
             </p>
             <p className="text-sm">
-              <span className="font-medium">Non-Audit: </span>
+              <span className="font-medium">비감사서비스: </span>
               {nonAuditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M ({totalActual > 0 ? Math.round((nonAuditActual / totalActual) * 100) : 0}%)
             </p>
             <p className="text-sm">
@@ -394,11 +400,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: auditColor }}></div>
-              <span className="text-xs text-gray-600">Audit</span>
+              <span className="text-xs text-gray-600">감사</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: nonAuditColor }}></div>
-              <span className="text-xs text-gray-600">Non-Audit</span>
+              <span className="text-xs text-gray-600">비감사서비스</span>
             </div>
           </div>
 
@@ -459,7 +465,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: auditColor }}></div>
-                <span className="text-sm text-gray-600">Audit Service</span>
+                <span className="text-sm text-gray-600">감사</span>
               </div>
               <div className="text-sm font-medium text-gray-900">
                 {auditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M, {totalActual > 0 ? Math.round((auditActual / totalActual) * 100) : 0}%
@@ -468,7 +474,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: nonAuditColor }}></div>
-                <span className="text-sm text-gray-600">Non-Audit Service</span>
+                <span className="text-sm text-gray-600">비감사서비스</span>
               </div>
               <div className="text-sm font-medium text-gray-900">
                 {nonAuditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M, {totalActual > 0 ? Math.round((nonAuditActual / totalActual) * 100) : 0}%
@@ -483,8 +489,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   // 탭 상태
   const [activeTab, setActiveTab] = useState<"budget" | "goal">("budget")
   const tabList = [
-    { key: "budget", label: "Budget" },
-    { key: "goal", label: "목표" },
+    { key: "budget", label: "TBA 기준" },
+    { key: "goal", label: "계약금액 기준" },
   ]
 
   // 총 계약금액 도넛차트용 값
@@ -495,12 +501,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   return (
     <div className="space-y-6">
       {/* Tab Switcher */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-3 mb-6">
         {tabList.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key as "budget" | "goal")}
-            className={`px-4 py-2 rounded-t-md border-b-2 transition-colors font-semibold ${activeTab === tab.key ? "border-orange-600 text-orange-600 bg-slate-50" : "border-transparent text-muted-foreground bg-transparent hover:bg-slate-100"}`}
+            className={`px-6 py-3 rounded-t-md border-b-2 transition-colors font-semibold text-base ${activeTab === tab.key ? "border-orange-600 text-orange-600 bg-slate-50" : "border-transparent text-muted-foreground bg-transparent hover:bg-slate-100"}`}
           >
             {tab.label}
           </button>
@@ -538,31 +544,31 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             />
           </div>
 
-          {/* Audit Budget Overview 섹션 */}
+          {/* 감사 Budget Overview 섹션 */}
           <div className="mt-12">
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <FileText className="mr-3 h-6 w-6 text-orange-600" />
-                              <span className="text-lg font-bold text-gray-900">Audit Budget Overview</span>
+                              <span className="text-lg font-bold text-gray-900">감사 Budget Overview</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* My Audit Budget Card */}
+              {/* My 감사 Budget Card */}
               <BarChartComponent
                 actual={myAuditActual}
                 budget={myAuditBudget}
-                title="My Audit Budget"
+                title="My 감사 Budget"
                 color="#f97316"
                 trend={`-${Math.round((1 - (myAuditActual / (myAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
                 cardClassName="shadow-sm border-l-4 border-l-orange-500"
               />
 
-              {/* Team Audit Budget Card */}
+              {/* Team 감사 Budget Card */}
               <BarChartComponent
                 actual={teamAuditActual}
                 budget={teamAuditBudget}
-                title="Team Audit Budget"
+                title="Team 감사 Budget"
                 color="#ea580c"
                 trend={`-${Math.round((1 - (teamAuditActual / (teamAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
@@ -571,31 +577,31 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             </div>
           </div>
 
-          {/* Non-Audit Budget Overview 섹션 */}
+          {/* 비감사서비스 Budget Overview 섹션 */}
           <div className="mt-12">
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <BarChart3 className="mr-3 h-6 w-6 text-blue-600" />
-                              <span className="text-lg font-bold text-gray-900">Non-Audit Budget Overview</span>
+                              <span className="text-lg font-bold text-gray-900">비감사서비스 Budget Overview</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* My Non-Audit Budget Card */}
+              {/* My 비감사서비스 Budget Card */}
               <BarChartComponent
                 actual={myNonAuditActual}
                 budget={myNonAuditBudget}
-                title="My Non-Audit Budget"
+                title="My 비감사서비스 Budget"
                 color="#10b981"
                 trend={`-${Math.round((1 - (myNonAuditActual / (myNonAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
                 cardClassName="shadow-sm border-l-4 border-l-emerald-500"
               />
 
-              {/* Team Non-Audit Budget Card */}
+              {/* Team 비감사서비스 Budget Card */}
               <BarChartComponent
                 actual={teamNonAuditActual}
                 budget={teamNonAuditBudget}
-                title="Team Non-Audit Budget"
+                title="Team 비감사서비스 Budget"
                 color="#059669"
                 trend={`-${Math.round((1 - (teamNonAuditActual / (teamNonAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
@@ -613,15 +619,15 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="p-8 text-center text-gray-500">입력된 목표 데이터가 없습니다.</div>
           ) : (
             <>
-              {/* Audit Metrics */}
+              {/* 감사 Metrics */}
               <div>
                 <div className="flex items-center mb-6">
                   <FileText className="mr-3 h-6 w-6 text-orange-600" />
-                  <span className="text-lg font-bold text-gray-900">Audit</span>
+                  <span className="text-lg font-bold text-gray-900">감사</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <BarChartComponent
-                    actual={budgetData?.audit_pjt_count ?? 0}
+                    actual={Math.round(budgetData?.audit_pjt_count ?? 0)}
                     budget={goalData?.new_audit_count ?? 0}
                     title="신규 감사 건수"
                     color="#f97316"
@@ -631,32 +637,24 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   <BarChartComponent
                     actual={actualNewBdAmount}
                     budget={budgetNewBdAmount}
-                    title="신규 BD 금액"
+                    title="신규 감사 BD 금액"
                     color="#ea580c"
                     trend=""
                     displayType="amount"
                   />
-                  <BarChartComponent
-                    actual={goalData?.hourly_revenue ?? 0}
-                    budget={goalData?.hourly_revenue ?? 0}
-                    title="시간 당 Revenue (만원)"
-                    color="#f59e42"
-                    trend=""
-                    displayType="tenThousand"
-                  />
                 </div>
               </div>
-              {/* Non-Audit Metrics */}
+              {/* 비감사서비스 Metrics */}
               <div className="mt-12">
                 <div className="flex items-center mb-6">
                   <BarChart3 className="mr-3 h-6 w-6 text-blue-600" />
-                  <span className="text-lg font-bold text-gray-900">Non-Audit Service</span>
+                  <span className="text-lg font-bold text-gray-900">비감사서비스</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <BarChartComponent
-                    actual={budgetData?.non_audit_pjt_count ?? 0}
+                    actual={Math.round(budgetData?.non_audit_pjt_count ?? 0)}
                     budget={goalData?.ui_revenue_count ?? 0}
-                    title="UI Revenue 건수"
+                    title="신규 비감사서비스 건수"
                     color="#3b82f6"
                     trend=""
                     displayType="count"
@@ -664,18 +662,10 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   <BarChartComponent
                     actual={actualUiRevenueAmount}
                     budget={budgetUiRevenueAmount}
-                    title="UI Revenue 계약금액"
+                    title="신규 비감사서비스 BD 금액"
                     color="#60a5fa"
                     trend=""
                     displayType="amount"
-                  />
-                  <BarChartComponent
-                    actual={goalData?.non_audit_hourly_revenue ?? 0}
-                    budget={goalData?.non_audit_hourly_revenue ?? 0}
-                    title="시간 당 Revenue (만원)"
-                    color="#60a5fa"
-                    trend=""
-                    displayType="tenThousand"
                   />
                 </div>
               </div>

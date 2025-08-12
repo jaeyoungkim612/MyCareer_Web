@@ -234,21 +234,72 @@ export function ApprovalPanel({ hasRejection = false }: ApprovalPanelProps) {
                           </div>
                         </div>
 
-                        {/* GSP 내용 */}
+                        {/* 승인 대기 항목들 */}
                         <div className="space-y-3">
-                          <div>
-                            <p className="text-sm font-medium text-orange-600 mb-2">GSP</p>
-                            <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left max-h-32 overflow-y-auto">
-                              {approval.GSP || "내용 없음"}
+                          {/* 보직(HC) */}
+                          {approval["보직_STATUS"] === '승인대기' && (
+                            <div>
+                              <div className="text-sm font-medium text-blue-600 mb-2 flex items-center gap-1">
+                                보직(HC)
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                              </div>
+                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left">
+                                {approval["보직(HC)"] || "내용 없음"}
+                              </div>
                             </div>
-                          </div>
+                          )}
                           
-                          <div>
-                            <p className="text-sm font-medium text-pink-600 mb-2">Focus 30</p>
-                            <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left max-h-32 overflow-y-auto">
-                              {approval["Focus 30"] || "내용 없음"}
+                          {/* 산업전문화 */}
+                          {approval["산업전문화_STATUS"] === '승인대기' && (
+                            <div>
+                              <div className="text-sm font-medium text-green-600 mb-2 flex items-center gap-1">
+                                산업전문화
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                              </div>
+                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left">
+                                {approval["산업전문화"] || "내용 없음"}
+                              </div>
                             </div>
-                          </div>
+                          )}
+                          
+                          {/* TF & Council */}
+                          {approval["Council_TF_STATUS"] === '승인대기' && (
+                            <div>
+                              <div className="text-sm font-medium text-purple-600 mb-2 flex items-center gap-1">
+                                TF & Council
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                              </div>
+                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left">
+                                {approval["Council/TF 등"] || "내용 없음"}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* GSP */}
+                          {approval["GSP_STATUS"] === '승인대기' && (
+                            <div>
+                              <div className="text-sm font-medium text-orange-600 mb-2 flex items-center gap-1">
+                                GSP
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                              </div>
+                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left max-h-32 overflow-y-auto">
+                                {approval.GSP || "내용 없음"}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Focus 30 */}
+                          {approval["Forcus_30_STATUS"] === '승인대기' && (
+                            <div>
+                              <div className="text-sm font-medium text-pink-600 mb-2 flex items-center gap-1">
+                                Focus 30
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                              </div>
+                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left max-h-32 overflow-y-auto">
+                                {approval["Forcus 30"] || approval["Focus 30"] || "내용 없음"}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* 승인/반려 버튼 */}

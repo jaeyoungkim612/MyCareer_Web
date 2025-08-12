@@ -159,7 +159,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
     }
     if (!formData) return
     
-    // 최종완료일 때만 validation 적용
+    // 제출일 때만 validation 적용
     if (status === '완료' && !formData.goals.trim()) {
       alert("Industry Goal을 입력해 주세요.")
       return
@@ -191,7 +191,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
         const day = now.getDate()
         setLastUpdated(`${year}년 ${month}월 ${day}일`)
         
-        alert(status === '작성중' ? "임시저장 완료!" : "최종완료 저장!")
+        alert(status === '작성중' ? "임시저장 완료!" : "제출 완료!")
       } else {
         throw new Error("저장 실패")
       }
@@ -207,7 +207,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
     await handleSave('작성중')
   }
   
-  // 최종완료
+  // 제출
   const handleFinalSave = async () => {
     await handleSave('완료')
   }
@@ -222,7 +222,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
         {currentStatus === '완료' ? (
           <Badge className="bg-green-500 text-white">
             <CheckCircle2 className="mr-1 h-3 w-3" />
-            완료
+            제출
           </Badge>
         ) : currentStatus === '작성중' ? (
           <Badge className="bg-orange-500 text-white">
@@ -292,7 +292,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
               )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "최종완료"}
+                {isLoading ? "Saving..." : "제출"}
               </Button>
             </>
           ) : !readOnly ? (

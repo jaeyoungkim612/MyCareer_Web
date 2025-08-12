@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
 import { PerformanceRadarChart } from "@/components/dashboard/performance-radar-chart"
-import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw, User, Users, Search, Filter, Eye } from "lucide-react"
+import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw, User, Users, Search, Filter, Eye, ArrowRight } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import type { UserMasterInfo } from "@/data/user-info"
@@ -24,8 +24,10 @@ import { Button } from "@/components/ui/button"
 import { TeamMemberDetailDialog } from "@/components/team-member-detail-dialog"
 import { ApprovalPanel } from "@/components/approval/approval-panel"
 import { RejectionNotification } from "@/components/rejection/rejection-notification"
+import { useSettings } from "@/contexts/settings-context"
 
 export default function Intro() {
+  const { setIsReviewerDialogOpen } = useSettings()
   const [userInfo, setUserInfo] = useState<UserMasterInfo | null>(null)
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -50,6 +52,11 @@ export default function Intro() {
 
   // 반려 상태 관리
   const [hasRejection, setHasRejection] = useState(false)
+
+  // 다이얼로그 열림 상태를 전역에 알림
+  useEffect(() => {
+    setIsReviewerDialogOpen(!!selectedMember)
+  }, [selectedMember, setIsReviewerDialogOpen])
 
   // 팀원 Plan과 Self Assessment 상태 타입 정의
   interface PlanStatus {
@@ -390,6 +397,35 @@ export default function Intro() {
     }
   }
 
+  // 팀원 상태 새로고침 함수
+  const refreshTeamStatus = async (reviewees: any[]) => {
+    if (reviewees && reviewees.length > 0) {
+      console.log("🔄 Refreshing team status...")
+      await loadTeamPlanAssessmentStatus(reviewees)
+    }
+  }
+
+  // userRole 로딩 완료 시 초기 팀원 상태 로딩
+  useEffect(() => {
+    if (userRole?.reviewees && userRole.reviewees.length > 0) {
+      console.log("🚀 Initial team status loading after userRole loaded")
+      refreshTeamStatus(userRole.reviewees)
+    }
+  }, [userRole])
+
+  // 포커스 시 팀원 상태 새로고침
+  useEffect(() => {
+    const handleFocus = () => {
+      if (userRole?.reviewees && userRole.reviewees.length > 0) {
+        console.log("👁️ Page focused - refreshing team status")
+        refreshTeamStatus(userRole.reviewees)
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [userRole?.reviewees])
+
   // 사용자 정보 및 리뷰어 역할 로드
   useEffect(() => {
     const loadUserInfo = async () => {
@@ -616,7 +652,7 @@ export default function Intro() {
     
     switch (status) {
       case '완료':
-        return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-green-500 text-white`}>완료</Badge>
+        return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-green-500 text-white`}>제출</Badge>
       case '작성중':
         return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-orange-500 text-white`}>작성중</Badge>
       case 'Draft':
@@ -749,23 +785,44 @@ export default function Intro() {
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
-                      <div>
-                        <span className="text-sm font-medium text-foreground">보직(HC)</span>
-                        <p className="text-sm text-muted-foreground">{userInfo?.job_info_nm}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-1">
+                          <span className="text-sm font-medium text-foreground">보직(HC)</span>
+                          {gspData?.["보직_STATUS"] === '승인대기' && (
+                            <Badge variant="outline" className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50">
+                              승인대기
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{(gspData?.["보직(HC)"] && gspData["보직(HC)"].trim()) || userInfo?.job_info_nm || "정보 없음"}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                      <div>
-                        <span className="text-sm font-medium text-foreground">산업전문화</span>
-                        <p className="text-sm text-muted-foreground">{userInfo?.industry_specialization || "정보 없음"}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-1">
+                          <span className="text-sm font-medium text-foreground">산업전문화</span>
+                          {gspData?.["산업전문화_STATUS"] === '승인대기' && (
+                            <Badge variant="outline" className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50">
+                              승인대기
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{(gspData?.["산업전문화"] && gspData["산업전문화"].trim()) || userInfo?.industry_specialization || "정보 없음"}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="h-2 w-2 bg-purple-500 rounded-full"></div>
-                      <div>
-                        <span className="text-sm font-medium text-foreground">TF & Council</span>
-                        <p className="text-sm text-muted-foreground">{userInfo?.council_tf || "정보 없음"}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-1">
+                          <span className="text-sm font-medium text-foreground">TF & Council</span>
+                          {gspData?.["Council_TF_STATUS"] === '승인대기' && (
+                            <Badge variant="outline" className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50">
+                              승인대기
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{(gspData?.["Council/TF 등"] && gspData["Council/TF 등"].trim()) || userInfo?.council_tf || "정보 없음"}</p>
                       </div>
                     </div>
                   </div>
@@ -775,25 +832,19 @@ export default function Intro() {
                       <div className="flex items-center space-x-1">
                         <div className="h-2 w-2 bg-yellow-500 rounded-full"></div>
                         <span className="text-xs font-bold">GSP</span>
-                        {gspData?.STATUS && gspData.STATUS !== '승인완료' && (
+                        {gspData?.["GSP_STATUS"] === '승인대기' && (
                           <Badge 
                             variant="outline" 
-                            className={`text-xs px-1 py-0 ${
-                              gspData.STATUS === '반려' 
-                                ? 'border-red-500 text-red-600 bg-red-50' 
-                                : gspData.STATUS === '승인대기'
-                                ? 'border-yellow-500 text-yellow-600 bg-yellow-50'
-                                : ''
-                            }`}
+                            className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50"
                           >
-                            {gspData.STATUS}
+                            승인대기
                           </Badge>
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground mt-1">
-                        {gspData?.GSP ? 
+                        {gspData?.GSP && gspData.GSP.trim() ? 
                           (gspData.GSP.length > 50 ? gspData.GSP.substring(0, 50) + "..." : gspData.GSP) : 
-                          "미입력"
+                          "정보 없음"
                         }
                       </span>
                     </div>
@@ -801,25 +852,19 @@ export default function Intro() {
                       <div className="flex items-center space-x-1">
                         <div className="h-2 w-2 bg-pink-500 rounded-full"></div>
                         <span className="text-xs font-bold">Focus 30</span>
-                        {gspData?.STATUS && gspData.STATUS !== '승인완료' && (
+                        {gspData?.["Forcus_30_STATUS"] === '승인대기' && (
                           <Badge 
                             variant="outline" 
-                            className={`text-xs px-1 py-0 ${
-                              gspData.STATUS === '반려' 
-                                ? 'border-red-500 text-red-600 bg-red-50' 
-                                : gspData.STATUS === '승인대기'
-                                ? 'border-yellow-500 text-yellow-600 bg-yellow-50'
-                                : ''
-                            }`}
+                            className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50"
                           >
-                            {gspData.STATUS}
+                            승인대기
                           </Badge>
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground mt-1">
-                        {gspData?.["Focus 30"] ? 
-                          (gspData["Focus 30"].length > 50 ? gspData["Focus 30"].substring(0, 50) + "..." : gspData["Focus 30"]) : 
-                          "미입력"
+                        {(gspData?.["Forcus 30"] && gspData["Forcus 30"].trim()) || (gspData?.["Focus 30"] && gspData["Focus 30"].trim()) ? 
+                          ((gspData["Forcus 30"] || gspData["Focus 30"]).length > 50 ? (gspData["Forcus 30"] || gspData["Focus 30"]).substring(0, 50) + "..." : (gspData["Forcus 30"] || gspData["Focus 30"])) : 
+                          "정보 없음"
                         }
                       </span>
                     </div>
@@ -878,7 +923,7 @@ export default function Intro() {
                       </div>
                       <p className="text-xs text-muted-foreground">{feedback.date}</p>
                     </div>
-                    <p className="text-sm mt-2">{feedback.comment}</p>
+                    <p className="text-sm mt-2 whitespace-pre-line">{feedback.comment}</p>
                   </div>
                 </div>
               </div>
@@ -1338,7 +1383,10 @@ export default function Intro() {
       {selectedMember && (
         <TeamMemberDetailDialog
           isOpen={!!selectedMember}
-          onClose={() => setSelectedMember(null)}
+          onClose={() => {
+            setSelectedMember(null)
+            setIsReviewerDialogOpen(false)
+          }}
           empno={selectedMember.empno}
           memberData={{
             name: selectedMember.name,
@@ -1360,6 +1408,29 @@ export default function Intro() {
       
       {/* 반려 알림 (반려당한 사용자에게만 표시) */}
       <RejectionNotification onRejectionStatusChange={setHasRejection} />
+
+      {/* My Career+ 바로가기 배너 */}
+      <div className="fixed top-1/2 right-4 transform -translate-y-1/2 z-50">
+        <a
+          href="https://app.powerbi.com/groups/06a9d883-28ef-4d69-8e57-42008ff57fd8/reports/c1a7a139-0d7b-45f1-aa3c-b00f98b1044e/ReportSection70efc05003bf7f842754?experience=power-bi"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex flex-col items-center justify-center bg-orange-500 hover:bg-orange-600 text-white px-2 py-6 rounded-l-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 min-h-[120px]"
+        >
+          <div className="text-xs font-bold mb-1 whitespace-nowrap">
+            My Career+
+          </div>
+          <div className="text-xs whitespace-nowrap mb-1">
+            (PowerBI)
+          </div>
+          <div className="text-xs whitespace-nowrap">
+            바로가기
+          </div>
+          <div className="mt-2 opacity-70 group-hover:opacity-100 transition-opacity">
+            <ArrowRight className="h-4 w-4" />
+          </div>
+        </a>
+      </div>
     </div>
   )
 }

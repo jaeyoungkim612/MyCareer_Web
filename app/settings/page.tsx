@@ -29,6 +29,9 @@ export default function SettingsPage() {
   
   // 기본정보 변경 폼 데이터
   const [gspFormData, setGspFormData] = useState({
+    보직: "",
+    산업전문화: "",
+    tfCouncil: "",
     gsp: "",
     focus30: ""
   })
@@ -90,10 +93,10 @@ export default function SettingsPage() {
 
         toast.success(result.message)
         
-        // 🎯 최초 비밀번호 변경 완료 시 GSP 입력 상태 확인 후 이동
-        // 비밀번호 변경이 성공하면 항상 GSP 상태 확인
-        console.log("🚀 Settings: 비밀번호 변경 완료, GSP 상태 확인 중...")
-        await checkGSPAndRedirect()
+        // 비밀번호 변경 완료 후 메인 페이지로 이동
+        setTimeout(() => {
+          router.push("/")
+        }, 1500)
       } else {
         toast.error(result.message)
       }
@@ -105,28 +108,7 @@ export default function SettingsPage() {
     }
   }
 
-  // GSP 입력 상태 확인 후 적절한 페이지로 리다이렉트
-  const checkGSPAndRedirect = async () => {
-    if (!user?.empno) {
-      router.push("/")
-      return
-    }
 
-    try {
-      const gspStatus = await GSPService.checkGSPStatus(user.empno)
-      
-      if (gspStatus.needsInput) {
-        console.log("🎯 Settings: User needs GSP input, redirecting to /gsp-input")
-        router.push("/gsp-input")
-      } else {
-        console.log("🚀 Settings: GSP not needed or already completed, redirecting to /")
-        router.push("/")
-      }
-    } catch (error) {
-      console.error("❌ Settings: Error checking GSP status:", error)
-      router.push("/")
-    }
-  }
 
   // GSP 데이터 로드
   useEffect(() => {
@@ -144,13 +126,23 @@ export default function SettingsPage() {
       
       if (gspStatus.exists && gspStatus.data) {
         setGspData(gspStatus.data)
-        setGspFormData({
+        
+        // 현재 값들 설정 (GSP 테이블 값이 있으면 우선, 없으면 기본값)
+        const currentValues = {
+          보직: gspStatus.data["보직(HC)"] || gspStatus.data.보직 || "",
+          산업전문화: gspStatus.data.산업전문화 || "",
+          tfCouncil: gspStatus.data["Council/TF 등"] || gspStatus.data.TF_Council || "",
           gsp: gspStatus.data.GSP || "",
-          focus30: gspStatus.data["Focus 30"] || ""
-        })
+          focus30: gspStatus.data["Forcus 30"] || gspStatus.data["Focus 30"] || ""
+        }
+        
+        setGspFormData(currentValues)
+        setOriginalValues(currentValues) // 원본 값도 함께 저장
       } else {
         setGspData(null)
-        setGspFormData({ gsp: "", focus30: "" })
+        const emptyValues = { 보직: "", 산업전문화: "", tfCouncil: "", gsp: "", focus30: "" }
+        setGspFormData(emptyValues)
+        setOriginalValues(emptyValues)
       }
     } catch (error) {
       console.error("❌ Error loading GSP data:", error)
@@ -160,12 +152,21 @@ export default function SettingsPage() {
   }
 
   // 기본정보 변경 처리
-  const handleGSPChange = (field: 'gsp' | 'focus30', value: string) => {
+  const handleGSPChange = (field: '보직' | '산업전문화' | 'tfCouncil' | 'gsp' | 'focus30', value: string) => {
     setGspFormData(prev => ({
       ...prev,
       [field]: value
     }))
   }
+
+  // 원본 값들을 저장할 state 추가
+  const [originalValues, setOriginalValues] = useState({
+    보직: "",
+    산업전문화: "",
+    tfCouncil: "",
+    gsp: "",
+    focus30: ""
+  })
 
   const handleSaveGSP = async () => {
     if (!user?.empno) {
@@ -173,26 +174,98 @@ export default function SettingsPage() {
       return
     }
 
-    if (!gspFormData.gsp.trim() || !gspFormData.focus30.trim()) {
-      toast.error("GSP와 Focus 30을 모두 입력해주세요.")
+    // 데이터가 로드되었는지 확인
+    if (isLoadingGSP) {
+      toast.error("데이터를 로드 중입니다. 잠시 후 다시 시도해주세요.")
       return
     }
 
+    // 변경된 항목들만 식별
+    const changedItems: Array<{field: string, value: string}> = []
+    
+    console.log("🔍 변경 감지 디버깅:")
+    console.log("현재 값:", gspFormData)
+    console.log("원본 값:", originalValues)
+    
+    if (gspFormData.보직 !== originalValues.보직) {
+      console.log("보직 변경됨:", originalValues.보직, "→", gspFormData.보직)
+      changedItems.push({field: '보직', value: gspFormData.보직})
+    }
+    if (gspFormData.산업전문화 !== originalValues.산업전문화) {
+      console.log("산업전문화 변경됨:", originalValues.산업전문화, "→", gspFormData.산업전문화)
+      changedItems.push({field: '산업전문화', value: gspFormData.산업전문화})
+    }
+    if (gspFormData.tfCouncil !== originalValues.tfCouncil) {
+      console.log("TF&Council 변경됨:", originalValues.tfCouncil, "→", gspFormData.tfCouncil)
+      changedItems.push({field: 'TF_Council', value: gspFormData.tfCouncil})
+    }
+    if (gspFormData.gsp !== originalValues.gsp) {
+      console.log("GSP 변경됨:", originalValues.gsp, "→", gspFormData.gsp)
+      changedItems.push({field: 'GSP', value: gspFormData.gsp})
+    }
+    if (gspFormData.focus30 !== originalValues.focus30) {
+      console.log("Focus30 변경됨:", originalValues.focus30, "→", gspFormData.focus30)
+      changedItems.push({field: 'Focus30', value: gspFormData.focus30})
+    }
+    
+    console.log("변경된 항목들:", changedItems)
+    console.log("변경된 항목 수:", changedItems.length)
+
+    // 변경된 항목이 없지만 입력된 값이 있는 경우 (최초 입력)
+    if (changedItems.length === 0) {
+      // 현재 입력된 값들 중 비어있지 않은 것들을 찾기
+      const currentInputs: Array<{field: string, value: string}> = []
+      
+      if (gspFormData.보직.trim()) {
+        currentInputs.push({field: '보직', value: gspFormData.보직})
+      }
+      if (gspFormData.산업전문화.trim()) {
+        currentInputs.push({field: '산업전문화', value: gspFormData.산업전문화})
+      }
+      if (gspFormData.tfCouncil.trim()) {
+        currentInputs.push({field: 'TF_Council', value: gspFormData.tfCouncil})
+      }
+      if (gspFormData.gsp.trim()) {
+        currentInputs.push({field: 'GSP', value: gspFormData.gsp})
+      }
+      if (gspFormData.focus30.trim()) {
+        currentInputs.push({field: 'Focus30', value: gspFormData.focus30})
+      }
+      
+      if (currentInputs.length > 0) {
+        console.log("최초 입력으로 감지된 항목들:", currentInputs)
+        // 최초 입력된 항목들을 변경된 항목으로 처리
+        changedItems.push(...currentInputs)
+      } else {
+        toast.info("변경된 항목이 없습니다.")
+        return
+      }
+    }
+
+    // 빈 값으로도 변경 신청 가능하도록 검증 제거
+
     setIsLoadingGSP(true)
     try {
-      const result = await GSPService.updateGSP(user.empno, gspFormData.gsp, gspFormData.focus30)
-      
-      if (result.success) {
-        toast.success("기본정보 변경이 신청되었습니다. 승인을 기다려주세요.")
-        await loadGSPData() // 데이터 새로고침
-        
-        // 변경신청 완료 후 intro 페이지로 이동
-        setTimeout(() => {
-          router.push("/")
-        }, 1500) // 토스트 메시지를 잠깐 보여준 후 이동
-      } else {
-        toast.error(result.message)
+      // 변경된 항목들만 개별적으로 처리
+      for (const item of changedItems) {
+        const result = await GSPService.updateGSPItem(user.empno, item.field, item.value)
+        if (!result.success) {
+          throw new Error(`${item.field} 변경 실패: ${result.message}`)
+        }
       }
+      
+      toast.success(`${changedItems.length}개 항목의 변경이 신청되었습니다. 승인을 기다려주세요.`)
+      
+      // 데이터 새로고침
+      console.log("🔄 변경 신청 완료, 데이터 재로드 중...")
+      await loadGSPData()
+      console.log("✅ 데이터 재로드 완료, gspData 상태:", gspData)
+      
+      // 변경신청 완료 후 intro 페이지로 이동
+      setTimeout(() => {
+        // 페이지 새로고침으로 상태 확실히 반영
+        window.location.href = "/"
+      }, 1000) // 토스트 메시지를 잠깐 보여준 후 이동
     } catch (error) {
       console.error("❌ GSP 변경 오류:", error)
       toast.error("기본정보 변경 중 오류가 발생했습니다.")
@@ -236,7 +309,7 @@ export default function SettingsPage() {
             <TabsContent value="basic-info" className="space-y-4">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">GSP & Focus 30</h3>
+                  <h3 className="text-lg font-medium">기본정보 관리</h3>
                   {gspData?.STATUS && (
                     <Badge variant={gspData.STATUS === '승인완료' ? 'default' : 'secondary'}>
                       {gspData.STATUS}
@@ -245,28 +318,97 @@ export default function SettingsPage() {
                 </div>
                 
                 <div className="space-y-4">
+                  {/* 보직(HC) 입력 */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="position-edit">보직(HC)</Label>
+                      {gspData?.["보직_STATUS"] === '승인대기' && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                          승인대기
+                        </Badge>
+                      )}
+                    </div>
+                    <Input
+                      id="position-edit"
+                      value={gspFormData.보직}
+                      onChange={(e) => handleGSPChange('보직', e.target.value)}
+                      placeholder="보직을 입력해주세요 (예: Resource Monitoring)"
+                      disabled={isLoadingGSP}
+                    />
+                  </div>
+
+                  {/* 산업전문화(TMA/IMA) 입력 */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="specialty-edit">산업전문화(TMA/IMA)</Label>
+                      {gspData?.["산업전문화_STATUS"] === '승인대기' && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                          승인대기
+                        </Badge>
+                      )}
+                    </div>
+                    <Input
+                      id="specialty-edit"
+                      value={gspFormData.산업전문화}
+                      onChange={(e) => handleGSPChange('산업전문화', e.target.value)}
+                      placeholder="산업전문화 분야를 입력해주세요"
+                      disabled={isLoadingGSP}
+                    />
+                  </div>
+
+                  {/* TF&Council 입력 */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="tf-council-edit">TF&Council</Label>
+                      {gspData?.["Council_TF_STATUS"] === '승인대기' && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                          승인대기
+                        </Badge>
+                      )}
+                    </div>
+                    <Input
+                      id="tf-council-edit"
+                      value={gspFormData.tfCouncil}
+                      onChange={(e) => handleGSPChange('tfCouncil', e.target.value)}
+                      placeholder="TF & Council 활동을 입력해주세요"
+                      disabled={isLoadingGSP}
+                    />
+                  </div>
+
                   {/* GSP 입력 */}
                   <div className="space-y-2">
-                    <Label htmlFor="gsp-edit">GSP</Label>
-                    <Textarea
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="gsp-edit">GSP</Label>
+                      {gspData?.["GSP_STATUS"] === '승인대기' && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                          승인대기
+                        </Badge>
+                      )}
+                    </div>
+                    <Input
                       id="gsp-edit"
                       value={gspFormData.gsp}
                       onChange={(e) => handleGSPChange('gsp', e.target.value)}
                       placeholder="GSP 내용을 입력해주세요"
-                      className="min-h-[150px]"
                       disabled={isLoadingGSP}
                     />
                   </div>
 
                   {/* Focus 30 입력 */}
                   <div className="space-y-2">
-                    <Label htmlFor="focus30-edit">Focus 30</Label>
-                    <Textarea
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="focus30-edit">Focus 30</Label>
+                      {gspData?.["Forcus_30_STATUS"] === '승인대기' && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                          승인대기
+                        </Badge>
+                      )}
+                    </div>
+                    <Input
                       id="focus30-edit"
                       value={gspFormData.focus30}
                       onChange={(e) => handleGSPChange('focus30', e.target.value)}
                       placeholder="Focus 30 내용을 입력해주세요"
-                      className="min-h-[150px]"
                       disabled={isLoadingGSP}
                     />
                   </div>

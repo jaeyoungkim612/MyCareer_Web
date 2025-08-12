@@ -5,13 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 
-import { UserCheck, Clock, Calendar, BarChart3, ArrowRight } from "lucide-react"
+import { UserCheck, Clock, Calendar, BarChart3, ArrowRight, Table, Eye, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Table as TableComponent, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { supabase } from "@/lib/supabase"
 import { AuthService } from "@/lib/auth-service"
-
-// 실제 데이터는 추후 DB에서 가져올 예정
+import { PeopleGoalsService } from "@/lib/people-goals-service"
+import { useSettings } from "@/contexts/settings-context"
 
 interface ResultsTabProps {
   empno?: string
@@ -19,14 +22,75 @@ interface ResultsTabProps {
 }
 
 export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
-  const [perfTier] = useState("HP")
-  const [perfComment] = useState(
+  const { isReviewerDialogOpen } = useSettings()
+  const [perfTier, setPerfTier] = useState("HP") // 기본값 유지
+  const [perfComment, setPerfComment] = useState(
     "탁월한 리더십과 팀워크를 바탕으로 프로젝트를 성공적으로 이끌었으며, 동료들과의 소통 능력이 매우 뛰어납니다. 새로운 과제에 대한 빠른 적응력과 문제 해결 능력도 돋보입니다. 또한, 팀원들의 성장을 적극적으로 지원하며 긍정적인 조직 문화를 조성하는 데 큰 기여를 하였습니다."
-  )
+  ) // 기본값 유지
   
   // HR 정보 상태
   const [userInfo, setUserInfo] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+
+  // GPS/PEI 점수 상태 (실제 LoS 데이터)
+  const [gpsScore, setGpsScore] = useState<string | null>(null)
+  const [peiScore, setPeiScore] = useState<string | null>(null)
+  
+  // 목표 데이터 상태 (plan에서 설정한 값)
+  const [goalData, setGoalData] = useState<{
+    gpsTarget: number | null
+    peiTarget: number | null
+    refreshOffTarget: number | null
+    coachingTimeTarget: number | null
+  }>({
+    gpsTarget: null,
+    peiTarget: null,
+    refreshOffTarget: null,
+    coachingTimeTarget: null
+  })
+
+  // 코칭타임 실적 데이터 상태
+  const [coachingTimeData, setCoachingTimeData] = useState<{
+    quarterHours: number
+    yearHours: number
+    year: number
+    quarter: number
+  }>({
+    quarterHours: 0,
+    yearHours: 0,
+    year: 0,
+    quarter: 0
+  })
+
+  // 팀 활용률 데이터 상태 (Util A, B)
+  const [utilizationData, setUtilizationData] = useState<{
+    utilAAverage: number | null
+    utilBAverage: number | null
+    teamDetails: any[] | null
+    utilDate: string | null
+  }>({
+    utilAAverage: null,
+    utilBAverage: null,
+    teamDetails: null,
+    utilDate: null
+  })
+
+  // Refresh Off 관련 state 추가 - 팀 전체 집계 + 상세 데이터
+  const [refreshOffData, setRefreshOffData] = useState<{
+    usageRate: number | null
+    sumTime: number | null
+    rmnTime: number | null
+    usedTime: number | null
+    teamDetails: any[] | null
+    baseDate: string | null
+  }>({
+    usageRate: null,
+    sumTime: null,
+    rmnTime: null,
+    usedTime: null,
+    teamDetails: null,
+    baseDate: null
+  })
 
   // HR 정보 로드
   useEffect(() => {
@@ -43,18 +107,68 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         // 사번 정규화 (95129 → 095129)
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
-        console.log(`🔍 Results Tab: Querying HR master with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
+        // GPS/PEI 테이블용 5자리 사번 (098095 → 98095)
+        const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
+        console.log(`🔍 Results Tab: Querying with normalized empno: ${targetEmpno} → ${normalizedEmpno}, GPS/PEI empno: ${fiveDigitEmpno}`)
         
-        const { data: hrData, error: hrError } = await supabase
-          .from("a_hr_master")
-          .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
-          .eq("EMPNO", normalizedEmpno)
-          .maybeSingle()
+        // HR 정보, GPS/PEI 실데이터, 목표 데이터, 성과평가 데이터, Refresh Off 데이터를 동시에 가져오기
+        const [hrResult, scoreResult, goalResult, performanceResult, refreshOffResult] = await Promise.all([
+          supabase
+            .from("a_hr_master")
+            .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
+            .eq("EMPNO", normalizedEmpno)
+            .maybeSingle(),
+          supabase
+            .from("L_GPS_PEI_Table")
+            .select("GPS, PEI")
+            .eq("EMPNO", fiveDigitEmpno)
+            .maybeSingle(),
+          supabase
+            .from("people_goals")
+            .select("gps_score, pei_score, refresh_off_usage_rate, coaching_time")
+            .eq("employee_id", normalizedEmpno)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("L_성과평가_Table")
+            .select("Tier, Comments")
+            .eq("사번", normalizedEmpno)
+            .maybeSingle(),
+          // Refresh Off 데이터 조회 - TL의 팀원들 직접 조회 (원본 테이블 사용)
+          supabase
+            .from("a_hr_master")
+            .select("EMPNO, EMPNM, CM_NM")
+            .eq("TL_EMPNO", normalizedEmpno)
+        ])
+        
+        const { data: hrData, error: hrError } = hrResult
+        const { data: scoreData, error: scoreError } = scoreResult
+        const { data: goalDataResult, error: goalError } = goalResult
+        const { data: performanceData, error: performanceError } = performanceResult
+        const { data: refreshOffDataResult, error: refreshOffError } = refreshOffResult
         
         if (hrError) {
           console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
         }
+        
+        if (scoreError) {
+          console.error(`❌ GPS/PEI 데이터 조회 에러:`, scoreError)
+        }
+        
+        if (goalError) {
+          console.error(`❌ 목표 데이터 조회 에러:`, goalError)
+        }
+        
+        if (performanceError) {
+          console.error(`❌ 성과평가 데이터 조회 에러:`, performanceError)
+        }
 
+        if (refreshOffError) {
+          console.log('❌ Refresh Off 데이터 조회 에러:', refreshOffError)
+        }
+
+        // HR 정보 설정
         if (hrData) {
           setUserInfo({
             empno: hrData.EMPNO,
@@ -72,13 +186,229 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             org_nm: null,
           })
         }
+
+        // GPS/PEI 실데이터 설정
+        if (scoreData) {
+          setGpsScore(scoreData.GPS)
+          setPeiScore(scoreData.PEI)
+          console.log("✅ GPS/PEI actual data loaded:", scoreData)
+        }
+        
+        // 목표 데이터 설정
+        if (goalDataResult) {
+          setGoalData({
+            gpsTarget: goalDataResult.gps_score,
+            peiTarget: goalDataResult.pei_score,
+            refreshOffTarget: goalDataResult.refresh_off_usage_rate,
+            coachingTimeTarget: goalDataResult.coaching_time
+          })
+          console.log("✅ Goal data loaded:", goalDataResult)
+        }
+
+        // 코칭타임 실적 데이터 조회
+        try {
+          const now = new Date()
+          const year = now.getFullYear()
+          const quarter = Math.ceil((now.getMonth() + 1) / 3)
+          
+          const { quarterHours, yearHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
+          
+          setCoachingTimeData({
+            quarterHours,
+            yearHours,
+            year,
+            quarter
+          })
+          
+          console.log("✅ Coaching time data loaded:", { quarterHours, yearHours, year, quarter })
+        } catch (coachingError) {
+          console.log("❌ 코칭타임 데이터 조회 에러:", coachingError)
+        }
+        
+        // 성과평가 데이터 설정
+        if (performanceData) {
+          const tier = performanceData.Tier
+          const comment = performanceData.Comments
+          
+          if (tier && tier !== '') {
+            setPerfTier(tier)
+          } else {
+            setPerfTier("정보 없음")
+          }
+          
+          if (comment && comment !== '') {
+            setPerfComment(comment)
+          } else {
+            setPerfComment("Upward Feedback 정보가 없습니다.")
+          }
+          
+          console.log("✅ Performance data loaded:", { tier, comment })
+        } else {
+          // 데이터가 없으면 기본값 설정
+          setPerfTier("정보 없음")
+          setPerfComment("Upward Feedback 정보가 없습니다.")
+          console.log("ℹ️ No performance data found")
+        }
+        
+        // Refresh Off 데이터 설정 및 팀 전체 계산
+        if (refreshOffDataResult && Array.isArray(refreshOffDataResult)) {
+          console.log("🔍 TL의 팀원들 HR 데이터:", refreshOffDataResult)
+          
+          // 팀원들의 사번 목록
+          const teamEmpnos = refreshOffDataResult.map(member => member.EMPNO)
+          console.log("🔍 팀원 사번 목록:", teamEmpnos)
+          
+          if (teamEmpnos.length > 0) {
+            // 팀원들의 휴가 정보를 별도로 조회
+            const { data: leaveData, error: leaveError } = await supabase
+              .from("a_leave_info")
+              .select("EMPNO, SUM_TIME, RMN_TIME, BASE_YMD")
+              .in("EMPNO", teamEmpnos)
+              .order("BASE_YMD", { ascending: false })
+            
+            if (leaveError) {
+              console.log("❌ 팀원 휴가 데이터 조회 에러:", leaveError)
+              return
+            }
+            
+            console.log("🔍 팀원 휴가 데이터:", leaveData)
+            
+            // 각 사번별 최신 휴가 데이터만 추출
+            const latestLeaveData = teamEmpnos.map(empno => {
+              const memberLeave = (leaveData || []).find(leave => leave.EMPNO === empno)
+              return memberLeave || { EMPNO: empno, SUM_TIME: 0, RMN_TIME: 0, BASE_YMD: null }
+            })
+            
+            // 가장 최신 BASE_YMD 찾기
+            const latestBaseDate = leaveData && leaveData.length > 0 ? leaveData[0]?.BASE_YMD : null
+          
+          // 팀 전체 집계 계산
+          let totalSumTime = 0
+          let totalRmnTime = 0
+          
+          const teamDetails = refreshOffDataResult.map(member => {
+            const leaveInfo = latestLeaveData.find(leave => leave.EMPNO === member.EMPNO)
+            const sumTime = parseFloat(leaveInfo?.SUM_TIME || 0) || 0
+            const rmnTime = parseFloat(leaveInfo?.RMN_TIME || 0) || 0
+            const usedTime = sumTime - rmnTime
+            const usageRate = sumTime > 0 ? Math.round((usedTime / sumTime) * 100 * 100) / 100 : 0
+            
+            totalSumTime += sumTime
+            totalRmnTime += rmnTime
+            
+            return {
+              empno: member.EMPNO,
+              empnm: member.EMPNM,
+              cm_nm: member.CM_NM,
+              sumTime,
+              rmnTime,
+              usedTime,
+              usageRate,
+              baseDate: leaveInfo?.BASE_YMD
+            }
+          })
+          
+          const totalUsedTime = totalSumTime - totalRmnTime
+          const teamUsageRate = totalSumTime > 0 ? Math.round((totalUsedTime / totalSumTime) * 100 * 100) / 100 : 0
+          
+          console.log("🧮 Team calculation:", {
+            teamCount: refreshOffDataResult.length,
+            totalSumTime,
+            totalRmnTime,
+            totalUsedTime,
+            teamUsageRate,
+            teamDetails
+          })
+          
+          setRefreshOffData({
+            usageRate: teamUsageRate,
+            sumTime: totalSumTime,
+            rmnTime: totalRmnTime,
+            usedTime: totalUsedTime,
+            teamDetails: teamDetails,
+            baseDate: latestBaseDate
+          })
+
+          // 활용률 데이터도 함께 설정 (같은 팀원들 사용)
+          const utilizationDetails = refreshOffDataResult.map(member => {
+            // v_employee_core에서 UTIL_A, UTIL_B 데이터 가져오기
+            return {
+              empno: member.EMPNO,
+              empnm: member.EMPNM,
+              cm_nm: member.CM_NM,
+              utilA: 0, // 임시값, 실제로는 별도 조회 필요
+              utilB: 0, // 임시값, 실제로는 별도 조회 필요
+            }
+          })
+
+          // 팀원들의 활용률 정보를 별도로 조회 (UTIL_DATE도 포함)
+          const { data: utilData, error: utilError } = await supabase
+            .from("v_employee_core")
+            .select("EMPNO, EMPNM, CM_NM, UTIL_A, UTIL_B")
+            .in("EMPNO", teamEmpnos)
+            
+          // 활용률 데이터의 최신 날짜 확인을 위해 a_utilization에서 최신 UTIL_DATE 조회
+          const { data: utilDateData } = await supabase
+            .from("a_utilization")
+            .select("UTIL_DATE")
+            .in("EMPNO", teamEmpnos)
+            .order("UTIL_DATE", { ascending: false })
+            .limit(1)
+
+          if (utilError) {
+            console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
+          } else if (utilData && utilData.length > 0) {
+            console.log("🔍 팀원 활용률 데이터:", utilData)
+
+            // 평균 계산
+            const validUtilA = utilData.filter(item => item.UTIL_A !== null && item.UTIL_A !== "")
+            const validUtilB = utilData.filter(item => item.UTIL_B !== null && item.UTIL_B !== "")
+
+            const utilASum = validUtilA.reduce((sum, item) => sum + (parseFloat(item.UTIL_A) || 0), 0)
+            const utilBSum = validUtilB.reduce((sum, item) => sum + (parseFloat(item.UTIL_B) || 0), 0)
+
+            const utilAAverage = validUtilA.length > 0 ? Math.round((utilASum / validUtilA.length) * 100) / 100 : 0
+            const utilBAverage = validUtilB.length > 0 ? Math.round((utilBSum / validUtilB.length) * 100) / 100 : 0
+
+            const utilizationTeamDetails = utilData.map(member => ({
+              empno: member.EMPNO,
+              empnm: member.EMPNM,
+              cm_nm: member.CM_NM,
+              utilA: parseFloat(member.UTIL_A) || 0,
+              utilB: parseFloat(member.UTIL_B) || 0,
+            }))
+
+            const latestUtilDate = utilDateData && utilDateData.length > 0 ? utilDateData[0]?.UTIL_DATE : null
+            
+            setUtilizationData({
+              utilAAverage,
+              utilBAverage,
+              teamDetails: utilizationTeamDetails,
+              utilDate: latestUtilDate
+            })
+
+            console.log("🧮 Utilization calculation:", {
+              utilAAverage,
+              utilBAverage,
+              teamCount: utilData.length,
+              utilizationTeamDetails
+            })
+          }
+          }
+        } else {
+          console.log("❌ No team members found for TL")
+        }
+
       } catch (error) {
-        console.log("ℹ️ Could not load HR info:", error)
+        console.log("ℹ️ Could not load data:", error)
         setUserInfo({
           empno: targetEmpno,
           empnm: targetEmpno,
           org_nm: null,
         })
+        // 에러 시에도 기본값 설정
+        setPerfTier("정보 없음")
+        setPerfComment("데이터를 불러올 수 없습니다.")
       } finally {
         setLoading(false)
       }
@@ -95,51 +425,315 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         return "bg-[#E76200]"
       case "ME":
         return "bg-orange-500"
+      case "정보 없음":
+        return "bg-gray-400"
       default:
         return "bg-slate-500"
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-sm font-medium">결과</h2>
-      </div>
+  // GPS 달성률 계산
+  const getGpsAchievement = () => {
+    if (!gpsScore || gpsScore === '-' || !goalData.gpsTarget) return { rate: 0, actual: 0, target: 0 }
+    const actual = parseFloat(gpsScore) * 100 // 0.71 → 71%
+    const target = goalData.gpsTarget // 이미 1-100 범위
+    const rate = Math.round((actual / target) * 100)
+    return { rate, actual, target }
+  }
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {/* GPS Score Card */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              GPS Score
-              {userInfo?.org_nm && (
-                <span className="text-xs text-muted-foreground font-normal ml-2">
-                  - {userInfo.org_nm}
-                </span>
+  // PEI 달성률 계산
+  const getPeiAchievement = () => {
+    if (!peiScore || peiScore === '-' || !goalData.peiTarget) return { rate: 0, actual: 0, target: 0 }
+    const actual = parseFloat(peiScore) * 100 // 0.82 → 82%
+    const target = goalData.peiTarget // 이미 1-100 범위
+    const rate = Math.round((actual / target) * 100)
+    return { rate, actual, target }
+  }
+
+  // Refresh Off 달성률 계산 함수 추가
+  const getRefreshOffAchievement = () => {
+    if (refreshOffData.usageRate === null) {
+      return { rate: 0, actual: 0, target: goalData.refreshOffTarget || 0 }
+    }
+    const actual = refreshOffData.usageRate
+    const target = goalData.refreshOffTarget || 100 // 목표가 없으면 100%로 기본값
+    const rate = Math.round((actual / target) * 100)
+    return { rate, actual, target }
+  }
+
+  // 코칭타임 달성률 계산 함수 추가
+  const getCoachingTimeAchievement = () => {
+    if (!coachingTimeData.quarterHours || !goalData.coachingTimeTarget) {
+      return { rate: 0, actual: 0, target: 0 }
+    }
+    const actual = coachingTimeData.quarterHours
+    const target = goalData.coachingTimeTarget
+    const rate = Math.round((actual / target) * 100)
+    return { rate, actual, target }
+  }
+
+  const gpsAchievement = getGpsAchievement()
+  const peiAchievement = getPeiAchievement()
+  const refreshOffAchievement = getRefreshOffAchievement()
+  const coachingTimeAchievement = getCoachingTimeAchievement()
+
+  return (
+    <TooltipProvider>
+      <div className="relative">
+        {/* My People+ 바로가기 고정 배너 - 리뷰어 다이얼로그 열림 시 숨김 */}
+        {!isReviewerDialogOpen && (
+          <div className="fixed top-1/2 right-4 transform -translate-y-1/2 z-50">
+          <a
+            href="https://app.powerbi.com/reportEmbed?reportId=9a63b16c-3e6d-40d7-8339-df119261fede&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex flex-col items-center justify-center bg-orange-500 hover:bg-orange-600 text-white px-2 py-6 rounded-l-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 min-h-[120px]"
+          >
+            <div className="text-xs font-bold mb-1 whitespace-nowrap">
+              My People+
+            </div>
+            <div className="text-xs whitespace-nowrap">
+              바로가기
+            </div>
+            <div className="mt-2 opacity-70 group-hover:opacity-100 transition-opacity">
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </a>
+          </div>
+        )}
+
+        <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-medium">결과</h2>
+        </div>
+
+        {/* 1행: Util A, B */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Util A Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Util A</CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-2xl font-bold">
+                  {utilizationData.utilAAverage !== null ? `${utilizationData.utilAAverage}%` : '-%'}
+                </div>
+                <div className="text-xs text-gray-400">
+                  팀 평균
+                  {utilizationData.utilDate && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      기준: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span>평균: {utilizationData.utilAAverage !== null ? `${utilizationData.utilAAverage}%` : '-%'}</span>
+                  <span>기준: 100%</span>
+                </div>
+                <Progress 
+                  value={utilizationData.utilAAverage !== null ? Math.min(utilizationData.utilAAverage, 100) : 0} 
+                  className="h-1.5" 
+                />
+              </div>
+              
+              {/* 팀 Util A 상세보기 버튼 */}
+              {utilizationData.teamDetails && utilizationData.teamDetails.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Eye className="mr-2 h-4 w-4" />
+                        팀 Util A 상세 보기 ({utilizationData.teamDetails.length}명)
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                      <DialogHeader>
+                        <DialogTitle>팀 Util A 상세 현황</DialogTitle>
+                        {utilizationData.utilDate && (
+                          <div className="text-sm text-muted-foreground">
+                            기준일자: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                          </div>
+                        )}
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            {utilizationData.utilAAverage !== null ? `${utilizationData.utilAAverage}%` : '-%'}
+                          </div>
+                          <div className="text-sm text-blue-600 dark:text-blue-400">팀 평균 Util A</div>
+                        </div>
+                        
+                        <TableComponent>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>사번</TableHead>
+                              <TableHead>이름</TableHead>
+                              <TableHead>소속</TableHead>
+                              <TableHead className="text-right">Util A (%)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {utilizationData.teamDetails.map((member, index) => (
+                              <TableRow key={index}>
+                                <TableCell className="font-medium">{member.empno}</TableCell>
+                                <TableCell>{member.empnm}</TableCell>
+                                <TableCell>{member.cm_nm}</TableCell>
+                                <TableCell className="text-right">
+                                  <span className={`font-bold ${
+                                    member.utilA >= 100 ? 'text-green-600' : 
+                                    member.utilA >= 80 ? 'text-amber-600' : 'text-red-600'
+                                  }`}>
+                                    {member.utilA}%
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </TableComponent>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               )}
-            </CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-between items-center mb-2">
-              <div className="text-2xl font-bold">-/10</div>
-              <div className="flex items-center gap-1">
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-                <span className="text-xs text-gray-400">-%</span>
+            </CardContent>
+          </Card>
+
+          {/* Util B Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Util B</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-2xl font-bold">
+                  {utilizationData.utilBAverage !== null ? `${utilizationData.utilBAverage}%` : '-%'}
+                </div>
+                <div className="text-xs text-gray-400">
+                  팀 평균
+                  {utilizationData.utilDate && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      기준: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span>LoS 평균: -</span>
-                <span>이전: -</span>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span>평균: {utilizationData.utilBAverage !== null ? `${utilizationData.utilBAverage}%` : '-%'}</span>
+                  <span>기준: 100%</span>
+                </div>
+                <Progress 
+                  value={utilizationData.utilBAverage !== null ? Math.min(utilizationData.utilBAverage, 100) : 0} 
+                  className="h-1.5" 
+                />
               </div>
-              <Progress value={0} className="h-1.5" />
-            </div>
-            <div className="mt-3 flex justify-end">
-              <Badge variant="outline">데이터 없음</Badge>
-            </div>
-          </CardContent>
-        </Card>
+              
+              {/* 팀 Util B 상세보기 버튼 */}
+              {utilizationData.teamDetails && utilizationData.teamDetails.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Eye className="mr-2 h-4 w-4" />
+                        팀 Util B 상세 보기 ({utilizationData.teamDetails.length}명)
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                      <DialogHeader>
+                        <DialogTitle>팀 Util B 상세 현황</DialogTitle>
+                        {utilizationData.utilDate && (
+                          <div className="text-sm text-muted-foreground">
+                            기준일자: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                          </div>
+                        )}
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            {utilizationData.utilBAverage !== null ? `${utilizationData.utilBAverage}%` : '-%'}
+                          </div>
+                          <div className="text-sm text-green-600 dark:text-green-400">팀 평균 Util B</div>
+                        </div>
+                        
+                        <TableComponent>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>사번</TableHead>
+                              <TableHead>이름</TableHead>
+                              <TableHead>소속</TableHead>
+                              <TableHead className="text-right">Util B (%)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {utilizationData.teamDetails.map((member, index) => (
+                              <TableRow key={index}>
+                                <TableCell className="font-medium">{member.empno}</TableCell>
+                                <TableCell>{member.empnm}</TableCell>
+                                <TableCell>{member.cm_nm}</TableCell>
+                                <TableCell className="text-right">
+                                  <span className={`font-bold ${
+                                    member.utilB >= 100 ? 'text-green-600' : 
+                                    member.utilB >= 80 ? 'text-amber-600' : 'text-red-600'
+                                  }`}>
+                                    {member.utilB}%
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </TableComponent>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 2행: GPS Score, PEI Score, Staff Coaching Time */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* GPS Score Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                GPS Score
+                {userInfo?.org_nm && (
+                  <span className="text-xs text-muted-foreground font-normal ml-2">
+                    - {userInfo.org_nm}
+                  </span>
+                )}
+              </CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-2xl font-bold">
+                  {gpsAchievement.actual > 0 ? `${gpsAchievement.actual}%` : '-%'}
+                </div>
+                <div className="text-xs text-gray-400">
+                  FY25 기준
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span>실제: {gpsAchievement.actual > 0 ? `${gpsAchievement.actual}%` : '-'}</span>
+                  <span>목표: {gpsAchievement.target > 0 ? `${gpsAchievement.target}%` : '-'}</span>
+                </div>
+                <Progress value={gpsAchievement.rate > 0 ? Math.min(gpsAchievement.rate, 100) : 0} className="h-1.5" />
+                <div className="text-center">
+                  <span className={`text-xs font-medium ${gpsAchievement.rate >= 100 ? 'text-green-600' : gpsAchievement.rate >= 80 ? 'text-amber-600' : gpsAchievement.rate > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                    {gpsAchievement.rate > 0 ? `달성률 ${gpsAchievement.rate}%` : '데이터 없음'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
         {/* PEI Score Card */}
         <Card>
@@ -156,21 +750,24 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center mb-2">
-              <div className="text-2xl font-bold">-/10</div>
-              <div className="flex items-center gap-1">
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-                <span className="text-xs text-gray-400">-%</span>
+              <div className="text-2xl font-bold">
+                {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-%'}
+              </div>
+              <div className="text-xs text-gray-400">
+                FY25 기준
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span>LoS 평균: -</span>
-                <span>이전: -</span>
+                <span>실제: {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-'}</span>
+                <span>목표: {peiAchievement.target > 0 ? `${peiAchievement.target}%` : '-'}</span>
               </div>
-              <Progress value={0} className="h-1.5" />
-            </div>
-            <div className="mt-3 flex justify-end">
-              <Badge variant="outline">데이터 없음</Badge>
+              <Progress value={peiAchievement.rate > 0 ? Math.min(peiAchievement.rate, 100) : 0} className="h-1.5" />
+              <div className="text-center">
+                <span className={`text-xs font-medium ${peiAchievement.rate >= 100 ? 'text-green-600' : peiAchievement.rate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
+                  {peiAchievement.rate > 0 ? `달성률 ${peiAchievement.rate}%` : '데이터 없음'}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -183,26 +780,43 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center mb-2">
-              <div className="text-2xl font-bold">- 시간</div>
+              <div className="text-2xl font-bold">
+                {coachingTimeData.quarterHours > 0 ? `${coachingTimeData.quarterHours} 시간` : '- 시간'}
+              </div>
               <div className="flex items-center gap-1">
                 <ArrowRight className="h-4 w-4 text-gray-400" />
-                <span className="text-xs text-gray-400">-%</span>
+                <span className="text-xs text-gray-400">
+                  {coachingTimeAchievement.rate > 0 ? `${coachingTimeAchievement.rate}%` : '-%'}
+                </span>
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span>LoS 평균: - 시간</span>
-                <span>이전: - 시간</span>
+                <span>실제: {coachingTimeData.quarterHours > 0 ? `${coachingTimeData.quarterHours} 시간` : '- 시간'}</span>
+                <span>목표: {goalData.coachingTimeTarget || '-'} 시간</span>
               </div>
-              <Progress value={0} className="h-1.5" />
+              <Progress 
+                value={coachingTimeAchievement.rate > 0 ? Math.min(coachingTimeAchievement.rate, 100) : 0} 
+                className="h-1.5" 
+              />
+              <div className="text-center">
+                <span className={`text-xs font-medium ${
+                  coachingTimeAchievement.rate >= 100 ? 'text-green-600' : 
+                  coachingTimeAchievement.rate >= 80 ? 'text-amber-600' : 
+                  coachingTimeAchievement.rate > 0 ? 'text-red-600' : 'text-gray-500'
+                }`}>
+                  {coachingTimeAchievement.rate > 0 ? `달성률 ${coachingTimeAchievement.rate}%` : '데이터 없음'}
+                </span>
+              </div>
             </div>
-            <div className="mt-3 flex justify-end">
-              <Badge variant="outline">데이터 없음</Badge>
-            </div>
+
           </CardContent>
         </Card>
+        </div>
 
-        {/* Refresh Off Card */}
+        {/* 3행: Refresh Off + Upward Feedback */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Refresh Off Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Refresh Off 사용률(%)</CardTitle>
@@ -210,27 +824,130 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center mb-2">
-              <div className="text-2xl font-bold">-%</div>
-              <div className="flex items-center gap-1">
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-                <span className="text-xs text-gray-400">-%</span>
+              <div className="text-2xl font-bold">
+                {refreshOffData.usageRate !== null ? `${refreshOffData.usageRate}%` : '-%'}
+              </div>
+              <div className="flex flex-col items-end">
+                <div className="flex items-center gap-1">
+                  <ArrowRight className="h-4 w-4 text-gray-400" />
+                  <span className="text-xs text-gray-400">
+                    {refreshOffAchievement.rate > 0 ? `${refreshOffAchievement.rate}%` : '-%'}
+                  </span>
+                </div>
+                {refreshOffData.baseDate && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    기준: {new Date(refreshOffData.baseDate).toLocaleDateString('ko-KR')}
+                  </div>
+                )}
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span>LoS 평균: -%</span>
-                <span>이전: -%</span>
+                <span>실제: {refreshOffData.usageRate !== null ? `${refreshOffData.usageRate}%` : '-%'}</span>
+                <span>목표: {goalData.refreshOffTarget || '-'}%</span>
               </div>
-              <Progress value={0} className="h-1.5" />
+              <Progress 
+                value={refreshOffData.usageRate !== null ? Math.min(refreshOffAchievement.rate, 100) : 0} 
+                className="h-1.5" 
+              />
+              <div className="text-center">
+                <span className={`text-xs font-medium ${
+                  refreshOffData.usageRate !== null ? (
+                    refreshOffAchievement.rate >= 100 ? 'text-green-600' : 
+                    refreshOffAchievement.rate >= 80 ? 'text-amber-600' : 'text-red-600'
+                  ) : 'text-gray-500'
+                }`}>
+                  {refreshOffData.usageRate !== null ? `달성률 ${refreshOffAchievement.rate}%` : '데이터 없음'}
+                </span>
+              </div>
             </div>
-            <div className="mt-3 flex justify-end">
-              <Badge variant="outline">데이터 없음</Badge>
-            </div>
+            
+            {/* 상세 정보 표시 (총시간, 잔여시간, 소진시간) */}
+            {refreshOffData.sumTime !== null && (
+              <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="grid grid-cols-3 gap-2 text-xs mb-3">
+                  <div className="text-center">
+                    <div className="text-muted-foreground">총시간</div>
+                    <div className="font-bold">{refreshOffData.sumTime}h</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-muted-foreground">잔여시간</div>
+                    <div className="font-bold">{refreshOffData.rmnTime}h</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-muted-foreground">소진시간</div>
+                    <div className="font-bold">{refreshOffData.usedTime}h</div>
+                  </div>
+                </div>
+                
+                {/* 팀 상세 보기 버튼 */}
+                {refreshOffData.teamDetails && refreshOffData.teamDetails.length > 0 && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Table className="mr-2 h-4 w-4" />
+                        팀 상세 데이터 보기 ({refreshOffData.teamDetails.length}명)
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                      <DialogHeader>
+                        <DialogTitle>팀 Refresh Off 상세 현황</DialogTitle>
+                        {refreshOffData.baseDate && (
+                          <div className="text-sm text-muted-foreground">
+                            기준일자: {new Date(refreshOffData.baseDate).toLocaleDateString('ko-KR')}
+                          </div>
+                        )}
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            총 {refreshOffData.teamDetails.length}명
+                          </span>
+                          <span className="text-lg font-bold">
+                            팀 평균 사용률: {refreshOffData.usageRate}%
+                          </span>
+                        </div>
+                        <TableComponent>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>사번</TableHead>
+                              <TableHead>이름</TableHead>
+                              <TableHead>소속</TableHead>
+                              <TableHead className="text-right">총시간</TableHead>
+                              <TableHead className="text-right">잔여시간</TableHead>
+                              <TableHead className="text-right">소진시간</TableHead>
+                              <TableHead className="text-right">사용률(%)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {refreshOffData.teamDetails.map((member, index) => (
+                              <TableRow key={index}>
+                                <TableCell className="font-medium">{member.empno}</TableCell>
+                                <TableCell>{member.empnm}</TableCell>
+                                <TableCell>{member.cm_nm}</TableCell>
+                                <TableCell className="text-right">{member.sumTime.toLocaleString()}h</TableCell>
+                                <TableCell className="text-right">{member.rmnTime.toLocaleString()}h</TableCell>
+                                <TableCell className="text-right font-bold text-blue-600">
+                                  {member.usedTime.toLocaleString()}h
+                                </TableCell>
+                                <TableCell className="text-right font-bold">
+                                  {member.usageRate}%
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </TableComponent>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Upward Feedback Card */}
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-lg font-bold">Upward Feedback</CardTitle>
           </CardHeader>
@@ -240,8 +957,8 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               <div className="p-6 flex flex-col items-center justify-center border-r border-slate-200 dark:border-slate-600">
                 <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">Tier</div>
                 <div className={`w-14 h-14 ${getTierColor(perfTier)} rounded-full flex items-center justify-center shadow-lg`}>
-                  <span className="text-white font-bold text-xl">
-                    {perfTier}
+                  <span className="text-white font-bold text-xs text-center px-1">
+                    {perfTier === "정보 없음" ? "N/A" : perfTier}
                   </span>
                 </div>
               </div>
@@ -255,7 +972,9 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }

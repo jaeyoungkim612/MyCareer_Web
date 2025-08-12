@@ -44,12 +44,12 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
   
   const [assessmentData, setAssessmentData] = useState({
     comment: "",
-    gpsScore: 1,
-    peiScore: 1,
+    gpsScore: 50, // 1-100 범위에서 기본값 50
+    peiScore: 50, // 1-100 범위에서 기본값 50
     staffCoachingTime: 0,
     superOrg: 0,
     refreshOff: 0,
-    coachingTime: 10, // 목표 코칭 시간 기본값
+    coachingTime: 10,
   })
   const [formData, setFormData] = useState(assessmentData)
   const [coachingQuarter, setCoachingQuarter] = useState(0)
@@ -170,8 +170,8 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         if (data) {
           setAssessmentData({
             comment: data.people_goal ?? "",
-            gpsScore: data.gps_score ?? 1,
-            peiScore: data.pei_score ?? 1,
+            gpsScore: data.gps_score ?? 50, // 1-100 범위
+            peiScore: data.pei_score ?? 50, // 1-100 범위
             staffCoachingTime: 0,
             superOrg: 0,
             refreshOff: data.refresh_off_usage_rate ?? 0,
@@ -179,8 +179,8 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           })
           setFormData({
             comment: data.people_goal ?? "",
-            gpsScore: data.gps_score ?? 1,
-            peiScore: data.pei_score ?? 1,
+            gpsScore: data.gps_score ?? 50, // 1-100 범위
+            peiScore: data.pei_score ?? 50, // 1-100 범위
             staffCoachingTime: 0,
             superOrg: 0,
             refreshOff: data.refresh_off_usage_rate ?? 0,
@@ -219,7 +219,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       alert("사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.")
       return
     }
-    // 최종완료일 때만 validation 적용
+    // 제출일 때만 validation 적용
     if (status === '완료' && !formData.comment.trim()) {
       alert("People Goal을 입력해 주세요.")
       return
@@ -229,8 +229,8 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       const insertData = {
         employee_id: currentUser.empno,
         people_goal: formData.comment,
-        gps_score: formData.gpsScore,
-        pei_score: formData.peiScore,
+        gps_score: formData.gpsScore, // 그대로 1-100 정수값 저장
+        pei_score: formData.peiScore, // 그대로 1-100 정수값 저장
         refresh_off_usage_rate: formData.refreshOff,
         coaching_time: Number(formData.coachingTime),
         status: status,
@@ -257,7 +257,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         const month = now.getMonth() + 1
         const day = now.getDate()
         setLastUpdated(`${year}년 ${month}월 ${day}일`)
-        alert(status === '작성중' ? "임시저장 완료!" : "최종완료 저장!")
+        alert(status === '작성중' ? "임시저장 완료!" : "제출 완료!")
       } else {
         throw new Error(error.message)
       }
@@ -288,7 +288,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         {currentStatus === '완료' ? (
           <Badge className="bg-green-500 text-white">
             <CheckCircle2 className="mr-1 h-3 w-3" />
-            완료
+            제출
           </Badge>
         ) : currentStatus === '작성중' ? (
           <Badge className="bg-orange-500 text-white">
@@ -363,7 +363,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
               )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "최종완료"}
+                {isLoading ? "Saving..." : "제출"}
               </Button>
             </>
           ) : !readOnly ? (
@@ -427,9 +427,9 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
               {/* GPS Score */}
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label htmlFor="gps-score">GPS Score (1-10)</Label>
+                  <Label htmlFor="gps-score">GPS Score (%)</Label>
                   <span className="text-sm font-medium">
-                    {isEditMode ? formData.gpsScore : assessmentData.gpsScore}
+                    {isEditMode ? `${formData.gpsScore}%` : `${assessmentData.gpsScore}%`}
                   </span>
                 </div>
                 {isEditMode ? (
@@ -437,18 +437,18 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     <Slider
                       id="gps-score"
                       min={1}
-                      max={10}
+                      max={100}
                       step={1}
                       value={[formData.gpsScore]}
                       onValueChange={(value) => handleInputChange("gpsScore", value[0])}
                     />
-                    <span className="w-8 text-center">{formData.gpsScore}</span>
+                    <span className="w-12 text-center">{formData.gpsScore}%</span>
                   </div>
                 ) : (
                   <div className="h-5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-orange-600 rounded-full"
-                      style={{ width: `${(assessmentData.gpsScore / 10) * 100}%` }}
+                      style={{ width: `${assessmentData.gpsScore}%` }}
                     ></div>
                   </div>
                 )}
@@ -456,9 +456,9 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
               {/* PEI Score */}
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label htmlFor="pei-score">PEI Score (1-10)</Label>
+                  <Label htmlFor="pei-score">PEI Score (%)</Label>
                   <span className="text-sm font-medium">
-                    {isEditMode ? formData.peiScore : assessmentData.peiScore}
+                    {isEditMode ? `${formData.peiScore}%` : `${assessmentData.peiScore}%`}
                   </span>
                 </div>
                 {isEditMode ? (
@@ -466,23 +466,23 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     <Slider
                       id="pei-score"
                       min={1}
-                      max={10}
+                      max={100}
                       step={1}
                       value={[formData.peiScore]}
                       onValueChange={(value) => handleInputChange("peiScore", value[0])}
                     />
-                    <span className="w-8 text-center">{formData.peiScore}</span>
+                    <span className="w-12 text-center">{formData.peiScore}%</span>
                   </div>
                 ) : (
                   <div className="h-5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-orange-600 rounded-full"
-                      style={{ width: `${(assessmentData.peiScore / 10) * 100}%` }}
+                      style={{ width: `${assessmentData.peiScore}%` }}
                     ></div>
                   </div>
                 )}
               </div>
-              {/* Refresh Off 사용률 */}
+              {/* Refresh Off 사용률 - 기존과 동일 */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label htmlFor="refresh-off">Refresh Off 사용률(%)</Label>

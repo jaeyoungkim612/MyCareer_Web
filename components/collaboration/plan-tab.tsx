@@ -228,7 +228,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
     try {
       const empno = currentUser?.empno
       if (!empno) throw new Error("로그인 필요")
-      // 최종완료일 때만 validation 적용
+      // 제출일 때만 validation 적용
       if (status === '완료' && !formData.comment.trim()) {
         alert("Collaboration Strategy를 입력해 주세요.")
         return
@@ -264,7 +264,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
         const month = now.getMonth() + 1
         const day = now.getDate()
         setLastUpdated(`${year}년 ${month}월 ${day}일`)
-        alert(status === '작성중' ? "임시저장 완료!" : "최종완료 저장!")
+        alert(status === '작성중' ? "임시저장 완료!" : "제출 완료!")
         await fetchPlanData()
       } else {
         throw new Error(error.message)
@@ -282,7 +282,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
     await handleSave('작성중')
   }
   
-  // 최종완료
+  // 제출
   const handleFinalSave = async () => {
     await handleSave('완료')
   }
@@ -297,7 +297,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
         {currentStatus === '완료' ? (
           <Badge className="bg-green-500 text-white">
             <CheckCircle2 className="mr-1 h-3 w-3" />
-            완료
+            제출
           </Badge>
         ) : currentStatus === '작성중' ? (
           <Badge className="bg-orange-500 text-white">
@@ -355,7 +355,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
               )}
               <Button onClick={handleFinalSave} className="bg-green-600 text-white" disabled={isLoading}>
                 <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "최종완료"}
+                {isLoading ? "Saving..." : "제출"}
               </Button>
             </>
           ) : !readOnly ? (
