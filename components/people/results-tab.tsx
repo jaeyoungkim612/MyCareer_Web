@@ -250,7 +250,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           console.log("ℹ️ No performance data found")
         }
         
-        // Refresh Off 데이터 설정 및 팀 전체 계산
+        // Refresh Off 데이터 설정 및 팀 전체 계산 (성능 최적화)
         if (refreshOffDataResult && Array.isArray(refreshOffDataResult)) {
           console.log("🔍 TL의 팀원들 HR 데이터:", refreshOffDataResult)
           
@@ -259,141 +259,163 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           console.log("🔍 팀원 사번 목록:", teamEmpnos)
           
           if (teamEmpnos.length > 0) {
-            // 팀원들의 휴가 정보를 별도로 조회
-            const { data: leaveData, error: leaveError } = await supabase
-              .from("a_leave_info")
-              .select("EMPNO, SUM_TIME, RMN_TIME, BASE_YMD")
-              .in("EMPNO", teamEmpnos)
-              .order("BASE_YMD", { ascending: false })
+            // ⚡ 병렬 처리: 모든 팀원 데이터를 한번에 조회
+            const [leaveResult, utilizationResult, utilDateResult] = await Promise.all([
+              // 휴가 정보 조회
+              supabase
+                .from("a_leave_info")
+                .select("EMPNO, SUM_TIME, RMN_TIME, BASE_YMD")
+                .in("EMPNO", teamEmpnos)
+                .order("BASE_YMD", { ascending: false }),
+              
+              // 활용률 정보 조회
+              supabase
+                .from("v_employee_core")
+                .select("EMPNO, EMPNM, CM_NM, UTIL_A, UTIL_B, BASE_YMD")
+                .in("EMPNO", teamEmpnos),
+              
+              // 최신 활용률 날짜 조회
+              supabase
+                .from("a_utilization")
+                .select("UTIL_DATE")
+                .in("EMPNO", teamEmpnos)
+                .order("UTIL_DATE", { ascending: false })
+                .limit(1)
+            ])
+            
+            const { data: leaveData, error: leaveError } = leaveResult
+            const { data: utilData, error: utilError } = utilizationResult
+            const { data: utilDateData } = utilDateResult
             
             if (leaveError) {
               console.log("❌ 팀원 휴가 데이터 조회 에러:", leaveError)
               return
             }
             
-            console.log("🔍 팀원 휴가 데이터:", leaveData)
+            if (utilError) {
+              console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
+            }
             
-            // 각 사번별 최신 휴가 데이터만 추출
-            const latestLeaveData = teamEmpnos.map(empno => {
-              const memberLeave = (leaveData || []).find(leave => leave.EMPNO === empno)
-              return memberLeave || { EMPNO: empno, SUM_TIME: 0, RMN_TIME: 0, BASE_YMD: null }
-            })
+            console.log("🔍 팀원 휴가 데이터:", leaveData)
+            console.log("🔍 팀원 활용률 데이터:", utilData)
+            
+            // ⚡ Map을 사용해 O(1) 조회 성능 최적화
+            const leaveMap = new Map()
+            const utilizationMap = new Map()
+            
+            // 각 사번별 최신 휴가 데이터 매핑
+            if (leaveData) {
+              leaveData.forEach(leave => {
+                if (!leaveMap.has(leave.EMPNO)) {
+                  leaveMap.set(leave.EMPNO, leave)
+                }
+              })
+            }
+            
+            // 활용률 데이터 매핑
+            if (utilData) {
+              utilData.forEach(util => {
+                utilizationMap.set(util.EMPNO, util)
+              })
+            }
             
             // 가장 최신 BASE_YMD 찾기
             const latestBaseDate = leaveData && leaveData.length > 0 ? leaveData[0]?.BASE_YMD : null
-          
-          // 팀 전체 집계 계산
-          let totalSumTime = 0
-          let totalRmnTime = 0
-          
-          const teamDetails = refreshOffDataResult.map(member => {
-            const leaveInfo = latestLeaveData.find(leave => leave.EMPNO === member.EMPNO)
-            const sumTime = parseFloat(leaveInfo?.SUM_TIME || 0) || 0
-            const rmnTime = parseFloat(leaveInfo?.RMN_TIME || 0) || 0
-            const usedTime = sumTime - rmnTime
-            const usageRate = sumTime > 0 ? Math.round((usedTime / sumTime) * 100 * 100) / 100 : 0
-            
-            totalSumTime += sumTime
-            totalRmnTime += rmnTime
-            
-            return {
-              empno: member.EMPNO,
-              empnm: member.EMPNM,
-              cm_nm: member.CM_NM,
-              sumTime,
-              rmnTime,
-              usedTime,
-              usageRate,
-              baseDate: leaveInfo?.BASE_YMD
-            }
-          })
-          
-          const totalUsedTime = totalSumTime - totalRmnTime
-          const teamUsageRate = totalSumTime > 0 ? Math.round((totalUsedTime / totalSumTime) * 100 * 100) / 100 : 0
-          
-          console.log("🧮 Team calculation:", {
-            teamCount: refreshOffDataResult.length,
-            totalSumTime,
-            totalRmnTime,
-            totalUsedTime,
-            teamUsageRate,
-            teamDetails
-          })
-          
-          setRefreshOffData({
-            usageRate: teamUsageRate,
-            sumTime: totalSumTime,
-            rmnTime: totalRmnTime,
-            usedTime: totalUsedTime,
-            teamDetails: teamDetails,
-            baseDate: latestBaseDate
-          })
-
-          // 활용률 데이터도 함께 설정 (같은 팀원들 사용)
-          const utilizationDetails = refreshOffDataResult.map(member => {
-            // v_employee_core에서 UTIL_A, UTIL_B 데이터 가져오기
-            return {
-              empno: member.EMPNO,
-              empnm: member.EMPNM,
-              cm_nm: member.CM_NM,
-              utilA: 0, // 임시값, 실제로는 별도 조회 필요
-              utilB: 0, // 임시값, 실제로는 별도 조회 필요
-            }
-          })
-
-          // 팀원들의 활용률 정보를 별도로 조회 (UTIL_DATE도 포함)
-          const { data: utilData, error: utilError } = await supabase
-            .from("v_employee_core")
-            .select("EMPNO, EMPNM, CM_NM, UTIL_A, UTIL_B")
-            .in("EMPNO", teamEmpnos)
-            
-          // 활용률 데이터의 최신 날짜 확인을 위해 a_utilization에서 최신 UTIL_DATE 조회
-          const { data: utilDateData } = await supabase
-            .from("a_utilization")
-            .select("UTIL_DATE")
-            .in("EMPNO", teamEmpnos)
-            .order("UTIL_DATE", { ascending: false })
-            .limit(1)
-
-          if (utilError) {
-            console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
-          } else if (utilData && utilData.length > 0) {
-            console.log("🔍 팀원 활용률 데이터:", utilData)
-
-            // 평균 계산
-            const validUtilA = utilData.filter(item => item.UTIL_A !== null && item.UTIL_A !== "")
-            const validUtilB = utilData.filter(item => item.UTIL_B !== null && item.UTIL_B !== "")
-
-            const utilASum = validUtilA.reduce((sum, item) => sum + (parseFloat(item.UTIL_A) || 0), 0)
-            const utilBSum = validUtilB.reduce((sum, item) => sum + (parseFloat(item.UTIL_B) || 0), 0)
-
-            const utilAAverage = validUtilA.length > 0 ? Math.round((utilASum / validUtilA.length) * 100) / 100 : 0
-            const utilBAverage = validUtilB.length > 0 ? Math.round((utilBSum / validUtilB.length) * 100) / 100 : 0
-
-            const utilizationTeamDetails = utilData.map(member => ({
-              empno: member.EMPNO,
-              empnm: member.EMPNM,
-              cm_nm: member.CM_NM,
-              utilA: parseFloat(member.UTIL_A) || 0,
-              utilB: parseFloat(member.UTIL_B) || 0,
-            }))
-
             const latestUtilDate = utilDateData && utilDateData.length > 0 ? utilDateData[0]?.UTIL_DATE : null
+          
+            // ⚡ 단일 반복문으로 모든 계산 처리
+            let totalSumTime = 0
+            let totalRmnTime = 0
+            let utilASumForAvg = 0
+            let utilBSumForAvg = 0
+            let validUtilACount = 0
+            let validUtilBCount = 0
             
+            const teamDetails: any[] = []
+            const utilizationTeamDetails: any[] = []
+            
+            refreshOffDataResult.forEach(member => {
+              const empno = member.EMPNO
+              
+              // Refresh Off 계산
+              const leaveInfo = leaveMap.get(empno) || { SUM_TIME: 0, RMN_TIME: 0, BASE_YMD: null }
+              const sumTime = parseFloat(leaveInfo.SUM_TIME || 0) || 0
+              const rmnTime = parseFloat(leaveInfo.RMN_TIME || 0) || 0
+              const usedTime = sumTime - rmnTime
+              const usageRate = sumTime > 0 ? Math.round((usedTime / sumTime) * 100 * 100) / 100 : 0
+              
+              totalSumTime += sumTime
+              totalRmnTime += rmnTime
+              
+              teamDetails.push({
+                empno: member.EMPNO,
+                empnm: member.EMPNM,
+                cm_nm: member.CM_NM,
+                sumTime,
+                rmnTime,
+                usedTime,
+                usageRate,
+                baseDate: leaveInfo.BASE_YMD
+              })
+              
+              // 활용률 계산
+              const utilInfo = utilizationMap.get(empno)
+              if (utilInfo) {
+                const utilA = parseFloat(utilInfo.UTIL_A) || 0
+                const utilB = parseFloat(utilInfo.UTIL_B) || 0
+                
+                if (utilInfo.UTIL_A !== null && utilInfo.UTIL_A !== "") {
+                  utilASumForAvg += utilA
+                  validUtilACount++
+                }
+                
+                if (utilInfo.UTIL_B !== null && utilInfo.UTIL_B !== "") {
+                  utilBSumForAvg += utilB
+                  validUtilBCount++
+                }
+                
+                utilizationTeamDetails.push({
+                  empno: member.EMPNO,
+                  empnm: member.EMPNM,
+                  cm_nm: member.CM_NM,
+                  utilA,
+                  utilB,
+                })
+              }
+            })
+            
+            const totalUsedTime = totalSumTime - totalRmnTime
+            const teamUsageRate = totalSumTime > 0 ? Math.round((totalUsedTime / totalSumTime) * 100 * 100) / 100 : 0
+            
+            const utilAAverage = validUtilACount > 0 ? Math.round((utilASumForAvg / validUtilACount) * 100) / 100 : 0
+            const utilBAverage = validUtilBCount > 0 ? Math.round((utilBSumForAvg / validUtilBCount) * 100) / 100 : 0
+            
+            console.log("🧮 Team calculation (최적화):", {
+              teamCount: refreshOffDataResult.length,
+              totalSumTime,
+              totalRmnTime,
+              totalUsedTime,
+              teamUsageRate,
+              utilAAverage,
+              utilBAverage
+            })
+            
+            // 상태 업데이트
+            setRefreshOffData({
+              usageRate: teamUsageRate,
+              sumTime: totalSumTime,
+              rmnTime: totalRmnTime,
+              usedTime: totalUsedTime,
+              teamDetails: teamDetails,
+              baseDate: latestBaseDate
+            })
+
             setUtilizationData({
               utilAAverage,
               utilBAverage,
               teamDetails: utilizationTeamDetails,
               utilDate: latestUtilDate
             })
-
-            console.log("🧮 Utilization calculation:", {
-              utilAAverage,
-              utilBAverage,
-              teamCount: utilData.length,
-              utilizationTeamDetails
-            })
-          }
           }
         } else {
           console.log("❌ No team members found for TL")
