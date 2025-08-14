@@ -16,6 +16,9 @@ export const metadata = {
   title: "My Career+ Web version",
   description: "A modern, responsive financial dashboard",
   generator: "v0.dev",
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({

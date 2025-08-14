@@ -21,6 +21,7 @@ import {
   Building2,
   Copy,
   Check,
+  ExternalLink,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -136,6 +137,28 @@ export function Sidebar() {
           
           <div className="border-t border-slate-200 dark:border-gray-800 p-2 w-full">
             <nav className="space-y-1 w-full">
+              {/* PowerBI 바로가기 링크 */}
+              <a
+                href="https://app.powerbi.com/groups/06a9d883-28ef-4d69-8e57-42008ff57fd8/reports/c1a7a139-0d7b-45f1-aa3c-b00f98b1044e/ReportSection70efc05003bf7f842754?experience=power-bi"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-700 dark:hover:text-orange-300"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3" />
+                <span className="truncate">My Career+ (PowerBI)</span>
+              </a>
+              
+              {/* My People+ 바로가기 링크 */}
+              <a
+                href="https://app.powerbi.com/reportEmbed?reportId=9a63b16c-3e6d-40d7-8339-df119261fede&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3" />
+                <span className="truncate">My People+ (PowerBI)</span>
+              </a>
+              
               {bottomNavigation.map((item) => (
                 <NavItem key={item.name} item={item} isBottom />
               ))}

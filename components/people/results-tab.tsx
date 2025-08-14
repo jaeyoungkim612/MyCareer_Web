@@ -502,27 +502,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
   return (
     <TooltipProvider>
       <div className="relative">
-        {/* My People+ 바로가기 고정 배너 - 리뷰어 다이얼로그 열림 시 숨김 */}
-        {!isReviewerDialogOpen && (
-          <div className="fixed top-1/2 right-4 transform -translate-y-1/2 z-50">
-          <a
-            href="https://app.powerbi.com/reportEmbed?reportId=9a63b16c-3e6d-40d7-8339-df119261fede&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group flex flex-col items-center justify-center bg-orange-500 hover:bg-orange-600 text-white px-2 py-6 rounded-l-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 min-h-[120px]"
-          >
-            <div className="text-xs font-bold mb-1 whitespace-nowrap">
-              My People+
-            </div>
-            <div className="text-xs whitespace-nowrap">
-              바로가기
-            </div>
-            <div className="mt-2 opacity-70 group-hover:opacity-100 transition-opacity">
-              <ArrowRight className="h-4 w-4" />
-            </div>
-          </a>
-          </div>
-        )}
+
 
         <div className="space-y-6">
         <div className="flex justify-between items-center">

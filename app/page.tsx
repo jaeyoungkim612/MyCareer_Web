@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
 import { PerformanceRadarChart } from "@/components/dashboard/performance-radar-chart"
-import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw, User, Users, Search, Filter, Eye, ArrowRight } from "lucide-react"
+import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw, User, Users, Search, Filter, Eye } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import type { UserMasterInfo } from "@/data/user-info"
@@ -1409,28 +1409,7 @@ export default function Intro() {
       {/* 반려 알림 (반려당한 사용자에게만 표시) */}
       <RejectionNotification onRejectionStatusChange={setHasRejection} />
 
-      {/* My Career+ 바로가기 배너 */}
-      <div className="fixed top-1/2 right-4 transform -translate-y-1/2 z-50">
-        <a
-          href="https://app.powerbi.com/groups/06a9d883-28ef-4d69-8e57-42008ff57fd8/reports/c1a7a139-0d7b-45f1-aa3c-b00f98b1044e/ReportSection70efc05003bf7f842754?experience=power-bi"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group flex flex-col items-center justify-center bg-orange-500 hover:bg-orange-600 text-white px-2 py-6 rounded-l-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 min-h-[120px]"
-        >
-          <div className="text-xs font-bold mb-1 whitespace-nowrap">
-            My Career+
-          </div>
-          <div className="text-xs whitespace-nowrap mb-1">
-            (PowerBI)
-          </div>
-          <div className="text-xs whitespace-nowrap">
-            바로가기
-          </div>
-          <div className="mt-2 opacity-70 group-hover:opacity-100 transition-opacity">
-            <ArrowRight className="h-4 w-4" />
-          </div>
-        </a>
-      </div>
+
     </div>
   )
 }
