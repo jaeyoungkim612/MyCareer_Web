@@ -117,15 +117,15 @@ export function LoginForm() {
 
       if (result.success) {
         if (result.needsPasswordChange) {
-          // 🔄 비밀번호 변경 필요
+          // 🔄 비밀번호 변경 필요 - Settings로 가서 비밀번호 변경 후 메인으로
           setMessage(result.message)
           toast({
             title: "비밀번호 변경 필요",
             description: "기본 비밀번호를 변경해주세요.",
             variant: "default",
           })
-          console.log("🔄 LoginForm: Redirecting to /settings")
-          router.push("/settings")
+          console.log("🔄 LoginForm: Redirecting to /settings for password change")
+          router.push("/settings?redirect=main")
         } else if (result.needsVerification) {
           setMessage(result.message)
           toast({

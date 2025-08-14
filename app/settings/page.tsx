@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { PasswordUtils } from "@/lib/password-utils"
 import { GSPService, type GSPData } from "@/lib/gsp-service"
 import { Check, X, User, Lock } from "lucide-react"
@@ -18,6 +18,9 @@ import { Check, X, User, Lock } from "lucide-react"
 export default function SettingsPage() {
   const { changePassword, user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const shouldRedirectToMain = searchParams.get('redirect') === 'main'
+  
   const [passwords, setPasswords] = useState({
     current: "",
     new: "",
@@ -93,10 +96,17 @@ export default function SettingsPage() {
 
         toast.success(result.message)
         
-        // 비밀번호 변경 완료 후 메인 페이지로 이동
-        setTimeout(() => {
-          router.push("/")
-        }, 1500)
+        // 비밀번호 변경 완료 후 이동
+        if (shouldRedirectToMain || user?.is_password_changed === false) {
+          // 최초 로그인 후 비밀번호 변경인 경우 바로 메인으로 (기본정보 변경 건너뛰기)
+          console.log("🏠 최초 로그인 후 비밀번호 변경 완료 - 바로 메인으로 이동")
+          setTimeout(() => {
+            router.push("/")
+          }, 1500)
+        } else {
+          // 일반적인 비밀번호 변경인 경우 현재 페이지 유지
+          console.log("🔄 일반 비밀번호 변경 완료 - 현재 페이지 유지")
+        }
       } else {
         toast.error(result.message)
       }
@@ -289,12 +299,12 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue={user?.is_password_changed === false ? "password" : "basic-info"} className="w-full">
+          <Tabs defaultValue="password" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger 
                 value="basic-info" 
                 className="flex items-center gap-2"
-                disabled={user?.is_password_changed === false}
+                disabled={user?.is_password_changed === false || shouldRedirectToMain}
               >
                 <User className="h-4 w-4" />
                 기본정보 변경

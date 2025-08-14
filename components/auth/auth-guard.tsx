@@ -44,7 +44,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // 🔐 인증된 사용자 중 비밀번호 변경이 필요한 사용자 체크
+    // 🔐 인증된 사용자 중 비밀번호 변경이 필요한 사용자는 Settings로 리다이렉트
     if (isAuthenticated && user && !isSettingsPath) {
       if (user.is_password_changed === false) {
         console.log("🔄 AuthGuard: User needs password change, redirecting to /settings")

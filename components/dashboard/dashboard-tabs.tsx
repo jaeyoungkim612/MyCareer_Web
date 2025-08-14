@@ -589,7 +589,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+                    </div>
 
               {/* 계약금액 기준 요약 테이블 */}
               <div>
@@ -695,8 +695,8 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                     </div>
                   </CardContent>
                 </Card>
-              </div>
             </div>
+          </div>
         )}
       </TabsContent>
 
@@ -709,8 +709,8 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         ) : !peopleGoal ? (
           <div className="p-8 text-center text-gray-500">입력된 People 데이터가 없습니다.</div>
         ) : (
-                 <div className="space-y-4">
-           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
              {/* Util A Card */}
              <Card>
                <CardHeader className="pb-2">
@@ -753,16 +753,16 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                  </div>
                </CardContent>
              </Card>
-             {/* GPS Score Card */}
-             <Card>
-               <CardHeader className="pb-2">
-                 <CardTitle className="text-base font-semibold">GPS Score</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 <div className="flex justify-between items-end mb-1">
+            {/* GPS Score Card */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">GPS Score</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-end mb-1">
                      <div className="text-2xl font-bold">
                        {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-%'}
-                     </div>
+                </div>
                      <div className="text-xs text-muted-foreground text-right">FY25 기준</div>
                  </div>
                  <div className="space-y-2">
@@ -776,18 +776,18 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                      : 0
                    } className="h-1.5" />
                  </div>
-               </CardContent>
-             </Card>
-             {/* PEI Score Card */}
-             <Card>
-               <CardHeader className="pb-2">
-                 <CardTitle className="text-base font-semibold">PEI Score</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 <div className="flex justify-between items-end mb-1">
+              </CardContent>
+            </Card>
+            {/* PEI Score Card */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">PEI Score</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-end mb-1">
                      <div className="text-2xl font-bold">
                        {peopleActualData.peiScore && peopleActualData.peiScore !== '-' ? `${Math.round(parseFloat(peopleActualData.peiScore) * 100)}%` : '-%'}
-                     </div>
+                </div>
                      <div className="text-xs text-muted-foreground text-right">FY25 기준</div>
                  </div>
                  <div className="space-y-2">
@@ -801,18 +801,18 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                      : 0
                    } className="h-1.5" />
                  </div>
-               </CardContent>
-             </Card>
-             {/* Staff Coaching Time Card */}
-             <Card>
-               <CardHeader className="pb-2">
-                 <CardTitle className="text-base font-semibold">Staff Coaching Time</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 <div className="flex justify-between items-end mb-1">
+              </CardContent>
+            </Card>
+            {/* Staff Coaching Time Card */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Staff Coaching Time</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-end mb-1">
                      <div className="text-2xl font-bold">{peopleActualData.coachingTimeHours > 0 ? `${peopleActualData.coachingTimeHours} 시간` : '- 시간'}</div>
                      <div className="text-xs text-muted-foreground text-right">목표: {peopleGoal?.coaching_time || 40} 시간</div>
-                 </div>
+                </div>
                  <div className="space-y-2">
                    <div className="flex justify-between text-xs">
                      <span>실제: {peopleActualData.coachingTimeHours > 0 ? `${peopleActualData.coachingTimeHours} 시간` : '- 시간'}</span>
@@ -824,18 +824,18 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                      : 0
                    } className="h-1.5" />
                  </div>
-               </CardContent>
-             </Card>
-             {/* Refresh Off Card */}
-             <Card>
-               <CardHeader className="pb-2">
-                 <CardTitle className="text-base font-semibold">Refresh Off 사용률(%)</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 <div className="flex justify-between items-end mb-1">
+              </CardContent>
+            </Card>
+            {/* Refresh Off Card */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Refresh Off 사용률(%)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-end mb-1">
                      <div className="text-2xl font-bold">{peopleActualData.refreshOffUsageRate !== null ? `${peopleActualData.refreshOffUsageRate}%` : '-%'}</div>
                      <div className="text-xs text-muted-foreground text-right">목표: {peopleGoal?.refresh_off_usage_rate || 100}%</div>
-                 </div>
+                </div>
                  <div className="space-y-2">
                    <div className="flex justify-between text-xs">
                      <span>실제: {peopleActualData.refreshOffUsageRate !== null ? `${peopleActualData.refreshOffUsageRate}%` : '-%'}</span>
@@ -847,10 +847,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                      : peopleActualData.refreshOffUsageRate !== null ? peopleActualData.refreshOffUsageRate : 0
                    } className="h-1.5" />
                  </div>
-               </CardContent>
-             </Card>
-           </div>
-         </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
         )}
       </TabsContent>
 
