@@ -726,13 +726,13 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
               </CardContent>
             </Card>
 
-            {/* AX/Transition 비율 */}
+            {/* AX/DX Transition 비율 */}
             <Card>
               <CardHeader className="pb-4">
                 <CardTitle className="text-base font-medium flex items-center justify-between">
                   <span className="flex items-center">
                     <TrendingUp className="mr-2 h-5 w-5" />
-                    AX/Transition 비율
+                    AX/DX Transition 비율
                   </span>
                   {getStatusBadge(0, targetMetrics.axTransitionRatio)}
                 </CardTitle>

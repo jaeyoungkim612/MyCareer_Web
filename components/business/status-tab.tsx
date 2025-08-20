@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase"
 import { AuthService } from "@/lib/auth-service"
 import { BusinessGoalsService, type BusinessGoal } from "@/lib/business-goals-service"
 
-// 백만(M) 단위 변환 함수
+// 백만원 단위 변환 함수
 const toMillion = (value: number | string) => Number(value) / 1_000_000;
 
 interface BusinessMonitoringTabProps {
@@ -90,10 +90,10 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   }, [currentEmployeeId])
 
   // Budget 실데이터 변수 선언 (컴포넌트 전체에서 한 번만 선언)
-  const myAuditActual = toMillion(budgetData?.current_audit_revenue ?? 0); // 원 → M
-  const myNonAuditActual = toMillion(budgetData?.current_non_audit_revenue ?? 0); // 원 → M
-  const myAuditBudget = Number(budgetData?.budget_audit ?? 0); // 이미 M단위
-  const myNonAuditBudget = Number(budgetData?.budget_non_audit ?? 0); // 이미 M단위
+  const myAuditActual = toMillion(budgetData?.current_audit_revenue ?? 0); // 원 → 백만원
+  const myNonAuditActual = toMillion(budgetData?.current_non_audit_revenue ?? 0); // 원 → 백만원
+  const myAuditBudget = Number(budgetData?.budget_audit ?? 0); // 이미 백만원단위
+  const myNonAuditBudget = Number(budgetData?.budget_non_audit ?? 0); // 이미 백만원단위
   const myTotalActual = myAuditActual + myNonAuditActual;
   const myTotalBudget = myAuditBudget + myNonAuditBudget;
 
@@ -105,10 +105,10 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   const teamTotalBudget = teamAuditBudget + teamNonAuditBudget;
 
   // 신규 BD 금액, UI Revenue 계약금액 실제/예산값 변수 선언 (컴포넌트 상단)
-  const actualNewBdAmount = (budgetData?.audit_pjt_amount ?? 0) / 1_000_000; // 백만(M) 단위
-  const budgetNewBdAmount = goalData?.new_audit_amount ?? 0; // 백만(M) 단위 그대로
-  const actualUiRevenueAmount = (budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000; // 백만(M) 단위
-  const budgetUiRevenueAmount = goalData?.ui_revenue_amount ?? 0; // 백만(M) 단위 그대로
+  const actualNewBdAmount = (budgetData?.audit_pjt_amount ?? 0) / 1_000_000; // 백만원 단위
+  const budgetNewBdAmount = goalData?.new_audit_amount ?? 0; // 백만원 단위 그대로
+  const actualUiRevenueAmount = (budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000; // 백만원 단위
+  const budgetUiRevenueAmount = goalData?.ui_revenue_amount ?? 0; // 백만원 단위 그대로
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW" }).format(value)
@@ -168,9 +168,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         case "count":
           return `${Math.round(value)}건`
         case "amount":
-          return isBudget
-            ? `${value.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M`
-            : `${value.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`
+          return `${Math.ceil(value).toLocaleString('ko-KR')}백만원`
         case "tenThousand":
           return `${Math.round(value / 10000)}만`
         case "percentage":
@@ -274,19 +272,19 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               <div className="text-xl font-bold text-gray-900">
                 {displayType === 'count' ? `${Math.round(actual)}건` :
                   // 목표탭의 '신규 감사 BD 금액', '신규 비감사서비스 BD 금액'만 백만단위 환산 및 콤마
-                  (title === '신규 감사 BD 금액' || title === '신규 비감사서비스 BD 금액') ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` :
-                  displayType === 'amount' ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` :
+                  (title === '신규 감사 BD 금액' || title === '신규 비감사서비스 BD 금액') ? `${Math.ceil(actual).toLocaleString('ko-KR')}백만원` :
+                  displayType === 'amount' ? `${Math.ceil(actual).toLocaleString('ko-KR')}백만원` :
                   displayType === 'tenThousand' ? `${actual.toLocaleString('ko-KR')}/h` :
-                  actual !== undefined && actual !== null ? `${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` : '-'}
+                  actual !== undefined && actual !== null ? `${Math.ceil(actual).toLocaleString('ko-KR')}백만원` : '-'}
               </div>
             </div>
             <div className="space-y-1 text-right">
               <div className="text-sm text-gray-500">{(title.includes('신규 감사 건수') || title.includes('신규 감사 BD 금액') || title.includes('신규 비감사서비스') || title.includes('시간 당 Revenue')) ? '목표' : '예산'}</div>
               <div className="text-xl font-bold text-gray-900">
                 {displayType === 'count' ? `${Math.round(budget)}건` :
-                  displayType === 'amount' ? `${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M` :
+                  displayType === 'amount' ? `${Math.ceil(budget).toLocaleString('ko-KR')}백만원` :
                   displayType === 'tenThousand' ? `${budget.toLocaleString('ko-KR')}/h` :
-                  budget !== undefined && budget !== null ? `${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M` : '-'}
+                  budget !== undefined && budget !== null ? `${Math.ceil(budget).toLocaleString('ko-KR')}백만원` : '-'}
               </div>
             </div>
           </div>
@@ -300,7 +298,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="text-xs text-gray-400 mt-1">
               {displayType === 'count' 
                 ? `(실제: ${Math.round(actual)}건 / 목표: ${Math.round(budget)}건 × 100 = ${Math.round(percentage)}%)`
-                : `(실제: ${actual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M / 목표: ${budget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M × 100 = ${Math.round(percentage)}%)`
+                : `(실제: ${Math.ceil(actual).toLocaleString('ko-KR')}백만원 / 목표: ${Math.ceil(budget).toLocaleString('ko-KR')}백만원 × 100 = ${Math.round(percentage)}%)`
               }
             </div>
           </div>
@@ -333,7 +331,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     const nonAuditPercentage = Math.round((nonAuditActual / totalActual) * 100)
 
     const formatDisplayValue = (value: number) => {
-      return `${value.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+      return `${Math.ceil(value).toLocaleString('ko-KR')}백만원`;
     }
 
     // 막대 그래프 데이터
@@ -354,19 +352,19 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <p className="font-medium">{label}</p>
             <p className="text-sm">
               <span className="font-medium">감사: </span>
-              {auditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M ({totalActual > 0 ? Math.round((auditActual / totalActual) * 100) : 0}%)
+              {Math.ceil(auditActual).toLocaleString('ko-KR')}백만원 ({totalActual > 0 ? Math.round((auditActual / totalActual) * 100) : 0}%)
             </p>
             <p className="text-sm">
               <span className="font-medium">비감사서비스: </span>
-              {nonAuditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M ({totalActual > 0 ? Math.round((nonAuditActual / totalActual) * 100) : 0}%)
+              {Math.ceil(nonAuditActual).toLocaleString('ko-KR')}백만원 ({totalActual > 0 ? Math.round((nonAuditActual / totalActual) * 100) : 0}%)
             </p>
             <p className="text-sm">
               <span className="font-medium">총 실제: </span>
-              {totalActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+              {Math.ceil(totalActual).toLocaleString('ko-KR')}백만원
             </p>
             <p className="text-sm">
               <span className="font-medium">예산: </span>
-              {totalBudget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M
+              {Math.ceil(totalBudget).toLocaleString('ko-KR')}백만원
             </p>
             <p className="text-sm font-medium">달성률: {totalBudget > 0 ? Math.round((totalActual / totalBudget) * 100) : 0}%</p>
           </div>
@@ -444,11 +442,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <div className="text-sm text-gray-500">실제</div>
-              <div className="text-xl font-bold text-gray-900">{totalActual !== undefined && totalActual !== null ? `${totalActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M` : '-'}</div>
+              <div className="text-xl font-bold text-gray-900">{totalActual !== undefined && totalActual !== null ? `${Math.ceil(totalActual).toLocaleString('ko-KR')}백만원` : '-'}</div>
             </div>
             <div className="space-y-1 text-right">
               <div className="text-sm text-gray-500">예산</div>
-              <div className="text-xl font-bold text-gray-900">{totalBudget !== undefined && totalBudget !== null ? `${totalBudget.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}M` : '-'}</div>
+              <div className="text-xl font-bold text-gray-900">{totalBudget !== undefined && totalBudget !== null ? `${Math.ceil(totalBudget).toLocaleString('ko-KR')}백만원` : '-'}</div>
             </div>
           </div>
 
@@ -468,7 +466,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 <span className="text-sm text-gray-600">감사</span>
               </div>
               <div className="text-sm font-medium text-gray-900">
-                {auditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M, {totalActual > 0 ? Math.round((auditActual / totalActual) * 100) : 0}%
+                {Math.ceil(auditActual).toLocaleString('ko-KR')}백만원, {totalActual > 0 ? Math.round((auditActual / totalActual) * 100) : 0}%
               </div>
             </div>
             <div className="flex items-center justify-between">
@@ -477,7 +475,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 <span className="text-sm text-gray-600">비감사서비스</span>
               </div>
               <div className="text-sm font-medium text-gray-900">
-                {nonAuditActual.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M, {totalActual > 0 ? Math.round((nonAuditActual / totalActual) * 100) : 0}%
+                {Math.ceil(nonAuditActual).toLocaleString('ko-KR')}백만원, {totalActual > 0 ? Math.round((nonAuditActual / totalActual) * 100) : 0}%
               </div>
             </div>
           </div>

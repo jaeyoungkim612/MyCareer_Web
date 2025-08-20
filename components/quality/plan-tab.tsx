@@ -630,12 +630,17 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                 {isEditing ? (
                   <Input
                     ref={yearEndInputRef}
-                    type="number"
-                    step="0.01"
-                    value={auditMetrics.yearEndTimeRatio}
-                    onChange={(e) => setAuditMetrics({ ...auditMetrics, yearEndTimeRatio: e.target.value ? Number(e.target.value) : 0 })}
+                    type="text"
+                    value={auditMetrics.yearEndTimeRatio === 0 ? "" : auditMetrics.yearEndTimeRatio}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        const numValue = value === "" ? 0 : parseInt(value, 10);
+                        setAuditMetrics(prev => ({ ...prev, yearEndTimeRatio: numValue }));
+                      }
+                    }}
                     className="text-xl font-bold min-h-[48px] h-[48px] px-3"
-                    placeholder="0.00"
+                    placeholder="0"
                   />
                 ) : (
                   <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[70px] flex items-center">
@@ -658,12 +663,17 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                 {isEditing ? (
                   <Input
                     ref={elInputRef}
-                    type="number"
-                    step="0.01"
-                    value={auditMetrics.elInputHours}
-                    onChange={(e) => setAuditMetrics({ ...auditMetrics, elInputHours: e.target.value ? Number(e.target.value) : 0 })}
+                    type="text"
+                    value={auditMetrics.elInputHours === 0 ? "" : auditMetrics.elInputHours}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        const numValue = value === "" ? 0 : parseInt(value, 10);
+                        setAuditMetrics(prev => ({ ...prev, elInputHours: numValue }));
+                      }
+                    }}
                     className="text-xl font-bold min-h-[48px] h-[48px] px-3"
-                    placeholder="0.00"
+                    placeholder="0"
                   />
                 ) : (
                   <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[70px] flex items-center">
@@ -682,28 +692,19 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
               <div>
                 <label className="text-sm font-semibold mb-2 block">
                   <TrendingUp className="inline mr-1 h-4 w-4" />
-                  AX/Transition 비율 (%)
+                  AX/DX Transition 비율 (%)
                 </label>
-                {isEditing ? (
-                  <Input
-                    ref={axInputRef}
-                    type="number"
-                    step="0.01"
-                    value={auditMetrics.axTransitionRatio}
-                    onChange={(e) => setAuditMetrics({ ...auditMetrics, axTransitionRatio: e.target.value ? Number(e.target.value) : 0 })}
-                    className="text-xl font-bold min-h-[48px] h-[48px] px-3"
-                    placeholder="0.00"
-                  />
-                ) : (
-                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[70px] flex items-center">
-                    <span className="text-xl font-bold">
+                <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-md min-h-[70px] flex items-center border-2 border-dashed border-slate-300 dark:border-slate-600">
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xl font-bold text-slate-400 dark:text-slate-500">
                       {auditMetrics.axTransitionRatio !== undefined && auditMetrics.axTransitionRatio !== null && auditMetrics.axTransitionRatio !== 0
                         ? auditMetrics.axTransitionRatio
-                        : <span className="text-muted-foreground">-</span>
+                        : "-"
                       }%
                     </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 italic">추가 예정</span>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* EER 평가 결과 */}
@@ -712,28 +713,17 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                   <CheckCircle className="inline mr-1 h-4 w-4" />
                   EER 평가 결과
                 </label>
-                {isEditing ? (
-                  <Input
-                    ref={eerInputRef}
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="5"
-                    value={auditMetrics.eerEvaluationScore}
-                    onChange={(e) => setAuditMetrics({ ...auditMetrics, eerEvaluationScore: e.target.value ? Number(e.target.value) : 0 })}
-                    className="text-xl font-bold min-h-[48px] h-[48px] px-3"
-                    placeholder="0.0"
-                  />
-                ) : (
-                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[70px] flex items-center">
-                    <span className="text-xl font-bold">
+                <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-md min-h-[70px] flex items-center border-2 border-dashed border-slate-300 dark:border-slate-600">
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xl font-bold text-slate-400 dark:text-slate-500">
                       {auditMetrics.eerEvaluationScore !== undefined && auditMetrics.eerEvaluationScore !== null && auditMetrics.eerEvaluationScore !== 0
                         ? auditMetrics.eerEvaluationScore
-                        : <span className="text-muted-foreground">-</span>
+                        : "-"
                       }
                     </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 italic">추가 예정</span>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -750,7 +740,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                   <p className="text-xs text-muted-foreground">Time Report 기재 시간</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
-                  <h5 className="font-medium text-sm mb-1">AX/Transition 비율:</h5>
+                  <h5 className="font-medium text-sm mb-1">AX/DX Transition 비율:</h5>
                   <p className="text-xs text-muted-foreground">-</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">

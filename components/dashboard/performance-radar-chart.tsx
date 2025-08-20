@@ -268,7 +268,7 @@ export function PerformanceRadarChart({ empno }: PerformanceRadarChartProps = {}
         </div>
         <div className="flex items-center space-x-2">
           <div className="w-4 h-4 bg-orange-500 rounded"></div>
-          <span>연간목표</span>
+          <span>개선목표</span>
         </div>
       </div>
     </div>

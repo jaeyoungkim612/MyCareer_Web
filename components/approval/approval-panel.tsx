@@ -72,7 +72,39 @@ export function ApprovalPanel({ hasRejection = false }: ApprovalPanelProps) {
     return () => clearInterval(interval)
   }, [user?.empno])
 
-  // 승인/반려 처리
+  // 개별 항목 승인/반려 처리
+  const handleItemApproval = async (empno: string, field: string, status: '승인완료' | '반려', empnm: string) => {
+    if (!user?.empno) return
+    
+    setIsProcessing(empno)
+    try {
+      const result = await GSPService.processItemApproval(empno, field, status, user.empno)
+      
+      if (result.success) {
+        const fieldName = {
+          '보직': '보직(HC)',
+          '산업전문화': '산업전문화',
+          'TF_Council': 'TF & Council',
+          'GSP_Focus30': 'GSP/Focus 30'
+        }[field] || field
+        
+        toast.success(`${empnm}님의 ${fieldName} ${status === '승인완료' ? '승인' : '반려'} 처리가 완료되었습니다.`)
+        // 승인 목록 새로고침
+        await loadPendingApprovals()
+        // intro 페이지에 GSP 데이터 새로고침 신호 보내기
+        window.dispatchEvent(new CustomEvent('gspDataChanged'))
+      } else {
+        toast.error(`처리 중 오류가 발생했습니다: ${result.message}`)
+      }
+    } catch (error) {
+      console.error("❌ Approval Panel: Error processing item approval:", error)
+      toast.error("처리 중 오류가 발생했습니다.")
+    } finally {
+      setIsProcessing(null)
+    }
+  }
+
+  // 전체 승인/반려 처리
   const handleApproval = async (empno: string, action: '승인완료' | '반려', empnm: string) => {
     if (!user?.empno) return
     
@@ -81,9 +113,11 @@ export function ApprovalPanel({ hasRejection = false }: ApprovalPanelProps) {
       const result = await GSPService.processApproval(empno, action, user.empno)
       
       if (result.success) {
-        toast.success(result.message)
+        toast.success(`${empnm}님의 전체 항목 ${action === '승인완료' ? '승인' : '반려'} 처리가 완료되었습니다.`)
         // 승인 요청 목록 새로고침
         await loadPendingApprovals()
+        // intro 페이지에 GSP 데이터 새로고침 신호 보내기
+        window.dispatchEvent(new CustomEvent('gspDataChanged'))
       } else {
         toast.error(result.message)
       }
@@ -160,7 +194,9 @@ export function ApprovalPanel({ hasRejection = false }: ApprovalPanelProps) {
                       </span>
                     </div>
                   </div>
-                  <CardTitle className="text-sm">승인 요청이 있습니다</CardTitle>
+                  <div className="flex-1">
+                    <CardTitle className="text-sm">승인 요청이 있습니다</CardTitle>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -238,91 +274,213 @@ export function ApprovalPanel({ hasRejection = false }: ApprovalPanelProps) {
                         <div className="space-y-3">
                           {/* 보직(HC) */}
                           {approval["보직_STATUS"] === '승인대기' && (
-                            <div>
-                              <div className="text-sm font-medium text-blue-600 mb-2 flex items-center gap-1">
-                                보직(HC)
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                  <span className="text-sm font-bold text-blue-700">보직(HC)</span>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                                    onClick={() => handleItemApproval(approval.사번, '보직', '승인완료', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✓ 승인
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                                    onClick={() => handleItemApproval(approval.사번, '보직', '반려', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✗ 반려
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left">
-                                {approval["보직(HC)"] || "내용 없음"}
+                              <div className="space-y-2">
+                                <div className="text-xs">
+                                  <span className="text-gray-600 font-medium">기존:</span>
+                                  <div className="bg-white p-2 rounded text-gray-700 mt-1 border">
+                                    {approval.current_job_info_nm || "정보 없음"}
+                                  </div>
+                                </div>
+                                <div className="text-xs">
+                                  <span className="text-blue-700 font-medium">신규:</span>
+                                  <div className="bg-blue-100 p-2 rounded text-blue-800 mt-1 border border-blue-300">
+                                    {approval["보직(HC)"] || "내용 없음"}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}
                           
                           {/* 산업전문화 */}
                           {approval["산업전문화_STATUS"] === '승인대기' && (
-                            <div>
-                              <div className="text-sm font-medium text-green-600 mb-2 flex items-center gap-1">
-                                산업전문화
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                            <div className="border border-green-200 rounded-lg p-4 bg-green-50/30">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                  <span className="text-sm font-bold text-green-700">산업전문화</span>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                                    onClick={() => handleItemApproval(approval.사번, '산업전문화', '승인완료', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✓ 승인
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                                    onClick={() => handleItemApproval(approval.사번, '산업전문화', '반려', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✗ 반려
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left">
-                                {approval["산업전문화"] || "내용 없음"}
+                              <div className="space-y-2">
+                                <div className="text-xs">
+                                  <span className="text-gray-600 font-medium">기존:</span>
+                                  <div className="bg-white p-2 rounded text-gray-700 mt-1 border">
+                                    {approval.current_industry_specialization || "정보 없음"}
+                                  </div>
+                                </div>
+                                <div className="text-xs">
+                                  <span className="text-green-700 font-medium">신규:</span>
+                                  <div className="bg-green-100 p-2 rounded text-green-800 mt-1 border border-green-300">
+                                    {approval["산업전문화"] || "내용 없음"}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}
                           
                           {/* TF & Council */}
                           {approval["Council_TF_STATUS"] === '승인대기' && (
-                            <div>
-                              <div className="text-sm font-medium text-purple-600 mb-2 flex items-center gap-1">
-                                TF & Council
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                            <div className="border border-purple-200 rounded-lg p-4 bg-purple-50/30">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                                  <span className="text-sm font-bold text-purple-700">TF & Council</span>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                                    onClick={() => handleItemApproval(approval.사번, 'TF_Council', '승인완료', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✓ 승인
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                                    onClick={() => handleItemApproval(approval.사번, 'TF_Council', '반려', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✗ 반려
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left">
-                                {approval["Council/TF 등"] || "내용 없음"}
+                              <div className="space-y-2">
+                                <div className="text-xs">
+                                  <span className="text-gray-600 font-medium">기존:</span>
+                                  <div className="bg-white p-2 rounded text-gray-700 mt-1 border">
+                                    {approval.current_council_tf || "정보 없음"}
+                                  </div>
+                                </div>
+                                <div className="text-xs">
+                                  <span className="text-purple-700 font-medium">신규:</span>
+                                  <div className="bg-purple-100 p-2 rounded text-purple-800 mt-1 border border-purple-300">
+                                    {approval["Council/TF 등"] || "내용 없음"}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}
                           
-                          {/* GSP */}
-                          {approval["GSP_STATUS"] === '승인대기' && (
-                            <div>
-                              <div className="text-sm font-medium text-orange-600 mb-2 flex items-center gap-1">
-                                GSP
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
+                          {/* GSP/Focus 30 통합 */}
+                          {approval["GSP_Focus_30_STATUS"] === '승인대기' && (
+                            <div className="border border-orange-200 rounded-lg p-4 bg-orange-50/30">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-gradient-to-r from-orange-400 to-pink-400 rounded-full"></div>
+                                  <span className="text-sm font-bold text-orange-700">GSP/Focus 30</span>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                                    onClick={() => handleItemApproval(approval.사번, 'GSP_Focus30', '승인완료', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✓ 승인
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                                    onClick={() => handleItemApproval(approval.사번, 'GSP_Focus30', '반려', approval.empnm)}
+                                    disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                                  >
+                                    ✗ 반려
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left max-h-32 overflow-y-auto">
-                                {approval.GSP || "내용 없음"}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Focus 30 */}
-                          {approval["Forcus_30_STATUS"] === '승인대기' && (
-                            <div>
-                              <div className="text-sm font-medium text-pink-600 mb-2 flex items-center gap-1">
-                                Focus 30
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">승인대기</Badge>
-                              </div>
-                              <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-md text-left max-h-32 overflow-y-auto">
-                                {approval["Forcus 30"] || approval["Focus 30"] || "내용 없음"}
+                              <div className="space-y-2">
+                                <div className="text-xs">
+                                  <span className="text-gray-600 font-medium">기존:</span>
+                                  <div className="bg-white p-2 rounded text-gray-700 mt-1 border max-h-24 overflow-y-auto">
+                                    {approval.current_gsp_focus_30 || "정보 없음"}
+                                  </div>
+                                </div>
+                                <div className="text-xs">
+                                  <span className="text-orange-700 font-medium">신규:</span>
+                                  <div className="bg-orange-100 p-2 rounded text-orange-800 mt-1 border border-orange-300 max-h-24 overflow-y-auto">
+                                    {approval["GSP/Focus 30"] || "내용 없음"}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}
                         </div>
 
-                        {/* 승인/반려 버튼 */}
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => handleApproval(approval.사번, '승인완료', approval.empnm)}
-                            disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            승인
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="flex-1"
-                            onClick={() => handleApproval(approval.사번, '반려', approval.empnm)}
-                            disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
-                          >
-                            <X className="h-3 w-3 mr-1" />
-                            반려
-                          </Button>
+                        {/* 전체 승인/반려 버튼 */}
+                        <div className="border-t pt-4 mt-4">
+                          <div className="text-xs text-gray-500 mb-2 text-center">전체 항목 일괄 처리</div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium"
+                              onClick={() => handleApproval(approval.사번, '승인완료', approval.empnm)}
+                              disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              전체 승인
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="flex-1 font-medium"
+                              onClick={() => handleApproval(approval.사번, '반려', approval.empnm)}
+                              disabled={isProcessing === approval.사번 || isProcessing === 'bulk'}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              전체 반려
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>

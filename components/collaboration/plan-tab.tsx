@@ -55,9 +55,9 @@ type MetricField = 'count' | 'amount';
 type MetricType = keyof Omit<SelfAssessment, 'comment'>;
 type FormField = keyof SelfAssessment;
 
-// 금액 표시용 (100 → "100M", 1200 → "1,200M")
+// 금액 표시용 (100 → "100백만원", 1200 → "1,200백만원")
 function formatAmountM(amount: number | undefined | null) {
-  return `${(amount ?? 0).toLocaleString()}M`
+  return `${Math.ceil(amount ?? 0).toLocaleString()}백만원`
 }
 
 interface CollaborationPlanTabProps {
@@ -442,7 +442,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="xlos-amount">목표 금액 (M)</Label>
+                  <Label htmlFor="xlos-amount">목표 금액 (백만원)</Label>
                   {isEditMode ? (
                     <Input
                       id="xlos-amount"
@@ -496,7 +496,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="los-amount">목표 금액 (M)</Label>
+                  <Label htmlFor="los-amount">목표 금액 (백만원)</Label>
                   {isEditMode ? (
                     <Input
                       id="los-amount"
@@ -550,7 +550,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="specialized-amount">목표 금액 (M)</Label>
+                  <Label htmlFor="specialized-amount">목표 금액 (백만원)</Label>
                   {isEditMode ? (
                     <Input
                       id="specialized-amount"

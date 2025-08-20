@@ -313,9 +313,9 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
   const weeks = getWeeksInQuarter(coachingQuarterLabel.year, coachingQuarterLabel.quarter);
   const weeklyAvg = weeks > 0 ? Math.round(coachingQuarter / weeks) : 0;
 
-  const monthlyAvg = cost !== null ? Math.round(cost / 12 / 1000000) : 0
+  const monthlyAvg = cost !== null ? Math.ceil(cost / 12 / 1000000) : 0
   const exceeded = (cost !== null && budget !== null && cost > budget)
-    ? Math.round((cost - budget) / 1000000)
+    ? Math.ceil((cost - budget) / 1000000)
     : 0
   // percent 계산 및 JSX에서 cost, budget이 null일 때 안전하게 처리
   const percent = (cost !== null && budget !== null && budget > 0)
@@ -550,10 +550,16 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                           <div className="flex items-center">
                             <input
                               id="coaching-time"
-                              type="number"
-                              min={0}
-                              value={formData.coachingTime}
-                              onChange={e => handleInputChange("coachingTime", e.target.value)}
+                              type="text"
+                              value={formData.coachingTime === 0 ? "" : formData.coachingTime}
+                              onChange={e => {
+                                const value = e.target.value;
+                                // 빈 문자열이거나 숫자만 허용
+                                if (value === "" || /^\d+$/.test(value)) {
+                                  handleInputChange("coachingTime", value === "" ? 0 : parseInt(value, 10));
+                                }
+                              }}
+                              placeholder="0"
                               className="w-24 px-2 py-1 rounded border border-orange-300 text-right"
                             />
                             <span className="ml-2">시간</span>
@@ -612,7 +618,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                       <div className="p-2 bg-red-600 rounded-full">
                         <DollarSign className="h-4 w-4 text-white" />
                       </div>
-                      예산 현황
+                      코칭 예산
                       {cost !== null && budget !== null && budget > 0 && cost > budget && (
                         <div className="ml-auto">
                           <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded-full font-medium flex items-center gap-1">
@@ -626,11 +632,11 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-center p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{budget !== null ? `${Math.round(budget/1000000)}M` : '-'}</div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{budget !== null ? `${Math.ceil(budget/1000000).toLocaleString('ko-KR')}백만원` : '-'}</div>
                         <div className="text-xs text-slate-600 dark:text-slate-400">예산</div>
                       </div>
                       <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{cost !== null ? `${Math.round(cost/1000000)}M` : '-'}</div>
+                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{cost !== null ? `${Math.ceil(cost/1000000).toLocaleString('ko-KR')}백만원` : '-'}</div>
                         <div className="text-xs text-red-600 dark:text-red-400">지출</div>
                       </div>
                     </div>
@@ -645,7 +651,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                       )}
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-slate-500">0M</span>
+                      <span className="text-xs text-slate-500">0백만원</span>
                       <div className="flex items-center gap-1">
                         {cost !== null && budget !== null && budget > 0 && (
                           <>
@@ -663,11 +669,11 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-600 dark:text-slate-400">초과 금액</span>
-                        <span className="text-sm font-bold text-red-600 dark:text-red-400">{exceeded}M</span>
+                        <span className="text-sm font-bold text-red-600 dark:text-red-400">{Math.ceil(exceeded).toLocaleString('ko-KR')}백만원</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-600 dark:text-slate-400">월 평균 지출</span>
-                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{monthlyAvg}M</span>
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{Math.ceil(monthlyAvg).toLocaleString('ko-KR')}백만원</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-600 dark:text-slate-400">예산 대비 지출</span>

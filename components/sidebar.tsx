@@ -159,6 +159,17 @@ export function Sidebar() {
                 <span className="truncate">My People+ (PowerBI)</span>
               </a>
               
+              {/* My EPC+ 바로가기 링크 */}
+              <a
+                href="https://app.powerbi.com/reportEmbed?reportId=b2a2d963-7ff6-4ac2-b72a-74294d412c7d&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-700 dark:hover:text-green-300"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3" />
+                <span className="truncate">My EPC+ (PowerBI)</span>
+              </a>
+              
               {bottomNavigation.map((item) => (
                 <NavItem key={item.name} item={item} isBottom />
               ))}

@@ -20,8 +20,7 @@ export function GSPInputForm() {
     보직: "",
     산업전문화: "",
     tfCouncil: "",
-    gsp: "",
-    focus30: ""
+    gspFocus30: ""
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,7 +31,7 @@ export function GSPInputForm() {
       return
     }
 
-    if (!formData.보직.trim() || !formData.산업전문화.trim() || !formData.tfCouncil.trim() || !formData.gsp.trim() || !formData.focus30.trim()) {
+    if (!formData.보직.trim() || !formData.산업전문화.trim() || !formData.tfCouncil.trim() || !formData.gspFocus30.trim()) {
       toast.error("모든 기본정보를 입력해주세요.")
       return
     }
@@ -42,8 +41,7 @@ export function GSPInputForm() {
     try {
       const result = await GSPService.updateGSP(
         user.empno, 
-        formData.gsp, 
-        formData.focus30,
+        formData.gspFocus30,
         formData.보직,
         formData.산업전문화,
         formData.tfCouncil
@@ -64,7 +62,7 @@ export function GSPInputForm() {
     }
   }
 
-  const handleChange = (field: '보직' | '산업전문화' | 'tfCouncil' | 'gsp' | 'focus30', value: string) => {
+  const handleChange = (field: '보직' | '산업전문화' | 'tfCouncil' | 'gspFocus30', value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -132,26 +130,14 @@ export function GSPInputForm() {
                 />
               </div>
 
-              {/* GSP 입력 */}
+              {/* GSP/Focus 30 입력 */}
               <div className="space-y-2">
-                <Label htmlFor="gsp">GSP</Label>
+                <Label htmlFor="gsp-focus30">GSP/Focus 30</Label>
                 <Input
-                  id="gsp"
-                  value={formData.gsp}
-                  onChange={(e) => handleChange('gsp', e.target.value)}
-                  placeholder="GSP 내용을 입력해주세요"
-                  disabled={isLoading}
-                />
-              </div>
-
-              {/* Focus 30 입력 */}
-              <div className="space-y-2">
-                <Label htmlFor="focus30">Focus 30</Label>
-                <Input
-                  id="focus30"
-                  value={formData.focus30}
-                  onChange={(e) => handleChange('focus30', e.target.value)}
-                  placeholder="Focus 30 내용을 입력해주세요"
+                  id="gsp-focus30"
+                  value={formData.gspFocus30}
+                  onChange={(e) => handleChange('gspFocus30', e.target.value)}
+                  placeholder="GSP/Focus 30 내용을 입력해주세요"
                   disabled={isLoading}
                 />
               </div>

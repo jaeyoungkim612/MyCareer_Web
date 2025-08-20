@@ -5,7 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Building, Edit2, Check, X } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Building, Edit2, Check, X, HelpCircle } from "lucide-react"
 import IndustryPlanTab from "@/components/industry/plan-tab"
 import IndustryMonitoringTab from "@/components/industry/monitoring-tab"
 import IndustrySelfAssessmentTab from "@/components/industry/self-assessment-tab"
@@ -86,12 +87,15 @@ export default function IndustryPage() {
             </h1>
             <p className="text-muted-foreground mt-2">Industry 및 Thought Leadership 활동 현황을 관리합니다</p>
           </div>
-          <Card className="px-4 py-2 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col items-center">
-                <span className="text-xs text-muted-foreground">자기평가점수</span>
+          <Card className="px-6 py-2 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className="text-xs text-orange-600/70 dark:text-orange-400/70 font-medium">자기평가점수</div>
+                  <div className="text-xs text-orange-600/70 dark:text-orange-400/70 font-medium">(현재)/(개선목표)</div>
+                </div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-orange-600">로딩중...</span>
+                  <span className="text-lg font-bold text-orange-600 dark:text-orange-400">로딩중...</span>
                 </div>
               </div>
             </div>
@@ -113,7 +117,7 @@ export default function IndustryPage() {
         </div>
 
         {/* Score Display - Now on the right */}
-        <Card className="px-4 py-2 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
+        <Card className="px-6 py-2 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
           {isEditingScore ? (
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
@@ -121,15 +125,15 @@ export default function IndustryPage() {
                   type="number"
                   value={tempScores.current === 0 ? "" : tempScores.current}
                   onChange={(e) => {
-                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    const value = e.target.value === '' ? 0 : parseInt(e.target.value);
                     if (!isNaN(value) && value >= 0 && value <= 10) {
-                      setTempScores({ ...tempScores, current: Number(value.toFixed(1)) });
+                      setTempScores({ ...tempScores, current: value });
                     }
                   }}
                   className="w-16 h-8 text-center font-bold"
                   min="0"
                   max="10"
-                  step="0.1"
+                  step="1"
                   placeholder="0"
                 />
                 <span className="text-sm font-medium">/</span>
@@ -137,15 +141,15 @@ export default function IndustryPage() {
                   type="number"
                   value={tempScores.goal === 0 ? "" : tempScores.goal}
                   onChange={(e) => {
-                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    const value = e.target.value === '' ? 0 : parseInt(e.target.value);
                     if (!isNaN(value) && value >= 0 && value <= 10) {
-                      setTempScores({ ...tempScores, goal: Number(value.toFixed(1)) });
+                      setTempScores({ ...tempScores, goal: value });
                     }
                   }}
                   className="w-16 h-8 text-center font-bold"
                   min="0"
                   max="10"
-                  step="0.1"
+                  step="1"
                   placeholder="0"
                 />
               </div>
@@ -161,10 +165,45 @@ export default function IndustryPage() {
           ) : (
             <div className="flex items-center gap-2">
               <div className="flex flex-col items-center">
-                <span className="text-xs text-muted-foreground">자기평가점수</span>
+                <div className="flex items-center gap-1">
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">자기평가점수</div>
+                    <div className="text-xs text-muted-foreground">(현재)/(개선목표)</div>
+                  </div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-4 w-4">
+                        <HelpCircle className="h-3 w-3 text-gray-400" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Industry 점수 예시</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2 text-sm">
+                        <div className="border-l-4 border-green-500 pl-3 py-1">
+                          <div className="font-semibold text-green-600">10점: 탁월</div>
+                          <div className="text-gray-600 text-xs">조직 및 본인이 기대하는 역량지표에서 탁월 내외 <span className="font-bold">전반적으로 탁월한 성과를 창출</span>한 수준</div>
+                        </div>
+                        <div className="border-l-4 border-blue-500 pl-3 py-1">
+                          <div className="font-semibold text-blue-600">7-9점: 우수</div>
+                          <div className="text-gray-600 text-xs">조직 및 본인이 기대하는 역량지표에서 탁월 대비 일정 <span className="font-bold">역량에서 기대 이상의 뛰어난 성과를 창출</span>한 수준</div>
+                        </div>
+                        <div className="border-l-4 border-yellow-500 pl-3 py-1">
+                          <div className="font-semibold text-yellow-600">4-6점: 보통</div>
+                          <div className="text-gray-600 text-xs">조직 및 본인이 기대하는 역량지표에서 탁월 대비 일정 <span className="font-bold">역량지표에서 기대만큼의 성과를 창출(100%)</span> 수준</div>
+                        </div>
+                        <div className="border-l-4 border-red-500 pl-3 py-1">
+                          <div className="font-semibold text-red-600">1-3점: 개선 필요</div>
+                          <div className="text-gray-600 text-xs">조직 및 본인이 기대하는 역량지표에서 탁월 달성에 대한 <span className="font-bold">노력이 부족하고 일부 개선이 필요</span>한 수준</div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-orange-600">{industryScore?.currentScore.toFixed(1)}</span>
-                  <span className="text-lg font-medium text-muted-foreground">/ {industryScore?.targetScore.toFixed(1)}</span>
+                  <span className="text-2xl font-bold text-orange-600">{industryScore?.currentScore}</span>
+                  <span className="text-lg font-medium text-muted-foreground">/ {industryScore?.targetScore}</span>
                 </div>
               </div>
               <Button size="icon" variant="ghost" className="h-6 w-6 ml-2" onClick={() => setIsEditingScore(true)}>

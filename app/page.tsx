@@ -218,8 +218,8 @@ export default function Intro() {
             org_nm: hrData.ORG_NM,
             job_info_nm: hrData.JOB_INFO_NM,
             gradnm: hrData.GRADNM,
-          photo_url: cachedPhotoUrl,
-            pwc_id: hrData.PWC_ID,
+            photo_url: cachedPhotoUrl,
+            pwc_id: "",
           }
 
         // 캐시에 저장
@@ -426,6 +426,22 @@ export default function Intro() {
     return () => window.removeEventListener('focus', handleFocus)
   }, [userRole?.reviewees])
 
+  // GSP 데이터 변경 이벤트 리스너 추가
+  useEffect(() => {
+    const handleGSPDataChange = () => {
+      console.log("🔄 GSP data change event received, refreshing...")
+      if (currentEmpno) {
+        loadGSPData(currentEmpno)
+      }
+    }
+
+    window.addEventListener('gspDataChanged', handleGSPDataChange)
+    
+    return () => {
+      window.removeEventListener('gspDataChanged', handleGSPDataChange)
+    }
+  }, [currentEmpno])
+
   // 사용자 정보 및 리뷰어 역할 로드
   useEffect(() => {
     const loadUserInfo = async () => {
@@ -609,20 +625,61 @@ export default function Intro() {
     }
   }
 
-  // GSP 데이터 로드
+  // GSP 데이터 로드 (승인받은 값과 승인대기 값을 모두 고려)
   const loadGSPData = async (empno: string) => {
     try {
       console.log("🔍 Loading GSP data for empno:", empno)
       
+      // 1. 최신 레코드 가져오기 (승인대기 상태일 수 있음)
       const gspStatus = await GSPService.checkGSPStatus(empno)
+      console.log("📋 Latest GSP status:", gspStatus)
       
       if (gspStatus.exists && gspStatus.data) {
-        setGspData(gspStatus.data)
-        console.log("✅ GSP data loaded:", {
-          status: gspStatus.data.STATUS,
-          hasGSP: !!gspStatus.data.GSP,
-          hasFocus30: !!gspStatus.data["Focus 30"]
-        })
+        // 2. 각 필드별로 승인완료된 값을 찾기 위해 히스토리 조회
+        const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+        const { data: allRecords, error } = await supabase
+          .from("a_GSP_Table")
+          .select("*")
+          .eq("사번", normalizedEmpno)
+          .order("변경요청일자", { ascending: false })
+        
+        console.log("📚 All GSP records for history:", allRecords)
+        
+        if (!error && allRecords) {
+          // 3. 각 필드별 승인완료된 최신 값을 찾기
+          const getLatestApprovedValue = (field: string, statusField: string) => {
+            for (const record of allRecords) {
+              if (record[statusField] === '승인완료' && record[field]) {
+                return record[field]
+              }
+            }
+            return null
+          }
+          
+          // 4. 최신 레코드를 베이스로 하되, 승인완료된 값들로 보완
+          const enhancedData = { ...gspStatus.data }
+          
+          // 각 필드별로 승인완료된 값이 있으면 추가
+          const approvedFields = {
+            "보직(HC)": getLatestApprovedValue("보직(HC)", "보직_STATUS"),
+            "산업전문화": getLatestApprovedValue("산업전문화", "산업전문화_STATUS"),
+            "GSP/Focus 30": getLatestApprovedValue("GSP/Focus 30", "GSP_Focus_30_STATUS"),
+            "Council/TF 등": getLatestApprovedValue("Council/TF 등", "Council_TF_STATUS")
+          }
+          
+          console.log("✅ Approved values found:", approvedFields)
+          
+          // 승인완료된 값들을 enhancedData에 추가 (별도 필드로)
+          enhancedData.approved_보직 = approvedFields["보직(HC)"]
+          enhancedData.approved_산업전문화 = approvedFields["산업전문화"]
+          enhancedData.approved_gsp_focus_30 = approvedFields["GSP/Focus 30"]
+          enhancedData.approved_council_tf = approvedFields["Council/TF 등"]
+          
+          setGspData(enhancedData)
+          console.log("✅ Enhanced GSP data loaded:", enhancedData)
+        } else {
+          setGspData(gspStatus.data)
+        }
       } else {
         console.log("ℹ️ No GSP data found for user")
         setGspData(null)
@@ -774,7 +831,7 @@ export default function Intro() {
 
               <div className="border border-border bg-card rounded-lg p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-6">
-                  {/* 왼쪽 컬럼: 기존 정보 */}
+                  {/* 왼쪽 컬럼: 기본 정보 */}
                   <div className="space-y-3">
                     <div className="flex items-center space-x-3">
                       <div className="h-2 w-2 bg-orange-500 rounded-full"></div>
@@ -786,87 +843,106 @@ export default function Intro() {
                     <div className="flex items-center space-x-3">
                       <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
                       <div className="flex-1">
-                        <div className="flex items-center space-x-1">
-                          <span className="text-sm font-medium text-foreground">보직(HC)</span>
-                          {gspData?.["보직_STATUS"] === '승인대기' && (
-                            <Badge variant="outline" className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50">
-                              승인대기
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{(gspData?.["보직(HC)"] && gspData["보직(HC)"].trim()) || userInfo?.job_info_nm || "정보 없음"}</p>
+                        <span className="text-sm font-medium text-foreground">보직</span>
+                        <p className="text-sm text-muted-foreground">
+                          {(() => {
+                            // 1. 승인완료된 값이 있으면 우선 표시
+                            if (gspData?.approved_보직) {
+                              return gspData.approved_보직
+                            }
+                            // 2. 없으면 userInfo에서 가져오기
+                            return userInfo?.job_info_nm || "정보 없음"
+                          })()}
+                        </p>
+                        {gspData?.["보직_STATUS"] === '승인대기' && (
+                          <div className="flex items-center space-x-1 mt-1">
+                            <span className="text-yellow-500 animate-pulse">-</span>
+                            <span className="text-xs text-yellow-600">승인대기: {gspData["보직(HC)"]}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="h-2 w-2 bg-green-500 rounded-full"></div>
                       <div className="flex-1">
-                        <div className="flex items-center space-x-1">
-                          <span className="text-sm font-medium text-foreground">산업전문화</span>
-                          {gspData?.["산업전문화_STATUS"] === '승인대기' && (
-                            <Badge variant="outline" className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50">
-                              승인대기
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{(gspData?.["산업전문화"] && gspData["산업전문화"].trim()) || userInfo?.industry_specialization || "정보 없음"}</p>
+                        <span className="text-sm font-medium text-foreground">산업전문화</span>
+                        <p className="text-sm text-muted-foreground">
+                          {(() => {
+                            // 1. 승인완료된 값이 있으면 우선 표시
+                            if (gspData?.approved_산업전문화) {
+                              return gspData.approved_산업전문화
+                            }
+                            // 2. 없으면 userInfo에서 가져오기
+                            return userInfo?.industry_specialization || "정보 없음"
+                          })()}
+                        </p>
+                        {gspData?.["산업전문화_STATUS"] === '승인대기' && (
+                          <div className="flex items-center space-x-1 mt-1">
+                            <span className="text-yellow-500 animate-pulse">-</span>
+                            <span className="text-xs text-yellow-600">승인대기: {gspData["산업전문화"]}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="h-2 w-2 bg-purple-500 rounded-full"></div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-1">
-                          <span className="text-sm font-medium text-foreground">TF & Council</span>
-                          {gspData?.["Council_TF_STATUS"] === '승인대기' && (
-                            <Badge variant="outline" className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50">
-                              승인대기
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{(gspData?.["Council/TF 등"] && gspData["Council/TF 등"].trim()) || userInfo?.council_tf || "정보 없음"}</p>
-                      </div>
+                    {/* Settings 안내 메시지 */}
+                    <div className="flex items-center">
+                      <span className="text-xs text-gray-400">Settings에서 정보 수정 가능</span>
                     </div>
                   </div>
-                  {/* 오른쪽 컬럼: GSP, Focus 30 */}
+                  {/* 오른쪽 컬럼: GSP/Focus 30 & TF/Council */}
                   <div className="space-y-4 flex flex-col justify-start">
                     <div className="flex flex-col items-start">
                       <div className="flex items-center space-x-1">
-                        <div className="h-2 w-2 bg-yellow-500 rounded-full"></div>
-                        <span className="text-xs font-bold">GSP</span>
-                        {gspData?.["GSP_STATUS"] === '승인대기' && (
-                          <Badge 
-                            variant="outline" 
-                            className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50"
-                          >
-                            승인대기
-                          </Badge>
-                        )}
+                        <div className="h-2 w-2 bg-gradient-to-r from-yellow-500 to-pink-500 rounded-full"></div>
+                        <span className="text-xs font-bold">GSP/Focus 30</span>
                       </div>
                       <span className="text-xs text-muted-foreground mt-1">
-                        {gspData?.GSP && gspData.GSP.trim() ? 
-                          (gspData.GSP.length > 50 ? gspData.GSP.substring(0, 50) + "..." : gspData.GSP) : 
-                          "정보 없음"
-                        }
+                        {(() => {
+                          // 1. 승인완료된 값이 있으면 우선 표시
+                          let approvedValue;
+                          if (gspData?.approved_gsp_focus_30) {
+                            approvedValue = gspData.approved_gsp_focus_30;
+                          } else {
+                            // 2. 없으면 userInfo에서 가져오기
+                            approvedValue = userInfo?.gsp_focus_30;
+                          }
+                          const displayValue = approvedValue || "정보 없음";
+                          return displayValue.length > 50 ? displayValue.substring(0, 50) + "..." : displayValue;
+                        })()}
                       </span>
+                      {gspData?.["GSP_Focus_30_STATUS"] === '승인대기' && (
+                        <div className="flex items-center space-x-1 mt-1">
+                          <span className="text-yellow-500 animate-pulse">-</span>
+                          <span className="text-xs text-yellow-600">
+                            승인대기: {gspData["GSP/Focus 30"] && gspData["GSP/Focus 30"].length > 30 
+                              ? gspData["GSP/Focus 30"].substring(0, 30) + "..." 
+                              : gspData["GSP/Focus 30"]
+                            }
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col items-start">
                       <div className="flex items-center space-x-1">
-                        <div className="h-2 w-2 bg-pink-500 rounded-full"></div>
-                        <span className="text-xs font-bold">Focus 30</span>
-                        {gspData?.["Forcus_30_STATUS"] === '승인대기' && (
-                          <Badge 
-                            variant="outline" 
-                            className="text-xs px-1 py-0 border-yellow-500 text-yellow-600 bg-yellow-50"
-                          >
-                            승인대기
-                          </Badge>
-                        )}
+                        <div className="h-2 w-2 bg-purple-500 rounded-full"></div>
+                        <span className="text-xs font-bold">TF & Council</span>
                       </div>
                       <span className="text-xs text-muted-foreground mt-1">
-                        {(gspData?.["Forcus 30"] && gspData["Forcus 30"].trim()) || (gspData?.["Focus 30"] && gspData["Focus 30"].trim()) ? 
-                          ((gspData["Forcus 30"] || gspData["Focus 30"]).length > 50 ? (gspData["Forcus 30"] || gspData["Focus 30"]).substring(0, 50) + "..." : (gspData["Forcus 30"] || gspData["Focus 30"])) : 
-                          "정보 없음"
-                        }
+                        {(() => {
+                          // 1. 승인완료된 값이 있으면 우선 표시
+                          if (gspData?.approved_council_tf) {
+                            return gspData.approved_council_tf
+                          }
+                          // 2. 없으면 userInfo에서 가져오기
+                          return userInfo?.council_tf || "정보 없음"
+                        })()}
                       </span>
+                      {gspData?.["Council_TF_STATUS"] === '승인대기' && (
+                        <div className="flex items-center space-x-1 mt-1">
+                          <span className="text-yellow-500 animate-pulse">-</span>
+                          <span className="text-xs text-yellow-600">승인대기: {gspData["Council/TF 등"]}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

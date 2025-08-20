@@ -31,6 +31,7 @@ export interface UserMasterInfo {
   // L_직무및활동 테이블에서 가져올 정보
   industry_specialization?: string // 산업전문화
   council_tf?: string // Council/TF 등
+  gsp_focus_30?: string // GSP/Focus 30
 }
 
 // 사용자 정보 매핑 객체
@@ -94,10 +95,10 @@ export class UserInfoMapper {
         .single()
       console.log("📷 Photo data:", photoData ? "found" : "not found")
 
-      // 3. L_직무및활동 테이블에서 산업전문화, Council/TF 정보 조회
+      // 3. L_직무및활동 테이블에서 산업전문화, Council/TF, GSP/Focus 30 정보 조회
       const { data: jobActivityData, error: jobError } = await supabase
         .from("L_직무및활동")
-        .select("산업전문화, \"Council/TF 등\"")
+        .select("산업전문화, \"Council/TF 등\", \"GSP/Focus 30\"")
         .eq("사번", empno)
         .single()
       
@@ -138,6 +139,7 @@ export class UserInfoMapper {
         // L_직무및활동 테이블에서 가져온 정보
         industry_specialization: (jobActivityData as any)?.["산업전문화"] || null,
         council_tf: (jobActivityData as any)?.["Council/TF 등"] || null,
+        gsp_focus_30: (jobActivityData as any)?.["GSP/Focus 30"] || null,
         last_updated: new Date().toISOString(),
       }
 
@@ -145,7 +147,8 @@ export class UserInfoMapper {
         empno: userInfo.empno,
         empnm: userInfo.empnm,
         industry_specialization: userInfo.industry_specialization,
-        council_tf: userInfo.council_tf
+        council_tf: userInfo.council_tf,
+        gsp_focus_30: userInfo.gsp_focus_30
       })
 
       this.userInfo = userInfo

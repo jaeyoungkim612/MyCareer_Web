@@ -398,11 +398,11 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
     return num > 0 ? num.toLocaleString('ko-KR') : '0'
   }
 
-  // 백만(M) 단위 포맷 함수
+  // 백만원 단위 포맷 함수
   const formatMillion = (value: number | string) => {
     const num = Number(value)
     if (isNaN(num)) return "-"
-    return `${(num / 1_000_000).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}M`
+    return `${Math.ceil(num / 1_000_000).toLocaleString("ko-KR")}백만원`
   }
 
 
@@ -543,7 +543,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                 </div>
                 <span className="text-lg font-bold text-foreground mt-1 block">
                   {budgetData
-                    ? `${(Number(budgetData.budget_audit) + Number(budgetData.budget_non_audit)).toLocaleString('ko-KR')}M`
+                    ? `${Math.ceil(Number(budgetData.budget_audit) + Number(budgetData.budget_non_audit)).toLocaleString('ko-KR')}백만원`
                     : "-"}
                 </span>
               </div>
@@ -554,7 +554,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <span className="text-sm text-foreground">감사 Budget</span>
                 </div>
                 <span className="text-lg font-bold text-foreground mt-1 block">
-                  {budgetData ? `${Number(budgetData.budget_audit).toLocaleString('ko-KR')}M` : "-"}
+                  {budgetData ? `${Math.ceil(Number(budgetData.budget_audit)).toLocaleString('ko-KR')}백만원` : "-"}
                 </span>
               </div>
               {/* 비감사서비스 Budget (DB에서, 원단위) */}
@@ -564,7 +564,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <span className="text-sm text-foreground">비감사서비스 Budget</span>
                 </div>
                 <span className="text-lg font-bold text-foreground mt-1 block">
-                  {budgetData ? `${Number(budgetData.budget_non_audit).toLocaleString('ko-KR')}M` : "-"}
+                  {budgetData ? `${Math.ceil(Number(budgetData.budget_non_audit)).toLocaleString('ko-KR')}백만원` : "-"}
                 </span>
               </div>
             </div>
@@ -594,10 +594,15 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <Input
                     id="newAuditCount"
                     name="newAuditCount"
-                    type="number"
-                    min="0"
-                    value={formData.newAuditCount}
-                    onChange={handleChange}
+                    type="text"
+                    value={formData.newAuditCount === "0" ? "" : formData.newAuditCount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        setFormData(prev => ({ ...prev, newAuditCount: value === "" ? "0" : value }));
+                      }
+                    }}
+                    placeholder="0"
                   />
                 ) : (
                   <div className="flex items-center space-x-2">
@@ -619,14 +624,14 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                       value={displayFormattedValue(formData.newAuditAmount)}
                       onChange={handleNumberChange}
                       placeholder="0"
-                      style={{ width: "100%" }}
+                      className="flex-1 mr-2"
                     />
-                    <span className="ml-2">M</span>
+                    <span className="text-sm text-gray-600 whitespace-nowrap">백만원</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Building2 className="h-4 w-4 text-orange-600" />
-                    <span className="text-lg font-bold">{Number(formData.newAuditAmount).toLocaleString("ko-KR")}M</span>
+                    <span className="text-lg font-bold">{Math.ceil(Number(formData.newAuditAmount)).toLocaleString("ko-KR")}백만원</span>
                   </div>
                 )}
               </div>
@@ -657,10 +662,15 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                   <Input
                     id="uiRevenueCount"
                     name="uiRevenueCount"
-                    type="number"
-                    min="0"
-                    value={formData.uiRevenueCount}
-                    onChange={handleChange}
+                    type="text"
+                    value={formData.uiRevenueCount === "0" ? "" : formData.uiRevenueCount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        setFormData(prev => ({ ...prev, uiRevenueCount: value === "" ? "0" : value }));
+                      }
+                    }}
+                    placeholder="0"
                   />
                 ) : (
                   <div className="flex items-center space-x-2">
@@ -682,14 +692,14 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                       value={displayFormattedValue(formData.uiRevenueAmount)}
                       onChange={handleNumberChange}
                       placeholder="0"
-                      style={{ width: "100%" }}
+                      className="flex-1 mr-2"
                     />
-                    <span className="ml-2">M</span>
+                    <span className="text-sm text-gray-600 whitespace-nowrap">백만원</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Building2 className="h-4 w-4 text-orange-600" />
-                    <span className="text-lg font-bold">{Number(formData.uiRevenueAmount).toLocaleString("ko-KR")}M</span>
+                    <span className="text-lg font-bold">{Math.ceil(Number(formData.uiRevenueAmount)).toLocaleString("ko-KR")}백만원</span>
                   </div>
                 )}
               </div>

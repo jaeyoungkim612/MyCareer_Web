@@ -476,10 +476,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                           <TableRow>
                             <TableCell className="font-semibold text-gray-800">감사</TableCell>
                             <TableCell className="text-center font-medium">
-                              {((budgetData?.current_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil((budgetData?.current_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {(budgetData?.budget_audit ?? 0).toLocaleString('ko-KR')}M
+                              {Math.ceil(budgetData?.budget_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center border-r">
                               <Badge className={
@@ -493,10 +493,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {((budgetData?.dept_revenue_audit ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil((budgetData?.dept_revenue_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {(budgetData?.dept_budget_audit ?? 0).toLocaleString('ko-KR')}M
+                              {Math.ceil(budgetData?.dept_budget_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
@@ -513,10 +513,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                           <TableRow>
                             <TableCell className="font-semibold text-gray-800">비감사</TableCell>
                             <TableCell className="text-center font-medium">
-                              {((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {(budgetData?.budget_non_audit ?? 0).toLocaleString('ko-KR')}M
+                              {Math.ceil(budgetData?.budget_non_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center border-r">
                               <Badge className={
@@ -530,10 +530,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {(budgetData?.dept_budget_non_audit ?? 0).toLocaleString('ko-KR')}M
+                              {Math.ceil(budgetData?.dept_budget_non_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
@@ -550,10 +550,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                           <TableRow className="border-t-2 bg-muted/20">
                             <TableCell className="font-bold text-gray-900">총합</TableCell>
                             <TableCell className="text-center font-bold">
-                              {(((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil(((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-bold">
-                              {((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)).toLocaleString('ko-KR')}M
+                              {Math.ceil((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center border-r">
                               <Badge className={
@@ -567,10 +567,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center font-bold">
-                              {(((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil(((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-bold">
-                              {((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)).toLocaleString('ko-KR')}M
+                              {Math.ceil((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
@@ -633,10 +633,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                           <TableRow>
                             <TableCell className="font-semibold text-gray-800">신규 감사 BD 금액</TableCell>
                             <TableCell className="text-center font-medium">
-                              {((budgetData?.audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil((budgetData?.audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {businessGoal.new_audit_amount?.toLocaleString('ko-KR')}M
+                              {Math.ceil(businessGoal.new_audit_amount ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
@@ -673,10 +673,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                           <TableRow>
                             <TableCell className="font-semibold text-gray-800">신규 비감사서비스 BD 금액</TableCell>
                             <TableCell className="text-center font-medium">
-                              {((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                              {Math.ceil((budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {businessGoal.ui_revenue_amount?.toLocaleString('ko-KR')}M
+                              {Math.ceil(businessGoal.ui_revenue_amount ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
@@ -886,9 +886,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(collabGoal.x_los_target_amount)}M</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(collabGoal.x_los_target_amount).toLocaleString()}백만원</span>
                     </div>
-                    <div className="text-2xl font-bold">{formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000))}M</div>
+                    <div className="text-2xl font-bold">{Math.ceil(Math.floor(collabActuals.xlos.amount / 1_000_000)).toLocaleString()}백만원</div>
                     <Progress value={(Math.floor(collabActuals.xlos.amount / 1_000_000) / collabGoal.x_los_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.xlos.amount / 1_000_000) / collabGoal.x_los_target_amount) * 100)}%</div>
                 </div>
@@ -915,9 +915,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(collabGoal.losllk_target_amount)}M</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(collabGoal.losllk_target_amount).toLocaleString()}백만원</span>
                     </div>
-                    <div className="text-2xl font-bold">{formatNumber(Math.floor(collabActuals.los.amount / 1_000_000))}M</div>
+                    <div className="text-2xl font-bold">{Math.ceil(Math.floor(collabActuals.los.amount / 1_000_000)).toLocaleString()}백만원</div>
                     <Progress value={(Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100)}%</div>
                 </div>
@@ -944,9 +944,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(collabGoal.ax_node_target_amount)}M</span>
+                      <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(collabGoal.ax_node_target_amount).toLocaleString()}백만원</span>
                     </div>
-                    <div className="text-2xl font-bold">{formatNumber(Math.floor(collabActuals.axnode.amount / 1_000_000))}M</div>
+                    <div className="text-2xl font-bold">{Math.ceil(Math.floor(collabActuals.axnode.amount / 1_000_000)).toLocaleString()}백만원</div>
                     <Progress value={(Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100)}%</div>
                 </div>
@@ -993,10 +993,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                     <tr>
                       <td className="p-4 font-medium">총 협업 수익</td>
                       <td className="p-4 text-right font-bold text-2xl">
-                        {formatNumber(Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000))}M
+                        {Math.ceil(Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000)).toLocaleString()}백만원
                       </td>
                       <td className="p-4 text-right text-muted-foreground">
-                        {formatNumber(collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount)}M
+                        {Math.ceil(collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount).toLocaleString()}백만원
                       </td>
                       <td className="p-4 text-right">
                         {((Math.floor(collabActuals.xlos.amount / 1_000_000) + Math.floor(collabActuals.los.amount / 1_000_000) + Math.floor(collabActuals.axnode.amount / 1_000_000)) / (collabGoal.x_los_target_amount + collabGoal.losllk_target_amount + collabGoal.ax_node_target_amount) * 100).toFixed(1)}%

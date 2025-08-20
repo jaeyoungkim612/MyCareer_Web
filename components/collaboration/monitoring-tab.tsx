@@ -177,9 +177,9 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
             <div>
               <div className="flex justify-between items-end mb-1">
                 <span className="text-sm text-muted-foreground">금액</span>
-                <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(mergedMonitoringData.metrics.xlosCollaboration.target.amount)}M</span>
+                <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(mergedMonitoringData.metrics.xlosCollaboration.target.amount).toLocaleString()}백만원</span>
               </div>
-              <div className="text-2xl font-bold">{formatNumber(mergedMonitoringData.metrics.xlosCollaboration.actual.amount)}M</div>
+              <div className="text-2xl font-bold">{Math.ceil(mergedMonitoringData.metrics.xlosCollaboration.actual.amount).toLocaleString()}백만원</div>
               <Progress value={(mergedMonitoringData.metrics.xlosCollaboration.actual.amount / mergedMonitoringData.metrics.xlosCollaboration.target.amount) * 100} className="h-2 mt-2" />
               <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.xlosCollaboration.actual.amount / mergedMonitoringData.metrics.xlosCollaboration.target.amount) * 100)}%</div>
             </div>
@@ -206,9 +206,9 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
             <div>
               <div className="flex justify-between items-end mb-1">
                 <span className="text-sm text-muted-foreground">금액</span>
-                <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(mergedMonitoringData.metrics.losCollaboration.target.amount)}M</span>
+                <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(mergedMonitoringData.metrics.losCollaboration.target.amount).toLocaleString()}백만원</span>
               </div>
-              <div className="text-2xl font-bold">{formatNumber(mergedMonitoringData.metrics.losCollaboration.actual.amount)}M</div>
+              <div className="text-2xl font-bold">{Math.ceil(mergedMonitoringData.metrics.losCollaboration.actual.amount).toLocaleString()}백만원</div>
               <Progress value={(mergedMonitoringData.metrics.losCollaboration.actual.amount / mergedMonitoringData.metrics.losCollaboration.target.amount) * 100} className="h-2 mt-2" />
               <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.losCollaboration.actual.amount / mergedMonitoringData.metrics.losCollaboration.target.amount) * 100)}%</div>
             </div>
@@ -235,9 +235,9 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
             <div>
               <div className="flex justify-between items-end mb-1">
                 <span className="text-sm text-muted-foreground">금액</span>
-                <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(mergedMonitoringData.metrics.axNodeCollaboration.target.amount)}M</span>
+                <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(mergedMonitoringData.metrics.axNodeCollaboration.target.amount).toLocaleString()}백만원</span>
               </div>
-              <div className="text-2xl font-bold">{formatNumber(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount)}M</div>
+              <div className="text-2xl font-bold">{Math.ceil(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount).toLocaleString()}백만원</div>
               <Progress value={(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount / mergedMonitoringData.metrics.axNodeCollaboration.target.amount) * 100} className="h-2 mt-2" />
               <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.axNodeCollaboration.actual.amount / mergedMonitoringData.metrics.axNodeCollaboration.target.amount) * 100)}%</div>
             </div>
@@ -310,18 +310,18 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                 <tr>
                   <td className="p-4 font-medium">총 협업 수익</td>
                   <td className="p-4 text-right font-bold text-2xl">
-                    {formatNumber(
+                    {Math.ceil(
                       mergedMonitoringData.metrics.xlosCollaboration.actual.amount +
                       mergedMonitoringData.metrics.losCollaboration.actual.amount +
                       mergedMonitoringData.metrics.axNodeCollaboration.actual.amount
-                    )}M
+                    ).toLocaleString()}백만원
                   </td>
                   <td className="p-4 text-right text-muted-foreground">
-                    {formatNumber(
+                    {Math.ceil(
                       mergedMonitoringData.metrics.xlosCollaboration.target.amount +
                       mergedMonitoringData.metrics.losCollaboration.target.amount +
                       mergedMonitoringData.metrics.axNodeCollaboration.target.amount
-                    )}M
+                    ).toLocaleString()}백만원
                   </td>
                   <td className="p-4 text-right">
                     {(
