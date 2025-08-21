@@ -9,6 +9,12 @@ export interface QualityNonAuditPerformance {
   status?: 'Draft' | '작성중' | '완료'
   // 감사 목표 관련 컬럼 추가
   quality_goal?: string
+  // 새로운 4개 평가 항목
+  year_end_time_ratio?: number      // Year End 이전 시간 비율 (정수)
+  el_input_hours?: number           // EL 투입시간 (정수)
+  ax_transition_ratio?: number      // AX/DX Transition 비율 (정수)
+  eer_evaluation_score?: string     // EER 평가 결과 ("Compliant" 등)
+  // 기존 컬럼들 (호환성 유지)
   doae_rate?: number  // DB는 INTEGER이지만 숫자로 처리
   yra_ratio?: number  // DB는 INTEGER이지만 숫자로 처리
   created_at?: string

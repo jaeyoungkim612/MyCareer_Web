@@ -79,7 +79,7 @@ export class PeopleGoalsService {
         gps_score: updates.gps_score ?? latestGoal?.gps_score ?? 1,
         pei_score: updates.pei_score ?? latestGoal?.pei_score ?? 1,
         refresh_off_usage_rate: updates.refresh_off_usage_rate ?? latestGoal?.refresh_off_usage_rate ?? 0,
-        coaching_time: updates.coaching_time ?? latestGoal?.coaching_time ?? 10, // 추가!
+        coaching_time: updates.coaching_time ?? latestGoal?.coaching_time ?? 0, // 추가!
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }

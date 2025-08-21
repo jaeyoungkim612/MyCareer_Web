@@ -17,20 +17,50 @@ import { Table as TableComponent, TableBody, TableCell, TableHead, TableHeader, 
 import { supabase } from "@/lib/supabase"
 
 function parseNonAuditGoal(text: string) {
-  if (!text) return { 신규: "", 기존: "" };
-  const 신규Idx = text.indexOf("신규 서비스 개발");
-  const 기존Idx = text.indexOf("기존 서비스 확장");
-  let 신규 = "";
-  let 기존 = "";
-  if (신규Idx !== -1 && 기존Idx !== -1) {
-    신규 = text.substring(신규Idx + 9, 기존Idx).trim();
-    기존 = text.substring(기존Idx + 9).trim();
-  } else if (신규Idx !== -1) {
-    신규 = text.substring(신규Idx + 9).trim();
-  } else if (기존Idx !== -1) {
-    기존 = text.substring(기존Idx + 9).trim();
+  if (!text) return { Quality향상: "", 효율화계획: "", 신상품개발: "" };
+  const qualityIdx = text.indexOf("Quality 향상");
+  const 효율화Idx = text.indexOf("효율화 계획");
+  const 신상품Idx = text.indexOf("신상품 개발");
+  
+  let Quality향상 = "";
+  let 효율화계획 = "";
+  let 신상품개발 = "";
+  
+  // 설명 문구들을 필터링할 패턴
+  const descriptionPatterns = [
+    /감사품질 향상을 위한 구체적인 계획과 방법론을 작성하세요\.?/,
+    /업무 프로세스 개선 및 효율성 증대 방안을 작성하세요\.?/,
+    /새로운 감사 도구나 서비스 개발 계획을 작성하세요\.?/
+  ];
+  
+  const indices = [
+    { type: "Quality 향상", idx: qualityIdx, key: "Quality향상" },
+    { type: "효율화 계획", idx: 효율화Idx, key: "효율화계획" },
+    { type: "신상품 개발", idx: 신상품Idx, key: "신상품개발" }
+  ].filter(item => item.idx !== -1).sort((a, b) => a.idx - b.idx);
+  
+  for (let i = 0; i < indices.length; i++) {
+    const current = indices[i];
+    const next = indices[i + 1];
+    const startIdx = current.idx + current.type.length;
+    const endIdx = next ? next.idx : text.length;
+    
+    let content = text.substring(startIdx, endIdx).trim();
+    
+    // 설명 문구 제거
+    const lines = content.split('\n');
+    const filteredLines = lines.filter(line => {
+      const trimmed = line.trim();
+      return !descriptionPatterns.some(pattern => pattern.test(trimmed));
+    });
+    content = filteredLines.join('\n').trim();
+    
+    if (current.key === "Quality향상") Quality향상 = content;
+    else if (current.key === "효율화계획") 효율화계획 = content;
+    else if (current.key === "신상품개발") 신상품개발 = content;
   }
-  return { 신규, 기존 };
+  
+  return { Quality향상, 효율화계획, 신상품개발 };
 }
 
 interface ExpertiseMonitoringTabProps {
@@ -65,7 +95,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
     eerEvaluationScore: 0 
   })
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [nonAuditGoal, setNonAuditGoal] = useState<{ 신규: string; 기존: string }>({ 신규: "", 기존: "" })
+  const [nonAuditGoal, setNonAuditGoal] = useState<{ Quality향상: string; 효율화계획: string; 신상품개발: string }>({ Quality향상: "", 효율화계획: "", 신상품개발: "" })
   
   // EPC 데이터 state 추가
   const [epcData, setEpcData] = useState<any[]>([])
@@ -84,18 +114,21 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
   // --- Non-Audit Status State ---
   const [isEditingNonAuditStatus, setIsEditingNonAuditStatus] = useState(false)
   const [nonAuditStatus, setNonAuditStatus] = useState({
-    신규: {
-      progress: "프로토타입 개발 완료. 현재 내부 알파 테스트 진행 중이며, 초기 피드백 수집 단계입니다.",
+    Quality향상: {
+      progress: "",
     },
-    기존: {
-      progress: "서울/경기 지역 완료. 부산/경남 지역 전문가 교육 및 고객 발굴 활동 진행 중입니다.",
+    효율화계획: {
+      progress: "",
+    },
+    신상품개발: {
+      progress: "",
     },
   })
   const [originalNonAuditStatus, setOriginalNonAuditStatus] = useState(nonAuditStatus)
   // 비감사 목표 전체 텍스트 (Target)
   const [nonAuditGoalText, setNonAuditGoalText] = useState("")
   // 상태값 (Draft, 작성중, 완료)
-  const [performanceStatus, setPerformanceStatus] = useState<{신규: 'Draft'|'작성중'|'완료', 기존: 'Draft'|'작성중'|'완료'}>({신규: 'Draft', 기존: 'Draft'})
+  const [performanceStatus, setPerformanceStatus] = useState<{Quality향상: 'Draft'|'작성중'|'완료', 효율화계획: 'Draft'|'작성중'|'완료', 신상품개발: 'Draft'|'작성중'|'완료'}>({Quality향상: 'Draft', 효율화계획: 'Draft', 신상품개발: 'Draft'})
 
   // EPC 데이터 가져오기 함수
   const fetchEpcData = async () => {
@@ -263,23 +296,26 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       const existingMonitorings = await QualityMonitoringService.getByEmployeeId(normalizedEmpno);
       console.log('📊 Existing monitorings:', existingMonitorings)
       
-      // 각 모니터링 타입별로 업데이트/생성
-      const typesToProcess = ['none', '신규', '기존']
+      // 각 모니터링 타입별로 업데이트/생성 (3개 카테고리)
+      const typesToProcess = ['none', 'Quality향상', '효율화계획', '신상품개발']
       
       for (const type of typesToProcess) {
         let newProgressText = ''
         let newStatus = 'Draft'
         
         if (type === 'none') {
-          // none 타입은 신규 슬롯의 값 사용
-          newProgressText = nonAuditStatus.신규.progress
-          newStatus = performanceStatus.신규
-        } else if (type === '신규') {
-          newProgressText = nonAuditStatus.신규.progress
-          newStatus = performanceStatus.신규
-        } else if (type === '기존') {
-          newProgressText = nonAuditStatus.기존.progress
-          newStatus = performanceStatus.기존
+          // none 타입은 Quality향상 슬롯의 값 사용
+          newProgressText = nonAuditStatus.Quality향상.progress
+          newStatus = performanceStatus.Quality향상
+        } else if (type === 'Quality향상') {
+          newProgressText = nonAuditStatus.Quality향상.progress
+          newStatus = performanceStatus.Quality향상
+        } else if (type === '효율화계획') {
+          newProgressText = nonAuditStatus.효율화계획.progress
+          newStatus = performanceStatus.효율화계획
+        } else if (type === '신상품개발') {
+          newProgressText = nonAuditStatus.신상품개발.progress
+          newStatus = performanceStatus.신상품개발
         }
         
         // 내용이 있을 때만 저장
@@ -327,108 +363,162 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
     }
   }, [currentUser])
 
-  useEffect(() => {
-    async function fetchTargets() {
-      if (!currentUser?.empno) return
-      try {
-        // 사번 정규화 (95129 → 095129)
-        const { ReviewerService } = await import("@/lib/reviewer-service")
-        const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
-        console.log(`🔧 Monitoring fetchTargets: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`)
+  // Plan 데이터 재로딩 함수
+  const refetchTargets = async () => {
+    if (!currentUser?.empno) return
+    try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      console.log(`🔧 Monitoring fetchTargets: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`)
+      
+      // Plan 테이블에서 목표 정보 가져오기 (정규화된 사번 사용)
+      const { data: planData, error: planError } = await supabase
+        .from('quality_non_audit_performance')
+        .select('*')
+        .eq('employee_id', normalizedEmpno)
+        .order('created_at', { ascending: false })
+      
+      if (planError) {
+        console.error('Error fetching plan data:', planError)
+        throw planError
+      }
+      
+      // Monitoring 테이블에서 진행상황 가져오기
+      const monitorings = await QualityMonitoringService.getByEmployeeId(normalizedEmpno)
+      console.log('🔍 Monitoring Tab - Loaded plan data:', planData)
+      console.log('🔍 Monitoring Tab - Loaded monitorings:', monitorings)
+      
+      if (planData && planData.length > 0) {
+        // Plan 데이터에서 목표 정보 가져오기 (새로운 4개 평가 항목)
+        const latestPlan = planData[0]
+        console.log('🔍 Monitoring - Latest plan data:', latestPlan)
         
-        // Plan 테이블에서 목표 정보 가져오기 (정규화된 사번 사용)
-        const { data: planData, error: planError } = await supabase
-          .from('quality_non_audit_performance')
-          .select('*')
-          .eq('employee_id', normalizedEmpno)
-          .order('created_at', { ascending: false })
+        setTargetMetrics({
+          yearEndTimeRatio: Number(latestPlan.year_end_time_ratio) || 0,
+          elInputHours: Number(latestPlan.el_input_hours) || 0,
+          axTransitionRatio: Number(latestPlan.ax_transition_ratio) || 0,
+          eerEvaluationScore: Number(latestPlan.eer_evaluation_score) || 0,
+        })
         
-        if (planError) {
-          console.error('Error fetching plan data:', planError)
-          throw planError
+        console.log('✅ Monitoring - Target metrics set:', {
+          yearEndTimeRatio: Number(latestPlan.year_end_time_ratio) || 0,
+          elInputHours: Number(latestPlan.el_input_hours) || 0,
+          axTransitionRatio: Number(latestPlan.ax_transition_ratio) || 0,
+          eerEvaluationScore: Number(latestPlan.eer_evaluation_score) || 0,
+        })
+        
+        console.log('🔍 Latest plan record:', latestPlan)
+        
+        // Plan 데이터에서 목표 텍스트 설정 (3개 카테고리)
+        if (latestPlan.type === 'none') {
+          // none 타입이면 단일 카드로 표시
+          console.log('✅ Using NONE type plan data:', latestPlan.goal_text)
+          setNonAuditGoalText(latestPlan.goal_text || '')
+          setNonAuditGoal({ Quality향상: "", 효율화계획: "", 신상품개발: "" })
+        } else {
+          // 3개 카테고리 타입이면 합쳐서 표시
+          console.log('✅ Using 3-category type plan data')
+          const qualityPlan = planData.find(p => p.type === 'Quality향상')
+          const 효율화Plan = planData.find(p => p.type === '효율화계획')
+          const 신상품Plan = planData.find(p => p.type === '신상품개발')
+          
+          // 목표 텍스트 합치기
+          const parts = []
+          if (qualityPlan && qualityPlan.goal_text) {
+            parts.push('Quality 향상')
+            parts.push(qualityPlan.goal_text)
+            parts.push('')
+          }
+          if (효율화Plan && 효율화Plan.goal_text) {
+            parts.push('효율화 계획')
+            parts.push(효율화Plan.goal_text)
+            parts.push('')
+          }
+          if (신상품Plan && 신상품Plan.goal_text) {
+            parts.push('신상품 개발')
+            parts.push(신상품Plan.goal_text)
+          }
+          const combinedGoal = parts.join('\n')
+          
+          setNonAuditGoalText(combinedGoal)
+          setNonAuditGoal(parseNonAuditGoal(combinedGoal))
         }
         
-        // Monitoring 테이블에서 진행상황 가져오기
-        const monitorings = await QualityMonitoringService.getByEmployeeId(normalizedEmpno)
-        console.log('🔍 Monitoring Tab - Loaded plan data:', planData)
-        console.log('🔍 Monitoring Tab - Loaded monitorings:', monitorings)
+        // Monitoring 데이터에서 진행상황 설정 (3개 카테고리)
+        const validStatus = ['Draft', '작성중', '완료'];
+        const noneMonitoring = monitorings.find(m => m.type === 'none')
+        const qualityMonitoring = monitorings.find(m => m.type === 'Quality향상')
+        const 효율화Monitoring = monitorings.find(m => m.type === '효율화계획')
+        const 신상품Monitoring = monitorings.find(m => m.type === '신상품개발')
         
-        if (planData && planData.length > 0) {
-          // Plan 데이터에서 목표 정보 가져오기 (새로운 4개 평가 항목)
-          const latestPlan = planData[0]
-          setTargetMetrics({
-            yearEndTimeRatio: latestPlan.year_end_time_ratio || 0,
-            elInputHours: latestPlan.el_input_hours || 0,
-            axTransitionRatio: latestPlan.ax_transition_ratio || 0,
-            eerEvaluationScore: latestPlan.eer_evaluation_score || 0,
+        if (latestPlan.type === 'none' || (!qualityMonitoring && !효율화Monitoring && !신상품Monitoring)) {
+          // none 타입이거나 모니터링 데이터가 없으면 단순 표시
+          setPerformanceStatus({
+            Quality향상: validStatus.includes(noneMonitoring?.status || '') ? noneMonitoring?.status as any : 'Draft',
+            효율화계획: 'Draft',
+            신상품개발: 'Draft',
           })
           
-          console.log('🔍 Latest plan record:', latestPlan)
+          setNonAuditStatus({
+            Quality향상: { progress: noneMonitoring?.progress_text || '' },
+            효율화계획: { progress: '' },
+            신상품개발: { progress: '' },
+          })
+        } else {
+          // 3개 카테고리 모니터링 데이터 설정
+          setPerformanceStatus({
+            Quality향상: validStatus.includes(qualityMonitoring?.status || '') ? qualityMonitoring?.status as any : 'Draft',
+            효율화계획: validStatus.includes(효율화Monitoring?.status || '') ? 효율화Monitoring?.status as any : 'Draft',
+            신상품개발: validStatus.includes(신상품Monitoring?.status || '') ? 신상품Monitoring?.status as any : 'Draft',
+          })
           
-          // Plan 데이터에서 목표 텍스트 설정
-          if (latestPlan.type === 'none') {
-            // none 타입이면 단일 카드로 표시
-            console.log('✅ Using NONE type plan data:', latestPlan.goal_text)
-            setNonAuditGoalText(latestPlan.goal_text || '')
-            setNonAuditGoal({ 신규: "", 기존: "" })
-          } else {
-            // 신규/기존 타입이면 합쳐서 표시
-            console.log('✅ Using 신규/기존 type plan data')
-            const 신규Plan = planData.find(p => p.type === '신규')
-            const 기존Plan = planData.find(p => p.type === '기존')
-            
-            // 목표 텍스트 합치기
-            const parts = []
-            if (신규Plan && 신규Plan.goal_text) {
-              parts.push('신규 서비스 개발')
-              parts.push(신규Plan.goal_text)
-              parts.push('')
-            }
-            if (기존Plan && 기존Plan.goal_text) {
-              parts.push('기존 서비스 확장')
-              parts.push(기존Plan.goal_text)
-            }
-            const combinedGoal = parts.join('\n')
-            
-            setNonAuditGoalText(combinedGoal)
-            setNonAuditGoal(parseNonAuditGoal(combinedGoal))
-          }
-          
-          // Monitoring 데이터에서 진행상황 설정
-          const validStatus = ['Draft', '작성중', '완료'];
-          const noneMonitoring = monitorings.find(m => m.type === 'none')
-          const 신규Monitoring = monitorings.find(m => m.type === '신규')
-          const 기존Monitoring = monitorings.find(m => m.type === '기존')
-          
-          if (latestPlan.type === 'none' || (!신규Monitoring && !기존Monitoring)) {
-            // none 타입이거나 모니터링 데이터가 없으면 단순 표시
-            setPerformanceStatus({
-              신규: validStatus.includes(noneMonitoring?.status || '') ? noneMonitoring?.status as any : 'Draft',
-              기존: 'Draft',
-            })
-            
-            setNonAuditStatus({
-              신규: { progress: noneMonitoring?.progress_text || '' },
-              기존: { progress: '' },
-            })
-          } else {
-            // 신규/기존 모니터링 데이터 설정
-            setPerformanceStatus({
-              신규: validStatus.includes(신규Monitoring?.status || '') ? 신규Monitoring?.status as any : 'Draft',
-              기존: validStatus.includes(기존Monitoring?.status || '') ? 기존Monitoring?.status as any : 'Draft',
-            })
-            
-            setNonAuditStatus({
-              신규: { progress: 신규Monitoring?.progress_text || '' },
-              기존: { progress: 기존Monitoring?.progress_text || '' },
-            })
-          }
+          setNonAuditStatus({
+            Quality향상: { progress: qualityMonitoring?.progress_text || '' },
+            효율화계획: { progress: 효율화Monitoring?.progress_text || '' },
+            신상품개발: { progress: 신상품Monitoring?.progress_text || '' },
+          })
         }
-      } catch (error) {
-        console.error('Error fetching targets:', error)
+      }
+    } catch (error) {
+      console.error('Error fetching targets:', error)
+    }
+  }
+
+  useEffect(() => {
+    refetchTargets()
+  }, [currentUser])
+
+  // 🔄 Plan 데이터 변경 감지를 위한 폴링 또는 이벤트 리스너
+  useEffect(() => {
+    if (!currentUser?.empno) return
+
+    // Plan 데이터 변경 이벤트 리스너
+    const handlePlanDataChange = (event: CustomEvent) => {
+      console.log('🔔 Monitoring: Received qualityPlanDataChanged event:', event.detail)
+      // 같은 사용자의 변경사항만 처리
+      const { ReviewerService } = require("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      
+      if (event.detail?.empno === normalizedEmpno) {
+        console.log('✅ Monitoring: Plan data changed for current user, refreshing...')
+        refetchTargets()
       }
     }
-    fetchTargets()
+
+    // 이벤트 리스너 등록
+    window.addEventListener('qualityPlanDataChanged', handlePlanDataChange as EventListener)
+
+    // 5초마다 Plan 데이터 확인 (자동 새로고침)
+    const interval = setInterval(() => {
+      console.log('🔄 Monitoring: Polling Plan data for updates...')
+      refetchTargets()
+    }, 5000) // 5초마다 자동 새로고침
+
+    return () => {
+      window.removeEventListener('qualityPlanDataChanged', handlePlanDataChange as EventListener)
+      clearInterval(interval)
+    }
   }, [currentUser])
 
   return (
@@ -763,21 +853,21 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                     <CheckCircle className="mr-2 h-5 w-5" />
                     EER 평가 결과
                   </span>
-                  {getStatusBadge(0, targetMetrics.eerEvaluationScore)}
+                  <Badge className="bg-green-500">On Track</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-bold">-</span>
-                    <span className="text-base text-muted-foreground">/ {targetMetrics.eerEvaluationScore}</span>
+                    <span className="text-3xl font-bold text-black dark:text-white">Compliant</span>
+                    <span className="text-base text-muted-foreground">/ Compliant</span>
                   </div>
-                  <Progress value={0} className="h-3" />
+                  <Progress value={100} className="h-3" />
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">vs Target</span>
-                    <span className="flex items-center text-gray-600">
-                      {getTrendIcon(0)}
-                      <span className="ml-1">-</span>
+                    <span className="flex items-center text-green-600">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="ml-1">달성</span>
                     </span>
                   </div>
                 </div>
@@ -818,8 +908,17 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         {/* CardHeader 제거, 내용만 남김 */}
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {(!nonAuditGoal.신규 && !nonAuditGoal.기존) ? (
+            {/* 3개 카테고리가 있는지 확인 */}
+            {(() => {
+              const categories = [
+                { key: 'Quality향상', title: 'Quality 향상', goal: nonAuditGoal.Quality향상 },
+                { key: '효율화계획', title: '효율화 계획', goal: nonAuditGoal.효율화계획 },
+                { key: '신상품개발', title: '신상품 개발', goal: nonAuditGoal.신상품개발 }
+              ].filter(cat => cat.goal && cat.goal.trim());
+              
+              if (categories.length === 0) {
+                // 카테고리가 없으면 단일 카드
+                return (
                 <Card className="md:col-span-2">
                   <CardContent>
                     {/* 비감사 목표(Target) 전체를 상단에 표시 */}
@@ -830,7 +929,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">현재 상태</span>
                         {isEditingNonAuditStatus ? (
-                          <Select value={performanceStatus.신규} onValueChange={v => setPerformanceStatus(s => ({...s, 신규: v as any}))}>
+                          <Select value={performanceStatus.Quality향상} onValueChange={v => setPerformanceStatus(s => ({...s, Quality향상: v as any}))}>
                             <SelectTrigger className="w-32 h-7 text-xs">
                               <SelectValue />
                             </SelectTrigger>
@@ -841,9 +940,9 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                             </SelectContent>
                           </Select>
                         ) : (
-                          performanceStatus.신규 === '완료' ? (
+                          performanceStatus.Quality향상 === '완료' ? (
                             <Badge className="bg-green-500">제출</Badge>
-                          ) : performanceStatus.신규 === '작성중' ? (
+                          ) : performanceStatus.Quality향상 === '작성중' ? (
                             <Badge className="bg-orange-500">작성중</Badge>
                           ) : (
                             <Badge className="bg-gray-400">Draft</Badge>
@@ -853,118 +952,78 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                       <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                         {isEditingNonAuditStatus ? (
                           <Textarea
-                            value={nonAuditStatus.신규.progress}
-                            onChange={e => setNonAuditStatus(s => ({ ...s, 신규: { progress: e.target.value } }))}
+                            value={nonAuditStatus.Quality향상.progress}
+                            onChange={e => setNonAuditStatus(s => ({ ...s, Quality향상: { progress: e.target.value } }))}
                             className="mb-2"
                           />
                         ) : (
-                          <p className="text-sm">{nonAuditStatus.신규.progress || nonAuditStatus.기존.progress || "진행상황을 입력하세요"}</p>
+                          <p className="text-sm">{nonAuditStatus.Quality향상.progress || "진행상황을 입력하세요"}</p>
                         )}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              ) : (
-                <>
-                  {nonAuditGoal.신규 && (
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">신규 서비스 개발</CardTitle>
-                        <CardDescription className="text-xs">
-                          {nonAuditGoal.신규}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">현재 상태</span>
-                            {isEditingNonAuditStatus ? (
-                              <Select value={performanceStatus.신규} onValueChange={v => setPerformanceStatus(s => ({...s, 신규: v as any}))}>
-                                <SelectTrigger className="w-32 h-7 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Draft">Draft</SelectItem>
-                                  <SelectItem value="작성중">작성중</SelectItem>
-                                  <SelectItem value="완료">제출</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              performanceStatus.신규 === '완료' ? (
-                                <Badge className="bg-green-500">제출</Badge>
-                              ) : performanceStatus.신규 === '작성중' ? (
-                                <Badge className="bg-orange-500">작성중</Badge>
-                              ) : (
-                                <Badge className="bg-gray-400">Draft</Badge>
-                              )
-                            )}
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
-                            {isEditingNonAuditStatus ? (
-                              <Textarea
-                                value={nonAuditStatus.신규.progress}
-                                onChange={e => setNonAuditStatus(s => ({ ...s, 신규: { progress: e.target.value } }))}
-                                className="mb-2"
-                              />
-                            ) : (
-                              <p className="text-sm">{nonAuditStatus.신규.progress}</p>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                  {nonAuditGoal.기존 && (
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">기존 서비스 확장</CardTitle>
-                        <CardDescription className="text-xs">
-                          {nonAuditGoal.기존}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">현재 상태</span>
-                            {isEditingNonAuditStatus ? (
-                              <Select value={performanceStatus.기존} onValueChange={v => setPerformanceStatus(s => ({...s, 기존: v as any}))}>
-                                <SelectTrigger className="w-32 h-7 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Draft">Draft</SelectItem>
-                                  <SelectItem value="작성중">작성중</SelectItem>
-                                  <SelectItem value="완료">제출</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              performanceStatus.기존 === '완료' ? (
-                                <Badge className="bg-green-500">제출</Badge>
-                              ) : performanceStatus.기존 === '작성중' ? (
-                                <Badge className="bg-orange-500">작성중</Badge>
-                              ) : (
-                                <Badge className="bg-gray-400">Draft</Badge>
-                              )
-                            )}
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
-                            {isEditingNonAuditStatus ? (
-                              <Textarea
-                                value={nonAuditStatus.기존.progress}
-                                onChange={e => setNonAuditStatus(s => ({ ...s, 기존: { progress: e.target.value } }))}
-                                className="mb-2"
-                              />
-                            ) : (
-                              <p className="text-sm">{nonAuditStatus.기존.progress}</p>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </>
-              )}
-            </div>
+                );
+              } else {
+                // 3개 카테고리 표시: 3개까지는 한 행, 3개 다 있으면 다음 행에 추가
+                const hasAll3 = categories.length === 3;
+                return (
+                  <div className="space-y-4">
+                    {/* 첫 번째 행: 최대 3개 */}
+                    <div className={`grid gap-4 ${categories.length === 1 ? 'md:grid-cols-1' : categories.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+                      {categories.map(category => (
+                        <Card key={category.key}>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">{category.title}</CardTitle>
+                            <CardDescription className="text-xs">
+                              {category.goal}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">현재 상태</span>
+                                {isEditingNonAuditStatus ? (
+                                  <Select value={performanceStatus[category.key as keyof typeof performanceStatus]} onValueChange={v => setPerformanceStatus(s => ({...s, [category.key]: v as any}))}>
+                                    <SelectTrigger className="w-32 h-7 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Draft">Draft</SelectItem>
+                                      <SelectItem value="작성중">작성중</SelectItem>
+                                      <SelectItem value="완료">제출</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  performanceStatus[category.key as keyof typeof performanceStatus] === '완료' ? (
+                                    <Badge className="bg-green-500">제출</Badge>
+                                  ) : performanceStatus[category.key as keyof typeof performanceStatus] === '작성중' ? (
+                                    <Badge className="bg-orange-500">작성중</Badge>
+                                  ) : (
+                                    <Badge className="bg-gray-400">Draft</Badge>
+                                  )
+                                )}
+                              </div>
+                              <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
+                                {isEditingNonAuditStatus ? (
+                                  <Textarea
+                                    value={nonAuditStatus[category.key as keyof typeof nonAuditStatus].progress}
+                                    onChange={e => setNonAuditStatus(s => ({ ...s, [category.key]: { progress: e.target.value } }))}
+                                    className="mb-2"
+                                  />
+                                ) : (
+                                  <p className="text-sm">{nonAuditStatus[category.key as keyof typeof nonAuditStatus].progress || "진행상황을 입력하세요"}</p>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+            })()}
           </div>
         </CardContent>
       </Card>

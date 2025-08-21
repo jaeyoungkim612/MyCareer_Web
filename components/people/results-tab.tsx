@@ -111,8 +111,8 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
         console.log(`🔍 Results Tab: Querying with normalized empno: ${targetEmpno} → ${normalizedEmpno}, GPS/PEI empno: ${fiveDigitEmpno}`)
         
-        // HR 정보, GPS/PEI 실데이터, 목표 데이터, 성과평가 데이터, Refresh Off 데이터를 동시에 가져오기
-        const [hrResult, scoreResult, goalResult, performanceResult, refreshOffResult] = await Promise.all([
+        // HR 정보, GPS/PEI 실데이터(2606), GPS/PEI 목표기준(2506), 목표 데이터, 성과평가 데이터, Refresh Off 데이터를 동시에 가져오기
+        const [hrResult, scoreResult, fallbackTargetResult, goalResult, performanceResult, refreshOffResult] = await Promise.all([
           supabase
             .from("a_hr_master")
             .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
@@ -122,6 +122,13 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             .from("L_GPS_PEI_Table")
             .select("GPS, PEI")
             .eq("EMPNO", fiveDigitEmpno)
+            .eq("연도", "2606")
+            .maybeSingle(),
+          supabase
+            .from("L_GPS_PEI_Table")
+            .select("GPS, PEI")
+            .eq("EMPNO", fiveDigitEmpno)
+            .eq("연도", "2506")
             .maybeSingle(),
           supabase
             .from("people_goals")
@@ -144,6 +151,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         
         const { data: hrData, error: hrError } = hrResult
         const { data: scoreData, error: scoreError } = scoreResult
+        const { data: fallbackTargetData, error: fallbackTargetError } = fallbackTargetResult
         const { data: goalDataResult, error: goalError } = goalResult
         const { data: performanceData, error: performanceError } = performanceResult
         const { data: refreshOffDataResult, error: refreshOffError } = refreshOffResult
@@ -153,7 +161,11 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         }
         
         if (scoreError) {
-          console.error(`❌ GPS/PEI 데이터 조회 에러:`, scoreError)
+          console.error(`❌ GPS/PEI 실데이터(2606) 조회 에러:`, scoreError)
+        }
+        
+        if (fallbackTargetError) {
+          console.error(`❌ GPS/PEI 목표기준(2506) 조회 에러:`, fallbackTargetError)
         }
         
         if (goalError) {
@@ -192,18 +204,64 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           setGpsScore(scoreData.GPS)
           setPeiScore(scoreData.PEI)
           console.log("✅ GPS/PEI actual data loaded:", scoreData)
+        } else {
+          console.log("ℹ️ No GPS/PEI actual data found for 2606")
+          setGpsScore(null)
+          setPeiScore(null)
         }
         
-        // 목표 데이터 설정
+        // 목표 데이터 설정 (people_goals 우선, 없으면 2506 데이터 사용)
+        let finalGpsTarget = null
+        let finalPeiTarget = null
+        let finalRefreshOffTarget = null
+        let finalCoachingTimeTarget = null
+        
+        console.log("🔍 Results: Debug goal data loading...")
+        console.log("  - goalDataResult:", goalDataResult)
+        console.log("  - fallbackTargetData:", fallbackTargetData)
+        console.log("  - normalizedEmpno:", normalizedEmpno)
+        console.log("  - fiveDigitEmpno:", fiveDigitEmpno)
+        
         if (goalDataResult) {
-          setGoalData({
-            gpsTarget: goalDataResult.gps_score,
-            peiTarget: goalDataResult.pei_score,
-            refreshOffTarget: goalDataResult.refresh_off_usage_rate,
-            coachingTimeTarget: goalDataResult.coaching_time
-          })
-          console.log("✅ Goal data loaded:", goalDataResult)
+          // people_goals에 데이터가 있으면 우선 사용
+          finalGpsTarget = goalDataResult.gps_score
+          finalPeiTarget = goalDataResult.pei_score
+          finalRefreshOffTarget = goalDataResult.refresh_off_usage_rate
+          finalCoachingTimeTarget = goalDataResult.coaching_time
+          console.log("✅ Goal data from people_goals:", goalDataResult)
+          console.log("  - GPS target:", finalGpsTarget)
+          console.log("  - PEI target:", finalPeiTarget)
+        } else {
+          console.log("❌ No people_goals data found, trying fallback...")
+          if (fallbackTargetData) {
+            // people_goals에 없으면 2506 데이터를 목표로 사용
+            console.log("📊 Using 2506 fallback data:", fallbackTargetData)
+            if (fallbackTargetData.GPS && fallbackTargetData.GPS !== '-') {
+              finalGpsTarget = Math.round(parseFloat(fallbackTargetData.GPS) * 100) // 0.71 → 71
+              console.log(`  - GPS: ${fallbackTargetData.GPS} → ${finalGpsTarget}%`)
+            }
+            if (fallbackTargetData.PEI && fallbackTargetData.PEI !== '-') {
+              finalPeiTarget = Math.round(parseFloat(fallbackTargetData.PEI) * 100) // 0.82 → 82
+              console.log(`  - PEI: ${fallbackTargetData.PEI} → ${finalPeiTarget}%`)
+            }
+            console.log("✅ Goal data from 2506 fallback:", { 
+              GPS: fallbackTargetData.GPS, 
+              PEI: fallbackTargetData.PEI, 
+              finalGpsTarget, 
+              finalPeiTarget 
+            })
+          } else {
+            console.log("❌ No fallback data available either!")
+          }
         }
+        
+        setGoalData({
+          gpsTarget: finalGpsTarget,
+          peiTarget: finalPeiTarget,
+          refreshOffTarget: finalRefreshOffTarget,
+          coachingTimeTarget: finalCoachingTimeTarget
+        })
+        console.log("✅ Final goal data set:", { finalGpsTarget, finalPeiTarget, finalRefreshOffTarget, finalCoachingTimeTarget })
 
         // 코칭타임 실적 데이터 조회
         try {
@@ -456,18 +514,36 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
 
   // GPS 달성률 계산
   const getGpsAchievement = () => {
-    if (!gpsScore || gpsScore === '-' || !goalData.gpsTarget) return { rate: 0, actual: 0, target: 0 }
+    const target = goalData.gpsTarget || 0
+    
+    if (!gpsScore || gpsScore === '-') {
+      // 실제 데이터가 없어도 목표값은 보여줌
+      return { rate: 0, actual: 0, target }
+    }
+    
+    if (!target) {
+      return { rate: 0, actual: 0, target: 0 }
+    }
+    
     const actual = parseFloat(gpsScore) * 100 // 0.71 → 71%
-    const target = goalData.gpsTarget // 이미 1-100 범위
     const rate = Math.round((actual / target) * 100)
     return { rate, actual, target }
   }
 
   // PEI 달성률 계산
   const getPeiAchievement = () => {
-    if (!peiScore || peiScore === '-' || !goalData.peiTarget) return { rate: 0, actual: 0, target: 0 }
+    const target = goalData.peiTarget || 0
+    
+    if (!peiScore || peiScore === '-') {
+      // 실제 데이터가 없어도 목표값은 보여줌
+      return { rate: 0, actual: 0, target }
+    }
+    
+    if (!target) {
+      return { rate: 0, actual: 0, target: 0 }
+    }
+    
     const actual = parseFloat(peiScore) * 100 // 0.82 → 82%
-    const target = goalData.peiTarget // 이미 1-100 범위
     const rate = Math.round((actual / target) * 100)
     return { rate, actual, target }
   }
@@ -719,7 +795,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                   {gpsAchievement.actual > 0 ? `${gpsAchievement.actual}%` : '-%'}
                 </div>
                 <div className="text-xs text-gray-400">
-                  FY25 기준
+                  2606 기준
                 </div>
               </div>
               <div className="space-y-2">
@@ -756,7 +832,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                 {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-%'}
               </div>
               <div className="text-xs text-gray-400">
-                FY25 기준
+                2606 기준
               </div>
             </div>
             <div className="space-y-2">

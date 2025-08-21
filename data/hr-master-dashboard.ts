@@ -40,4 +40,12 @@ export interface HrMasterDashboardRow {
   dept_budget_non_audit: number
   dept_revenue_audit: number
   dept_revenue_non_audit: number
+  // BACKLOG 및 파이프라인 관련 컬럼 추가 (hr_master_dashboard 뷰 업데이트 후)
+  current_audit_backlog?: number
+  current_non_audit_backlog?: number
+  pipeline_current_total?: number
+  total_current_backlog?: number
+  dept_backlog_audit?: number
+  dept_backlog_non_audit?: number
+  dept_pipeline_current_total?: number
 } 

@@ -403,27 +403,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
               </div>
             </div>
 
-            {/* 4. 산업전문화 활동 참여도 */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Building className="h-4 w-4 text-orange-600" />
-                <label className="text-sm font-medium">산업전문화 활동 참여</label>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
-                {isEditing ? (
-                  <Textarea
-                    value={formData?.industry_specialization_participation || ""}
-                    onChange={(e) => setFormData(f => f ? { ...f, industry_specialization_participation: e.target.value } : f)}
-                    className="min-h-[80px]"
-                    placeholder="활동 참여 계획을 입력하세요"
-                  />
-                ) : (
-                  <p className="text-sm">{formData?.industry_specialization_participation || ""}</p>
-                )}
-              </div>
-            </div>
-
-            {/* 5. 산업전문화를 통한 신규 서비스 개발 및 지원 */}
+            {/* 4. 산업전문화를 통한 신규 서비스 개발 및 지원 */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Plus className="h-4 w-4 text-orange-600" />

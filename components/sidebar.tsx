@@ -139,7 +139,7 @@ export function Sidebar() {
             <nav className="space-y-1 w-full">
               {/* PowerBI 바로가기 링크 */}
               <a
-                href="https://app.powerbi.com/groups/06a9d883-28ef-4d69-8e57-42008ff57fd8/reports/c1a7a139-0d7b-45f1-aa3c-b00f98b1044e/ReportSection70efc05003bf7f842754?experience=power-bi"
+                href="https://app.powerbi.com/reportEmbed?reportId=fba2870b-f923-4b09-95a5-4634de6d2fc5&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-700 dark:hover:text-orange-300"
@@ -168,6 +168,20 @@ export function Sidebar() {
               >
                 <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3" />
                 <span className="truncate">My EPC+ (PowerBI)</span>
+              </a>
+              
+              {/* X-Los Collaboration Dashboard 바로가기 링크 */}
+              <a
+                href="https://app.powerbi.com/reportEmbed?reportId=295f8c79-8fde-4ba1-b405-60604fa83625&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3 self-center" />
+                <div className="flex flex-col">
+                  <span className="text-sm">X-Los Collaboration</span>
+                  <span className="text-sm">Dashboard</span>
+                </div>
               </a>
               
               {bottomNavigation.map((item) => (

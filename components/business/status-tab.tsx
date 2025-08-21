@@ -89,16 +89,32 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     fetchGoal()
   }, [currentEmployeeId])
 
-  // Budget 실데이터 변수 선언 (컴포넌트 전체에서 한 번만 선언)
-  const myAuditActual = toMillion(budgetData?.current_audit_revenue ?? 0); // 원 → 백만원
-  const myNonAuditActual = toMillion(budgetData?.current_non_audit_revenue ?? 0); // 원 → 백만원
+  // Budget 실데이터 변수 선언 (매출 + BACKLOG + 파이프라인 합계)
+  // My 개별 구성 요소들
+  const myAuditRevenue = toMillion(budgetData?.current_audit_revenue ?? 0); // 매출
+  const myAuditBacklog = toMillion(budgetData?.current_audit_backlog ?? 0); // BACKLOG
+  const myNonAuditRevenue = toMillion(budgetData?.current_non_audit_revenue ?? 0); // 매출
+  const myNonAuditBacklog = toMillion(budgetData?.current_non_audit_backlog ?? 0); // BACKLOG
+  const myPipeline = toMillion(budgetData?.pipeline_current_total ?? 0); // 파이프라인
+  
+  // My 감사/비감사 실제 합계 (매출 + BACKLOG + 파이프라인)
+  const myAuditActual = myAuditRevenue + myAuditBacklog + (myPipeline * 0.5); // 파이프라인은 50% 배분
+  const myNonAuditActual = myNonAuditRevenue + myNonAuditBacklog + (myPipeline * 0.5); // 파이프라인은 50% 배분
   const myAuditBudget = Number(budgetData?.budget_audit ?? 0); // 이미 백만원단위
   const myNonAuditBudget = Number(budgetData?.budget_non_audit ?? 0); // 이미 백만원단위
   const myTotalActual = myAuditActual + myNonAuditActual;
   const myTotalBudget = myAuditBudget + myNonAuditBudget;
 
-  const teamAuditActual = toMillion(budgetData?.dept_revenue_audit ?? 0);
-  const teamNonAuditActual = toMillion(budgetData?.dept_revenue_non_audit ?? 0);
+  // Team 개별 구성 요소들
+  const teamAuditRevenue = toMillion(budgetData?.dept_revenue_audit ?? 0); // 매출
+  const teamAuditBacklog = toMillion(budgetData?.dept_backlog_audit ?? 0); // BACKLOG
+  const teamNonAuditRevenue = toMillion(budgetData?.dept_revenue_non_audit ?? 0); // 매출
+  const teamNonAuditBacklog = toMillion(budgetData?.dept_backlog_non_audit ?? 0); // BACKLOG
+  const teamPipeline = toMillion(budgetData?.dept_pipeline_current_total ?? 0); // 파이프라인
+  
+  // Team 감사/비감사 실제 합계 (매출 + BACKLOG + 파이프라인)
+  const teamAuditActual = teamAuditRevenue + teamAuditBacklog + (teamPipeline * 0.5); // 파이프라인은 50% 배분
+  const teamNonAuditActual = teamNonAuditRevenue + teamNonAuditBacklog + (teamPipeline * 0.5); // 파이프라인은 50% 배분
   const teamAuditBudget = Number(budgetData?.dept_budget_audit ?? 0);
   const teamNonAuditBudget = Number(budgetData?.dept_budget_non_audit ?? 0);
   const teamTotalActual = teamAuditActual + teamNonAuditActual;
@@ -149,6 +165,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     trend,
     displayType = "percentage",
     cardClassName,
+    breakdown,
   }: {
     actual: number
     budget: number
@@ -157,6 +174,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     trend: string
     displayType?: "percentage" | "count" | "amount" | "tenThousand"
     cardClassName?: string
+    breakdown?: {
+      revenue: number
+      backlog: number
+      pipeline: number
+    }
   }) => {
     const percentage = (actual / budget) * 100
     const isExceeded = actual > budget
@@ -183,6 +205,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         name: title,
         actual: actual,
         budget: budget,
+        // breakdown이 있을 때 구성 요소 추가
+        ...(breakdown && {
+          revenue: breakdown.revenue,
+          backlog: breakdown.backlog,
+          pipeline: breakdown.pipeline,
+        }),
       },
     ]
 
@@ -224,15 +252,34 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           </div>
 
           {/* 범례 추가 */}
-          <div className="flex items-center justify-center space-x-4 mb-4">
+          <div className="flex items-center justify-center space-x-4 mb-4 flex-wrap">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-gray-300 border border-gray-400 rounded"></div>
               <span className="text-xs text-gray-600">{(title.includes('신규 감사 건수') || title.includes('신규 감사 BD 금액') || title.includes('신규 비감사서비스') || title.includes('시간 당 Revenue')) ? '목표' : '예산'}</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: color }}></div>
-              <span className="text-xs text-gray-600">실제</span>
-            </div>
+            {breakdown ? (
+              /* 구성 요소별 범례 */
+              <>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-orange-500 rounded"></div>
+                  <span className="text-xs text-gray-600">Rev</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-emerald-500 rounded"></div>
+                  <span className="text-xs text-gray-600">BL</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-violet-500 rounded"></div>
+                  <span className="text-xs text-gray-600">PL</span>
+                </div>
+              </>
+            ) : (
+              /* 기존 단일 범례 */
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 rounded" style={{ backgroundColor: color }}></div>
+                <span className="text-xs text-gray-600">실제</span>
+              </div>
+            )}
           </div>
 
           <div className="mb-6">
@@ -246,13 +293,46 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 />
                 <YAxis type="category" dataKey="name" hide />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar
-                  dataKey="actual"
-                  fill={color}
-                  radius={[0, 4, 4, 0]}
-                  barSize={24}
-                  name="실제"
-                />
+                
+                {/* 구성 요소별 스택형 막대 (breakdown이 있을 때만) */}
+                {breakdown ? (
+                  <>
+                    <Bar
+                      dataKey="revenue"
+                      stackId="actual"
+                      fill="#f97316"
+                      radius={[0, 0, 0, 0]}
+                      barSize={24}
+                      name="Rev"
+                    />
+                    <Bar
+                      dataKey="backlog"
+                      stackId="actual"
+                      fill="#10b981"
+                      radius={[0, 0, 0, 0]}
+                      barSize={24}
+                      name="BL"
+                    />
+                    <Bar
+                      dataKey="pipeline"
+                      stackId="actual"
+                      fill="#8b5cf6"
+                      radius={[0, 4, 4, 0]}
+                      barSize={24}
+                      name="PL"
+                    />
+                  </>
+                ) : (
+                  /* 기존 단일 막대 (fallback) */
+                  <Bar
+                    dataKey="actual"
+                    fill={color}
+                    radius={[0, 4, 4, 0]}
+                    barSize={24}
+                    name="실제"
+                  />
+                )}
+                
                 <Bar
                   dataKey="budget"
                   fill="#f3f4f6"
@@ -277,6 +357,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   displayType === 'tenThousand' ? `${actual.toLocaleString('ko-KR')}/h` :
                   actual !== undefined && actual !== null ? `${Math.ceil(actual).toLocaleString('ko-KR')}백만원` : '-'}
               </div>
+              {/* 구성 요소 하단 표시 (breakdown이 있을 때만) */}
+              {breakdown && (
+                <div className="flex items-center space-x-2 text-xs mt-1">
+                  <span className="text-gray-400">(</span>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                    <span className="text-gray-600">Rev {Math.ceil(breakdown.revenue).toLocaleString('ko-KR')}</span>
+                  </div>
+                  <span className="text-gray-400">+</span>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <span className="text-gray-600">BL {Math.ceil(breakdown.backlog).toLocaleString('ko-KR')}</span>
+                  </div>
+                  <span className="text-gray-400">+</span>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-violet-500"></div>
+                    <span className="text-gray-600">PL {Math.ceil(breakdown.pipeline).toLocaleString('ko-KR')}</span>
+                  </div>
+                  <span className="text-gray-400">)</span>
+                </div>
+              )}
             </div>
             <div className="space-y-1 text-right">
               <div className="text-sm text-gray-500">{(title.includes('신규 감사 건수') || title.includes('신규 감사 BD 금액') || title.includes('신규 비감사서비스') || title.includes('시간 당 Revenue')) ? '목표' : '예산'}</div>
@@ -302,6 +403,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               }
             </div>
           </div>
+
+
         </CardContent>
       </Card>
     )
@@ -316,6 +419,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     trend,
     cardClassName,
     isTeam = false,
+    totalBreakdown,
   }: {
     auditActual: number
     nonAuditActual: number
@@ -324,6 +428,13 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     trend: string
     cardClassName?: string
     isTeam?: boolean
+    totalBreakdown?: {
+      auditRevenue: number
+      auditBacklog: number
+      nonAuditRevenue: number
+      nonAuditBacklog: number
+      pipeline: number
+    }
   }) => {
     const totalActual = auditActual + nonAuditActual
     const percentage = Math.round((totalActual / totalBudget) * 100)
@@ -341,6 +452,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         budget: totalBudget,
         audit: auditActual,
         nonAudit: nonAuditActual,
+        // totalBreakdown이 있을 때 구성 요소 추가
+        ...(totalBreakdown && {
+          revenue: totalBreakdown.auditRevenue + totalBreakdown.nonAuditRevenue,
+          backlog: totalBreakdown.auditBacklog + totalBreakdown.nonAuditBacklog,
+          pipeline: totalBreakdown.pipeline,
+        }),
       },
     ]
 
@@ -391,19 +508,40 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           </div>
 
           {/* 범례 추가 */}
-          <div className="flex items-center justify-center space-x-4 mb-4">
+          <div className="flex items-center justify-center space-x-4 mb-4 flex-wrap">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-gray-300 border border-gray-400 rounded"></div>
               <span className="text-xs text-gray-600">예산</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: auditColor }}></div>
-              <span className="text-xs text-gray-600">감사</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: nonAuditColor }}></div>
-              <span className="text-xs text-gray-600">비감사서비스</span>
-            </div>
+            {totalBreakdown ? (
+              /* 구성 요소별 범례 */
+              <>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-orange-500 rounded"></div>
+                  <span className="text-xs text-gray-600">Rev</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-emerald-500 rounded"></div>
+                  <span className="text-xs text-gray-600">BL</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-violet-500 rounded"></div>
+                  <span className="text-xs text-gray-600">PL</span>
+                </div>
+              </>
+            ) : (
+              /* 기존 감사/비감사 범례 */
+              <>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: auditColor }}></div>
+                  <span className="text-xs text-gray-600">감사</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: nonAuditColor }}></div>
+                  <span className="text-xs text-gray-600">비감사서비스</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="mb-6">
@@ -426,15 +564,49 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   barSize={24}
                   name="예산"
                 />
-                <Bar dataKey="audit" stackId="a" fill={auditColor} radius={[0, 0, 0, 0]} barSize={24} name="Audit" />
-                <Bar
-                  dataKey="nonAudit"
-                  stackId="a"
-                  fill={nonAuditColor}
-                  radius={[0, 4, 4, 0]}
-                  barSize={24}
-                  name="Non-Audit"
-                />
+                
+                {/* 구성 요소별 스택형 막대 (totalBreakdown이 있을 때만) */}
+                {totalBreakdown ? (
+                  <>
+                    <Bar
+                      dataKey="revenue"
+                      stackId="actual"
+                      fill="#f97316"
+                      radius={[0, 0, 0, 0]}
+                      barSize={24}
+                      name="Rev"
+                    />
+                    <Bar
+                      dataKey="backlog"
+                      stackId="actual"
+                      fill="#10b981"
+                      radius={[0, 0, 0, 0]}
+                      barSize={24}
+                      name="BL"
+                    />
+                    <Bar
+                      dataKey="pipeline"
+                      stackId="actual"
+                      fill="#8b5cf6"
+                      radius={[0, 4, 4, 0]}
+                      barSize={24}
+                      name="PL"
+                    />
+                  </>
+                ) : (
+                  /* 기존 감사/비감사 막대 */
+                  <>
+                    <Bar dataKey="audit" stackId="a" fill={auditColor} radius={[0, 0, 0, 0]} barSize={24} name="Audit" />
+                    <Bar
+                      dataKey="nonAudit"
+                      stackId="a"
+                      fill={nonAuditColor}
+                      radius={[0, 4, 4, 0]}
+                      barSize={24}
+                      name="Non-Audit"
+                    />
+                  </>
+                )}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -443,6 +615,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="space-y-1">
               <div className="text-sm text-gray-500">실제</div>
               <div className="text-xl font-bold text-gray-900">{totalActual !== undefined && totalActual !== null ? `${Math.ceil(totalActual).toLocaleString('ko-KR')}백만원` : '-'}</div>
+              {/* 구성 요소 하단 표시 (totalBreakdown이 있을 때만) */}
+              {totalBreakdown && (
+                <div className="flex items-center space-x-2 text-xs mt-1">
+                  <span className="text-gray-400">(</span>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                    <span className="text-gray-600">Rev {Math.ceil(totalBreakdown.auditRevenue + totalBreakdown.nonAuditRevenue).toLocaleString('ko-KR')}</span>
+                  </div>
+                  <span className="text-gray-400">+</span>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <span className="text-gray-600">BL {Math.ceil(totalBreakdown.auditBacklog + totalBreakdown.nonAuditBacklog).toLocaleString('ko-KR')}</span>
+                  </div>
+                  <span className="text-gray-400">+</span>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-violet-500"></div>
+                    <span className="text-gray-600">PL {Math.ceil(totalBreakdown.pipeline).toLocaleString('ko-KR')}</span>
+                  </div>
+                  <span className="text-gray-400">)</span>
+                </div>
+              )}
             </div>
             <div className="space-y-1 text-right">
               <div className="text-sm text-gray-500">예산</div>
@@ -456,29 +649,14 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             >
               {percentage}% {percentage >= 100 ? "초과달성" : "달성"}
             </div>
+            <div className="text-xs text-gray-400 mt-1">
+              (실제: {Math.ceil(totalActual).toLocaleString('ko-KR')}백만원 / 예산: {Math.ceil(totalBudget).toLocaleString('ko-KR')}백만원 × 100 = {percentage}%)
+            </div>
           </div>
 
-          {/* 서비스 구성 정보 */}
-          <div className="mt-6 pt-4 border-t space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: auditColor }}></div>
-                <span className="text-sm text-gray-600">감사</span>
-              </div>
-              <div className="text-sm font-medium text-gray-900">
-                {Math.ceil(auditActual).toLocaleString('ko-KR')}백만원, {totalActual > 0 ? Math.round((auditActual / totalActual) * 100) : 0}%
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: nonAuditColor }}></div>
-                <span className="text-sm text-gray-600">비감사서비스</span>
-              </div>
-              <div className="text-sm font-medium text-gray-900">
-                {Math.ceil(nonAuditActual).toLocaleString('ko-KR')}백만원, {totalActual > 0 ? Math.round((nonAuditActual / totalActual) * 100) : 0}%
-              </div>
-            </div>
-          </div>
+
+
+
         </CardContent>
       </Card>
     )
@@ -528,6 +706,13 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               title="My Budget"
               trend={`-${Math.round((1 - (myTotalActual / (myTotalBudget || 1))) * 100)}%`}
               cardClassName="shadow-sm border-l-4 border-l-gray-300"
+              totalBreakdown={{
+                auditRevenue: myAuditRevenue,
+                auditBacklog: myAuditBacklog,
+                nonAuditRevenue: myNonAuditRevenue,
+                nonAuditBacklog: myNonAuditBacklog,
+                pipeline: myPipeline
+              }}
             />
 
             {/* Team Budget Card - 누적 막대 그래프 */}
@@ -539,6 +724,13 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               trend={`-${Math.round((1 - (teamTotalActual / (teamTotalBudget || 1))) * 100)}%`}
               cardClassName="shadow-sm border-l-4 border-l-gray-300"
               isTeam={true}
+              totalBreakdown={{
+                auditRevenue: teamAuditRevenue,
+                auditBacklog: teamAuditBacklog,
+                nonAuditRevenue: teamNonAuditRevenue,
+                nonAuditBacklog: teamNonAuditBacklog,
+                pipeline: teamPipeline
+              }}
             />
           </div>
 
@@ -560,6 +752,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 trend={`-${Math.round((1 - (myAuditActual / (myAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
                 cardClassName="shadow-sm border-l-4 border-l-orange-500"
+                breakdown={{
+                  revenue: myAuditRevenue,
+                  backlog: myAuditBacklog,
+                  pipeline: myPipeline * 0.5
+                }}
               />
 
               {/* Team 감사 Budget Card */}
@@ -571,6 +768,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 trend={`-${Math.round((1 - (teamAuditActual / (teamAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
                 cardClassName="shadow-sm border-l-4 border-l-orange-600"
+                breakdown={{
+                  revenue: teamAuditRevenue,
+                  backlog: teamAuditBacklog,
+                  pipeline: teamPipeline * 0.5
+                }}
               />
             </div>
           </div>
@@ -593,6 +795,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 trend={`-${Math.round((1 - (myNonAuditActual / (myNonAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
                 cardClassName="shadow-sm border-l-4 border-l-emerald-500"
+                breakdown={{
+                  revenue: myNonAuditRevenue,
+                  backlog: myNonAuditBacklog,
+                  pipeline: myPipeline * 0.5
+                }}
               />
 
               {/* Team 비감사서비스 Budget Card */}
@@ -604,6 +811,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 trend={`-${Math.round((1 - (teamNonAuditActual / (teamNonAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
                 cardClassName="shadow-sm border-l-4 border-l-emerald-600"
+                breakdown={{
+                  revenue: teamNonAuditRevenue,
+                  backlog: teamNonAuditBacklog,
+                  pipeline: teamPipeline * 0.5
+                }}
               />
             </div>
           </div>

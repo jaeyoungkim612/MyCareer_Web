@@ -122,7 +122,7 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
     setIsEditingFinal(false)
     setTabValueFinal("view")
   }
-  // 임시저장/제출 (insert로 저장)
+  // 임시저장/제출 (upsert로 저장)
   const handleSaveMid = async (status: "draft" | "submitted") => {
     if (!empno) return
     setLoading(true)
@@ -138,12 +138,22 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
         updated_at: new Date().toISOString()
         // created_at은 넣지 않음 (DB에서 자동 생성)
       }
-      const { error } = await supabase.from("business_mid_assessments").insert([payload]);
+      
+      // upsert 사용: 기존 데이터가 있으면 update, 없으면 insert
+      const { error } = await supabase
+        .from("business_mid_assessments")
+        .upsert(payload, { 
+          onConflict: 'empno',
+          ignoreDuplicates: false 
+        });
+      
       if (error) throw error
       await fetchAssessments()
       setIsEditingMid(false)
       setTabValueMid("view")
+      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
     } catch (e) {
+      console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
     } finally {
       setLoading(false)
@@ -164,12 +174,22 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
         updated_at: new Date().toISOString()
         // created_at은 넣지 않음 (DB에서 자동 생성)
       }
-      const { error } = await supabase.from("business_final_assessments").insert([payload]);
+      
+      // upsert 사용: 기존 데이터가 있으면 update, 없으면 insert
+      const { error } = await supabase
+        .from("business_final_assessments")
+        .upsert(payload, { 
+          onConflict: 'empno',
+          ignoreDuplicates: false 
+        });
+      
       if (error) throw error
       await fetchAssessments()
       setIsEditingFinal(false)
       setTabValueFinal("view")
+      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
     } catch (e) {
+      console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
     } finally {
       setLoading(false)
@@ -266,12 +286,10 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
                     <X className="mr-2 h-4 w-4" />
                     Cancel
                   </Button>
-                  {!midSubmitted && (
-                    <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      임시저장
-                    </Button>
-                  )}
+                  <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    임시저장
+                  </Button>
                   <Button onClick={() => handleSaveMid("submitted") } className="bg-green-600 text-white" disabled={loading}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     제출

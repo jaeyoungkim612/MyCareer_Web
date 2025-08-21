@@ -6,23 +6,35 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Target, TrendingUp, CheckCircle, Percent, Edit, Save, X, User, CheckCircle2 } from "lucide-react"
+import { Target, TrendingUp, CheckCircle, Percent, Edit, Save, X, User, CheckCircle2, DollarSign, BarChart3 } from "lucide-react"
 import { QualityNonAuditPerformanceService, QualityNonAuditPerformance } from "@/lib/quality-non-audit-performance-service"
 import { AuthService } from "@/lib/auth-service"
 import { UserInfoMapper } from "@/data/user-info"
 import { supabase } from "@/lib/supabase"
 
 // 1. 디폴트 값
-const nonAuditDefault = `신규 서비스 개발\n\n\n기존 서비스 확장\n`;
+const nonAuditDefault = `Quality 향상
+
+효율화 계획
+
+신상품 개발
+`;
 
 // 2. 섹션 파싱 함수
 function parseNonAuditSections(text: string) {
   console.log('🔍 parseNonAuditSections input:', text);
-  const sections = ["신규 서비스 개발", "기존 서비스 확장"];
+  const sections = ["Quality 향상", "효율화 계획", "신상품 개발"];
   const result: Record<string, string> = {};
   let current = "";
   let buffer: string[] = [];
   const lines = (text || "").split('\n');
+  
+  // 설명 문구들을 필터링할 패턴
+  const descriptionPatterns = [
+    /감사품질 향상을 위한 구체적인 계획과 방법론을 작성하세요/,
+    /업무 프로세스 개선 및 효율성 증대 방안을 작성하세요/,
+    /새로운 감사 도구나 서비스 개발 계획을 작성하세요/
+  ];
   
   console.log('📝 Lines to parse:', lines);
   
@@ -40,7 +52,13 @@ function parseNonAuditSections(text: string) {
       buffer = [];
       console.log(`🆕 Started new section: "${current}"`);
     } else {
-      buffer.push(line);
+      // 설명 문구가 아닌 경우만 버퍼에 추가
+      const isDescriptionLine = descriptionPatterns.some(pattern => pattern.test(trimmed));
+      if (!isDescriptionLine) {
+        buffer.push(line);
+      } else {
+        console.log(`🚫 Filtered out description line: "${trimmed}"`);
+      }
     }
   }
   
@@ -57,13 +75,28 @@ function parseNonAuditSections(text: string) {
 // 3. View 모드 렌더링 함수
 function renderNonAuditView(text: string) {
   if (!text) return <p className="text-sm">입력사항이 없습니다.</p>;
+  
+  // 설명 문구들을 필터링할 패턴
+  const descriptionPatterns = [
+    /감사품질 향상을 위한 구체적인 계획과 방법론을 작성하세요/,
+    /업무 프로세스 개선 및 효율성 증대 방안을 작성하세요/,
+    /새로운 감사 도구나 서비스 개발 계획을 작성하세요/
+  ];
+  
   const lines = text.split('\n');
-  const sections = ["신규 서비스 개발", "기존 서비스 확장"];
-  return lines.map((line, idx) => {
+  const sections = ["Quality 향상", "효율화 계획", "신상품 개발"];
+  
+  // 설명 문구 제거
+  const filteredLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return !descriptionPatterns.some(pattern => pattern.test(trimmed));
+  });
+  
+  return filteredLines.map((line, idx) => {
     const trimmed = line.trim();
     if (sections.includes(trimmed)) {
       // 첫 번째 섹션이 아닌 경우 위쪽 마진 추가
-      const isFirstSection = idx === 0 || !lines.slice(0, idx).some(prevLine => sections.includes(prevLine.trim()));
+      const isFirstSection = idx === 0 || !filteredLines.slice(0, idx).some(prevLine => sections.includes(prevLine.trim()));
       return <p key={idx} className={`font-bold ${!isFirstSection ? 'mt-6' : ''}`}>{trimmed}</p>;
     }
     return <p key={idx} className="text-sm">{line}</p>;
@@ -90,10 +123,10 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
 
   // 기존 auditMetrics를 새로운 4개 평가 항목으로 변경
   const [auditMetrics, setAuditMetrics] = useState({
-    yearEndTimeRatio: 0,     // Year End 이전 시간 비율
-    elInputHours: 0,         // EL 투입시간
-    axTransitionRatio: 0,    // AX/Transition 비율
-    eerEvaluationScore: 0,   // EER 평가 결과
+    yearEndTimeRatio: 0,        // Year End 이전 시간 비율
+    elInputHours: 0,            // EL 투입시간
+    axTransitionRatio: 0,       // AX/Transition 비율
+    eerEvaluationScore: "Compliant",  // EER 평가 결과 (항상 "Compliant")
   })
   const [originalAuditMetrics, setOriginalAuditMetrics] = useState(auditMetrics)
 
@@ -116,11 +149,14 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
   const [userInfo, setUserInfo] = useState<any>(null)
   const [renderKey, setRenderKey] = useState(0)
   
-  // input refs도 새로운 4개 항목으로 변경
+  // 실적 데이터 state 추가
+  const [performanceData, setPerformanceData] = useState<any>(null)
+  const [performanceLoading, setPerformanceLoading] = useState(false)
+  
+  // input refs (EER는 제거됨 - 항상 Compliant)
   const yearEndInputRef = useRef<HTMLInputElement>(null)
   const elInputRef = useRef<HTMLInputElement>(null)
   const axInputRef = useRef<HTMLInputElement>(null)
-  const eerInputRef = useRef<HTMLInputElement>(null)
 
 
 
@@ -182,7 +218,10 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
   }, [empno])
 
   useEffect(() => {
-    if (currentUser?.empno) fetchGoal()
+    if (currentUser?.empno) {
+      fetchGoal()
+      fetchPerformanceData()
+    }
     // eslint-disable-next-line
   }, [currentUser])
 
@@ -213,12 +252,30 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
         
         // 최신 레코드에서 공통 정보 가져오기 (Goals, 새로운 4개 평가 항목, 상태)
         const latestRecord = allRecords[0]
+        console.log('🔍 Latest record details:', JSON.stringify(latestRecord, null, 2))
+        
+        // 순수 목표 설정
         setGoals(latestRecord.quality_goal || '')
+        
+        // 이제 실제 컬럼에서 직접 읽기
+        const yearEnd = latestRecord.year_end_time_ratio || 0;
+        const elHours = latestRecord.el_input_hours || 0;
+        const axRatio = latestRecord.ax_transition_ratio || 0;
+        const eerScore = latestRecord.eer_evaluation_score >= 5.0 ? "Compliant" : "Non-Compliant";
+        
+        console.log('✅ Loaded from actual columns:', { 
+          yearEnd, 
+          elHours, 
+          axRatio, 
+          eerScore,
+          raw_eer: latestRecord.eer_evaluation_score 
+        });
+        
         setAuditMetrics({
-          yearEndTimeRatio: latestRecord.year_end_time_ratio || 0,
-          elInputHours: latestRecord.el_input_hours || 0,
-          axTransitionRatio: latestRecord.ax_transition_ratio || 0,
-          eerEvaluationScore: latestRecord.eer_evaluation_score || 0,
+          yearEndTimeRatio: yearEnd,
+          elInputHours: elHours,
+          axTransitionRatio: axRatio,
+          eerEvaluationScore: eerScore,
         })
         setCurrentStatus(latestRecord.status || 'Draft')
         
@@ -235,33 +292,41 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
         let combinedNonAuditText = ''
         
         const noneRecord = allRecords.find(r => r.type === 'none')
-        const 신규Record = allRecords.find(r => r.type === '신규')
-        const 기존Record = allRecords.find(r => r.type === '기존')
+        const qualityRecord = allRecords.find(r => r.type === 'Quality향상')
+        const 효율화Record = allRecords.find(r => r.type === '효율화계획')
+        const 신상품Record = allRecords.find(r => r.type === '신상품개발')
         
         console.log('📊 Found records by type:')
         console.log('  - none:', noneRecord)
-        console.log('  - 신규:', 신규Record)
-        console.log('  - 기존:', 기존Record)
+        console.log('  - Quality향상:', qualityRecord)
+        console.log('  - 효율화계획:', 효율화Record)
+        console.log('  - 신상품개발:', 신상품Record)
         
-        // 신규/기존 타입이 있으면 우선 사용 (최신 저장 방식)
-        if (신규Record || 기존Record) {
-          // 신규/기존 타입이 있으면 합쳐서 표시
+        // 3개 카테고리 타입이 있으면 우선 사용 (최신 저장 방식)
+        if (qualityRecord || 효율화Record || 신상품Record) {
+          // 3개 카테고리가 있으면 합쳐서 표시
           const parts = []
-          if (신규Record && 신규Record.goal_text) {
-            console.log('📝 Adding 신규 content:', 신규Record.goal_text)
-            parts.push('신규 서비스 개발')
-            parts.push(신규Record.goal_text)
+          if (qualityRecord && qualityRecord.goal_text) {
+            console.log('📝 Adding Quality향상 content:', qualityRecord.goal_text)
+            parts.push('Quality 향상')
+            parts.push(qualityRecord.goal_text)
             parts.push('')
           }
-          if (기존Record && 기존Record.goal_text) {
-            console.log('📝 Adding 기존 content:', 기존Record.goal_text)
-            parts.push('기존 서비스 확장')
-            parts.push(기존Record.goal_text)
+          if (효율화Record && 효율화Record.goal_text) {
+            console.log('📝 Adding 효율화계획 content:', 효율화Record.goal_text)
+            parts.push('효율화 계획')
+            parts.push(효율화Record.goal_text)
+            parts.push('')
+          }
+          if (신상품Record && 신상품Record.goal_text) {
+            console.log('📝 Adding 신상품개발 content:', 신상품Record.goal_text)
+            parts.push('신상품 개발')
+            parts.push(신상품Record.goal_text)
           }
           combinedNonAuditText = parts.join('\n')
-          console.log('✅ Combined 신규/기존 records for non-audit text:', combinedNonAuditText)
+          console.log('✅ Combined 3-category records for non-audit text:', combinedNonAuditText)
         } else if (noneRecord) {
-          // 신규/기존이 없고 none 타입만 있으면 그것을 사용
+          // 3개 카테고리가 없고 none 타입만 있으면 그것을 사용
           combinedNonAuditText = noneRecord.goal_text || ''
           console.log('✅ Using none type record for non-audit text:', combinedNonAuditText)
         }
@@ -271,10 +336,10 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
         // 원본 상태도 업데이트
         setOriginalGoals(latestRecord.quality_goal || '')
         setOriginalAuditMetrics({
-          yearEndTimeRatio: latestRecord.year_end_time_ratio || 0,
-          elInputHours: latestRecord.el_input_hours || 0,
-          axTransitionRatio: latestRecord.ax_transition_ratio || 0,
-          eerEvaluationScore: latestRecord.eer_evaluation_score || 0,
+          yearEndTimeRatio: yearEnd,
+          elInputHours: elHours,
+          axTransitionRatio: axRatio,
+          eerEvaluationScore: eerScore,
         })
         setOriginalNonAuditText(combinedNonAuditText)
         
@@ -287,7 +352,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
           yearEndTimeRatio: 0, 
           elInputHours: 0, 
           axTransitionRatio: 0, 
-          eerEvaluationScore: 0 
+          eerEvaluationScore: "Compliant" 
         })
         setNonAuditText('')
         setCurrentStatus('Draft')
@@ -299,7 +364,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
           yearEndTimeRatio: 0, 
           elInputHours: 0, 
           axTransitionRatio: 0, 
-          eerEvaluationScore: 0 
+          eerEvaluationScore: "Compliant" 
         })
         setOriginalNonAuditText('')
       }
@@ -308,6 +373,56 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
     }
     
     setLoading(false)
+  }
+
+  // 실적 데이터 가져오기 함수
+  async function fetchPerformanceData() {
+    setPerformanceLoading(true)
+    try {
+      console.log('📊 Fetching performance data for employee:', currentUser.empno)
+      
+      // 사번 정규화
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      console.log(`🔧 Performance: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`)
+      
+      // hr_master_dashboard 뷰에서 데이터 가져오기
+      const { data, error } = await supabase
+        .from('hr_master_dashboard')
+        .select(`
+          EMPNO,
+          EMPNM,
+          current_audit_revenue,
+          current_audit_adjusted_em,
+          current_audit_em,
+          current_non_audit_revenue,
+          current_non_audit_adjusted_em,
+          current_non_audit_em,
+          total_current_revenue,
+          total_current_adjusted_em,
+          total_current_em
+        `)
+        .eq('EMPNO', normalizedEmpno)
+        .maybeSingle()
+      
+      if (error) {
+        console.error('❌ Performance data fetch error:', error)
+        throw error
+      }
+      
+      if (data) {
+        console.log('✅ Performance data loaded:', data)
+        setPerformanceData(data)
+      } else {
+        console.log('ℹ️ No performance data found')
+        setPerformanceData(null)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching performance data:', error)
+      setPerformanceData(null)
+    }
+    
+    setPerformanceLoading(false)
   }
 
   const handleEdit = () => {
@@ -320,8 +435,13 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
     setOriginalNonAuditText(nonAuditText)
     setIsEditing(true)
     
-    // 비감사 목표가 완전히 비어있을 때만 기본값 설정
-    if (!nonAuditText || nonAuditText.trim() === '') {
+    // 비감사 목표가 완전히 비어있거나 기본값만 있을 때만 기본값 설정
+    const currentText = nonAuditText?.trim() || ''
+    const isEmptyOrDefaultOnly = !currentText || 
+      currentText === nonAuditDefault.trim() ||
+      currentText === 'Quality 향상\n\n효율화 계획\n\n신상품 개발'
+    
+    if (isEmptyOrDefaultOnly) {
       console.log('📄 Setting default non-audit text')
       setNonAuditText(nonAuditDefault)
     }
@@ -331,10 +451,13 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
   async function handleSave(status: '작성중' | '완료') {
     setLoading(true)
     try {
+      console.log('🚀 =========================')
       console.log('💾 Starting save process...')
       console.log('📝 Goals:', goals)
       console.log('📊 Audit metrics:', auditMetrics)
       console.log('📄 Non-audit text:', nonAuditText)
+      console.log('👤 Current user:', currentUser)
+      console.log('🔄 Status:', status)
       
       // 제출일 때만 validation 적용
       if (status === '완료' && !goals.trim()) {
@@ -352,74 +475,172 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
       const actualYearEnd = yearEndInputRef.current?.value ? Number(yearEndInputRef.current.value) : auditMetrics.yearEndTimeRatio
       const actualElHours = elInputRef.current?.value ? Number(elInputRef.current.value) : auditMetrics.elInputHours
       const actualAxRatio = axInputRef.current?.value ? Number(axInputRef.current.value) : auditMetrics.axTransitionRatio
-      const actualEerScore = eerInputRef.current?.value ? Number(eerInputRef.current.value) : auditMetrics.eerEvaluationScore
+      // EER 평가 결과는 항상 "Compliant"로 고정
+      const actualEerScore = "Compliant"
       
       console.log('🔍 REF values:', { actualYearEnd, actualElHours, actualAxRatio, actualEerScore })
       
-      // 공통 감사 목표 및 새로운 4개 평가 항목 데이터
+      // 이제 실제 컬럼들에 저장
       const commonData = {
         employee_id: normalizedEmpno,
         quality_goal: goals || '',
-        year_end_time_ratio: isNaN(actualYearEnd) ? 0 : actualYearEnd,
-        el_input_hours: isNaN(actualElHours) ? 0 : actualElHours,
-        ax_transition_ratio: isNaN(actualAxRatio) ? 0 : actualAxRatio,
-        eer_evaluation_score: isNaN(actualEerScore) ? 0 : actualEerScore,
+        year_end_time_ratio: actualYearEnd,
+        el_input_hours: actualElHours,
+        ax_transition_ratio: actualAxRatio,
+        eer_evaluation_score: actualEerScore === "Compliant" ? 5.0 : 0.0, // Compliant = 5점으로 변환
         status: status,
         updated_at: new Date().toISOString()
       }
-
+      
+      console.log('💾 Final commonData (with audit metrics):', commonData)
       console.log('🔧 Common data prepared:', commonData)
+      
+      // 🔥 현재 어떤 경로로 저장하는지 확인
+      console.log('🔍 Checking save paths...')
+      console.log('❓ Has goals?', !!goals)
+      console.log('❓ Has nonAuditText?', !!nonAuditText.trim())
+      console.log('❓ Goals value:', goals)
+      console.log('❓ NonAuditText value:', nonAuditText)
 
       // 비감사 텍스트 파싱해서 신규/기존 구분
       const sections = parseNonAuditSections(nonAuditText.trim())
-      const has신규 = sections["신규 서비스 개발"] && sections["신규 서비스 개발"].trim()
-      const has기존 = sections["기존 서비스 확장"] && sections["기존 서비스 확장"].trim()
+      const hasQuality = sections["Quality 향상"] && sections["Quality 향상"].trim()
+      const has효율화 = sections["효율화 계획"] && sections["효율화 계획"].trim()
+      const has신상품 = sections["신상품 개발"] && sections["신상품 개발"].trim()
       
       console.log('🔍 Parsed sections:', sections)
-      console.log('🔍 has신규:', !!has신규, 'content:', has신규)
-      console.log('🔍 has기존:', !!has기존, 'content:', has기존)
-      console.log('🔍 Will save as separate records?', !!(has신규 && has기존))
+      console.log('🔍 hasQuality:', !!hasQuality, 'content:', hasQuality)
+      console.log('🔍 has효율화:', !!has효율화, 'content:', has효율화)
+      console.log('🔍 has신상품:', !!has신상품, 'content:', has신상품)
+      
+      console.log('🚩 SAVE PATH DECISION:')
+      const hasMultiple = [hasQuality, has효율화, has신상품].filter(Boolean).length > 1
+      const hasSingle = [hasQuality, has효율화, has신상품].filter(Boolean).length === 1
+      console.log('   Path 1 - Multiple categories:', hasMultiple)
+      console.log('   Path 2 - Single category:', hasSingle)
+      console.log('   Path 3 - Only goals:', !!(goals && !nonAuditText.trim()))
+      console.log('   Path 4 - Both exist:', !!(goals && nonAuditText.trim()))
 
-      if (has신규 && has기존) {
-        // 신규와 기존 둘 다 있으면 각각 별도 레코드로 저장
-        console.log('💾 Saving as separate 신규/기존 records')
+      if (hasMultiple) {
+        // 여러 카테고리가 있으면 각각 별도 레코드로 저장
+        console.log('💾 Saving as separate multiple category records')
         
-        const 신규Record = {
-          ...commonData,
-          type: '신규',
-          goal_text: has신규,
+        // 🗑️ 기존 레코드 삭제 (해당 사용자의 모든 Quality 관련 레코드)
+        console.log('🗑️ Deleting existing records for user:', normalizedEmpno)
+        const { error: deleteError } = await supabase
+          .from('quality_non_audit_performance')
+          .delete()
+          .eq('employee_id', normalizedEmpno)
+        
+        if (deleteError) {
+          console.error('❌ Failed to delete existing records:', deleteError)
+          throw deleteError
+        }
+        console.log('✅ Successfully deleted existing records')
+        
+        const recordsToSave = []
+        
+        if (hasQuality) {
+          recordsToSave.push({
+            employee_id: normalizedEmpno,
+            quality_goal: goals || '',
+            type: 'Quality향상',
+            goal_text: hasQuality,
+            year_end_time_ratio: actualYearEnd,
+            el_input_hours: actualElHours,
+            ax_transition_ratio: actualAxRatio,
+            eer_evaluation_score: actualEerScore === "Compliant" ? 5.0 : 0.0,
+            status: status,
+            updated_at: new Date().toISOString()
+          })
         }
         
-        const 기존Record = {
-          ...commonData,
-          type: '기존', 
-          goal_text: has기존,
+        if (has효율화) {
+          recordsToSave.push({
+            employee_id: normalizedEmpno,
+            quality_goal: goals || '',
+            type: '효율화계획',
+            goal_text: has효율화,
+            year_end_time_ratio: actualYearEnd,
+            el_input_hours: actualElHours,
+            ax_transition_ratio: actualAxRatio,
+            eer_evaluation_score: actualEerScore === "Compliant" ? 5.0 : 0.0,
+            status: status,
+            updated_at: new Date().toISOString()
+          })
         }
+        
+        if (has신상품) {
+          recordsToSave.push({
+            employee_id: normalizedEmpno,
+            quality_goal: goals || '',
+            type: '신상품개발',
+            goal_text: has신상품,
+            year_end_time_ratio: actualYearEnd,
+            el_input_hours: actualElHours,
+            ax_transition_ratio: actualAxRatio,
+            eer_evaluation_score: actualEerScore === "Compliant" ? 5.0 : 0.0,
+            status: status,
+            updated_at: new Date().toISOString()
+          })
+        }
+        
+        console.log('💾 Records to save:', recordsToSave)
         
         try {
-          const [신규Result, 기존Result] = await Promise.all([
-            supabase.from('quality_non_audit_performance').insert(신규Record).select().single(),
-            supabase.from('quality_non_audit_performance').insert(기존Record).select().single()
-          ])
+          const insertPromises = recordsToSave.map(record => 
+            supabase.from('quality_non_audit_performance').insert(record).select().single()
+          )
           
-          if (신규Result.error) throw 신규Result.error
-          if (기존Result.error) throw 기존Result.error
+          const results = await Promise.all(insertPromises)
           
-          console.log('✅ 신규 inserted:', 신규Result.data)
-          console.log('✅ 기존 inserted:', 기존Result.data)
+          for (let i = 0; i < results.length; i++) {
+            if (results[i].error) throw results[i].error
+            console.log(`✅ Record ${i+1} inserted:`, results[i].data)
+          }
+          
+          console.log('✅ All multiple category records saved successfully')
         } catch (error) {
-          console.error('❌ Insert failed:', error)
+          console.error('❌ Multiple category insert failed:', error)
           throw error
         }
       } else {
-        // 신규/기존 구분이 없거나 하나만 있으면 none 타입으로 저장
-        console.log('💾 Saving as single none record')
+        // 단일 카테고리이거나 구분이 없으면 적절한 타입으로 저장
+        console.log('💾 Saving as single record')
+        
+        // 🗑️ 기존 레코드 삭제 (해당 사용자의 모든 Quality 관련 레코드)
+        console.log('🗑️ Deleting existing records for user:', normalizedEmpno)
+        const { error: deleteError } = await supabase
+          .from('quality_non_audit_performance')
+          .delete()
+          .eq('employee_id', normalizedEmpno)
+        
+        if (deleteError) {
+          console.error('❌ Failed to delete existing records:', deleteError)
+          throw deleteError
+        }
+        console.log('✅ Successfully deleted existing records')
+        
+        // 단일 카테고리 타입 결정
+        let singleType = 'none'
+        if (hasQuality) singleType = 'Quality향상'
+        else if (has효율화) singleType = '효율화계획'
+        else if (has신상품) singleType = '신상품개발'
         
         const recordToSave = {
-          ...commonData,
-          type: 'none',
+          employee_id: normalizedEmpno,
+          quality_goal: goals || '',
+          type: singleType,
           goal_text: nonAuditText.trim() || null,
+          year_end_time_ratio: actualYearEnd,
+          el_input_hours: actualElHours,
+          ax_transition_ratio: actualAxRatio,
+          eer_evaluation_score: actualEerScore === "Compliant" ? 5.0 : 0.0,
+          status: status,
+          updated_at: new Date().toISOString()
         }
+        
+        console.log('💾 Final recordToSave (single type):', recordToSave)
 
         try {
           const { data, error } = await supabase
@@ -459,16 +680,27 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
         yearEndTimeRatio: isNaN(actualYearEnd) ? 0 : actualYearEnd,
         elInputHours: isNaN(actualElHours) ? 0 : actualElHours,
         axTransitionRatio: isNaN(actualAxRatio) ? 0 : actualAxRatio,
-        eerEvaluationScore: isNaN(actualEerScore) ? 0 : actualEerScore,
+        eerEvaluationScore: actualEerScore,
       })
       setOriginalNonAuditText(nonAuditText)
 
       // 데이터 다시 가져오기
       await fetchGoal()
+      
+      // 🔔 Monitoring Tab에게 데이터 변경 알림
+      window.dispatchEvent(new CustomEvent('qualityPlanDataChanged', { 
+        detail: { empno: normalizedEmpno, action: 'saved', status } 
+      }))
+      console.log('🔔 Dispatched qualityPlanDataChanged event')
     } catch (error) {
-      console.error('Error saving goal:', error)
-      alert(`저장 실패: ${error}`)
+      console.error('❌ MAIN CATCH ERROR - Save failed completely:', error)
+      console.error('❌ Error type:', typeof error)
+      console.error('❌ Error message:', (error as any)?.message)
+      console.error('❌ Full error details:', JSON.stringify(error, null, 2))
+      alert(`저장 실패: ${(error as any)?.message || error}`)
     }
+    
+    console.log('🏁 handleSave finished')
     setLoading(false)
   }
 
@@ -654,11 +886,11 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                 )}
               </div>
 
-              {/* EL 투입시간 */}
+              {/* EL 투입시간 비율 */}
               <div>
                 <label className="text-sm font-semibold mb-2 block">
                   <User className="inline mr-1 h-4 w-4" />
-                  EL 투입시간 (시간)
+                  EL 투입시간 비율 (%)
                 </label>
                 {isEditing ? (
                   <Input
@@ -681,30 +913,44 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                       {auditMetrics.elInputHours !== undefined && auditMetrics.elInputHours !== null && auditMetrics.elInputHours !== 0
                         ? auditMetrics.elInputHours
                         : <span className="text-muted-foreground">-</span>
-                      }h
+                      }%
                     </span>
                   </div>
                 )}
               </div>
 
               {/* 두 번째 행 */}
-              {/* AX/Transition 비율 */}
+              {/* AX/DX Transition 비율 */}
               <div>
                 <label className="text-sm font-semibold mb-2 block">
                   <TrendingUp className="inline mr-1 h-4 w-4" />
                   AX/DX Transition 비율 (%)
                 </label>
-                <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-md min-h-[70px] flex items-center border-2 border-dashed border-slate-300 dark:border-slate-600">
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-xl font-bold text-slate-400 dark:text-slate-500">
+                {isEditing ? (
+                  <Input
+                    ref={axInputRef}
+                    type="text"
+                    value={auditMetrics.axTransitionRatio === 0 ? "" : auditMetrics.axTransitionRatio}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        const numValue = value === "" ? 0 : parseInt(value, 10);
+                        setAuditMetrics(prev => ({ ...prev, axTransitionRatio: numValue }));
+                      }
+                    }}
+                    className="text-xl font-bold min-h-[48px] h-[48px] px-3"
+                    placeholder="0"
+                  />
+                ) : (
+                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[70px] flex items-center">
+                    <span className="text-xl font-bold">
                       {auditMetrics.axTransitionRatio !== undefined && auditMetrics.axTransitionRatio !== null && auditMetrics.axTransitionRatio !== 0
                         ? auditMetrics.axTransitionRatio
-                        : "-"
+                        : <span className="text-muted-foreground">-</span>
                       }%
                     </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 italic">추가 예정</span>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* EER 평가 결과 */}
@@ -713,16 +959,10 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                   <CheckCircle className="inline mr-1 h-4 w-4" />
                   EER 평가 결과
                 </label>
-                <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-md min-h-[70px] flex items-center border-2 border-dashed border-slate-300 dark:border-slate-600">
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-xl font-bold text-slate-400 dark:text-slate-500">
-                      {auditMetrics.eerEvaluationScore !== undefined && auditMetrics.eerEvaluationScore !== null && auditMetrics.eerEvaluationScore !== 0
-                        ? auditMetrics.eerEvaluationScore
-                        : "-"
-                      }
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 italic">추가 예정</span>
-                  </div>
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[70px] flex items-center">
+                  <span className="text-xl font-bold text-black dark:text-white">
+                    Compliant
+                  </span>
                 </div>
               </div>
             </div>
@@ -736,16 +976,16 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
                   <p className="text-xs text-muted-foreground">현재누적발생 / 현재 Budget 누적(EPC 상 기존 계산 비율)</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
-                  <h5 className="font-medium text-sm mb-1">EL 투입시간:</h5>
-                  <p className="text-xs text-muted-foreground">Time Report 기재 시간</p>
+                  <h5 className="font-medium text-sm mb-1">EL 투입시간 비율:</h5>
+                  <p className="text-xs text-muted-foreground">담당 프로젝트 총 시간 대비 EL 투입 시간 비율 (%)</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                   <h5 className="font-medium text-sm mb-1">AX/DX Transition 비율:</h5>
-                  <p className="text-xs text-muted-foreground">-</p>
+                  <p className="text-xs text-muted-foreground">담당 Engagement의 총감사시간대비 AX/DX Transition 시간</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                   <h5 className="font-medium text-sm mb-1">EER 평가 결과:</h5>
-                  <p className="text-xs text-muted-foreground">-</p>
+                  <p className="text-xs text-muted-foreground">파트너별 Engagement 선정 후 평가 예정 (기본값: Compliant)</p>
                 </div>
               </div>
             </div>
@@ -786,6 +1026,108 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
           </div>
         </Card>
       </div>
+
+      {/* Performance Metrics Section - 새로 추가 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <BarChart3 className="mr-2 h-5 w-5 text-orange-600" />
+            실적 현황 (Performance Metrics)
+          </CardTitle>
+          <CardDescription>현재 감사 및 비감사 실적 현황</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {performanceLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="text-muted-foreground">실적 데이터 로딩 중...</div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* 감사 실적 카드 */}
+                <Card className="border-blue-200 dark:border-blue-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                      <div className="p-2 bg-blue-600 rounded-full">
+                        <CheckCircle className="h-4 w-4 text-white" />
+                      </div>
+                      감사 실적 (Audit)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Adjusted EM */}
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                          {performanceData?.current_audit_adjusted_em 
+                            ? `${Math.round(Number(performanceData.current_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300">Adjusted EM</div>
+                      </div>
+                      
+                      {/* EM */}
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                          {performanceData?.current_audit_em 
+                            ? `${Math.round(Number(performanceData.current_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300">EM</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 비감사 실적 카드 */}
+                <Card className="border-green-200 dark:border-green-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
+                      <div className="p-2 bg-green-600 rounded-full">
+                        <TrendingUp className="h-4 w-4 text-white" />
+                      </div>
+                      비감사 실적 (Non-Audit)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Adjusted EM */}
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
+                          {performanceData?.current_non_audit_adjusted_em 
+                            ? `${Math.round(Number(performanceData.current_non_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-green-700 dark:text-green-300">Adjusted EM</div>
+                      </div>
+                      
+                      {/* EM */}
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
+                          {performanceData?.current_non_audit_em 
+                            ? `${Math.round(Number(performanceData.current_non_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-green-700 dark:text-green-300">EM</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="text-center pt-2">
+                <p className="text-sm text-muted-foreground">
+                  * 데이터 기준: {performanceData?.EMPNO ? `${performanceData.EMPNM} (${performanceData.EMPNO})` : '현재 사용자'}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

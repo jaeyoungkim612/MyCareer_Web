@@ -12,13 +12,12 @@ import { FileText, Save, X, CheckCircle2 } from "lucide-react"
 
 const sectionTitles = [
   "Thought Leadership 활동(간행물, 기고, 세미나, Workshop)",
-  "Thought Leadership 활동을 통한 Revenue 연결 또는 성공",
-  "산업별 감사 효율화/집중화의 기여도 (산업별 공통조서 template, 감사절차 효율화, Sub-sector별 감사 이슈 대응 지원, 타 Eng. 조서 작성 또는 검토 등)",
-  "산업전문화 활동 참여도 (아이디어 제공 등)",
+  "BD연계 Thought Leadership 계획",
+  "산업별 감사 효율화/집중화",
   "산업전문화를 통한 신규 서비스 개발 및 지원"
 ];
 const defaultComment = sectionTitles.join('\n\n');
-const commentPlaceholder = `Thought Leadership 활동(간행물, 기고, 세미나, Workshop)\n여기에 내용을 입력하세요...\n\nThought Leadership 활동을 통한 Revenue 연결 또는 성공\n...\n산업별 감사 효율화/집중화의 기여도 (산업별 공통조서 template, 감사절차 효율화, Sub-sector별 감사 이슈 대응 지원, 타 Eng. 조서 작성 또는 검토 등)\n...\n산업전문화 활동 참여도 (아이디어 제공 등)\n...\n산업전문화를 통한 신규 서비스 개발 및 지원\n...`;
+const commentPlaceholder = `Thought Leadership 활동(간행물, 기고, 세미나, Workshop)\n여기에 내용을 입력하세요...\n\nBD연계 Thought Leadership 계획\n여기에 내용을 입력하세요...\n\n산업별 감사 효율화/집중화\n여기에 내용을 입력하세요...\n\n산업전문화를 통한 신규 서비스 개발 및 지원\n여기에 내용을 입력하세요...`;
 
 function parseSections(comment: string) {
   const result: Record<string, string> = {};
@@ -128,7 +127,7 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
     setIsEditingFinal(false)
     setTabValueFinal("view")
   }
-  // 임시저장/제출 (insert로 저장)
+  // 임시저장/제출 (upsert로 저장)
   const handleSaveMid = async (status: "draft" | "submitted") => {
     if (!empno) return
     setLoading(true)
@@ -143,12 +142,22 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
         status,
         updated_at: new Date().toISOString()
       }
-      const { error } = await supabase.from("industry_tl_mid_assessments").insert([payload]);
+      
+      // upsert 사용: 기존 데이터가 있으면 update, 없으면 insert
+      const { error } = await supabase
+        .from("industry_tl_mid_assessments")
+        .upsert(payload, { 
+          onConflict: 'empno',
+          ignoreDuplicates: false 
+        });
+      
       if (error) throw error
       await fetchAssessments()
       setIsEditingMid(false)
       setTabValueMid("view")
+      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
     } catch (e) {
+      console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
     } finally {
       setLoading(false)
@@ -168,12 +177,22 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
         status,
         updated_at: new Date().toISOString()
       }
-      const { error } = await supabase.from("industry_tl_final_assessments").insert([payload]);
+      
+      // upsert 사용: 기존 데이터가 있으면 update, 없으면 insert
+      const { error } = await supabase
+        .from("industry_tl_final_assessments")
+        .upsert(payload, { 
+          onConflict: 'empno',
+          ignoreDuplicates: false 
+        });
+      
       if (error) throw error
       await fetchAssessments()
       setIsEditingFinal(false)
       setTabValueFinal("view")
+      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
     } catch (e) {
+      console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
     } finally {
       setLoading(false)
@@ -270,12 +289,10 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
                     <X className="mr-2 h-4 w-4" />
                     Cancel
                   </Button>
-                  {!midSubmitted && (
-                    <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      임시저장
-                    </Button>
-                  )}
+                  <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    임시저장
+                  </Button>
                   <Button onClick={() => handleSaveMid("submitted") } className="bg-green-600 text-white" disabled={loading}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     제출
@@ -310,7 +327,7 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
               >
                 View
               </TabsTrigger>
-              {!readOnly && !finalSubmitted && (
+              {!readOnly && (
                 <TabsTrigger value="edit" onClick={handleEditFinal}>
                   Edit
                 </TabsTrigger>
@@ -321,7 +338,7 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
                 {renderSectionedView(finalAssessment?.comment)}
               </div>
             </TabsContent>
-            {!readOnly && !finalSubmitted && (
+            {!readOnly && (
               <TabsContent value="edit" className="space-y-6">
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
                   <Textarea

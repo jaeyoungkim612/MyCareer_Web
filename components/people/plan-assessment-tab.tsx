@@ -49,7 +49,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
     staffCoachingTime: 0,
     superOrg: 0,
     refreshOff: 0,
-    coachingTime: 10,
+    coachingTime: 0,
   })
   const [formData, setFormData] = useState(assessmentData)
   const [coachingQuarter, setCoachingQuarter] = useState(0)
@@ -68,7 +68,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
     const fetchCoaching = async () => {
       if (!currentUser?.empno) return
       const now = new Date()
-      const year = now.getFullYear()
+      const year = 2025 // 고정으로 2025년 사용
       const quarter = Math.ceil((now.getMonth() + 1) / 3)
       setCoachingQuarterLabel({ year, quarter })
       setCoachingYearLabel(year)
@@ -157,48 +157,120 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         })
       }
       
-      // 데이터 로드 (status 포함)
+      // 데이터 로드 (status 포함) - 정규화된 사번 사용
+      let peopleGoalsData = null
       try {
+        // 사번 정규화 (95129 → 095129)
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        console.log(`🔍 Plan: Querying people_goals with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
+        
         const { data, error } = await supabase
           .from("people_goals")
           .select("*")
-          .eq("employee_id", targetEmpno)
+          .eq("employee_id", normalizedEmpno)
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
         
         if (data) {
-          setAssessmentData({
-            comment: data.people_goal ?? "",
-            gpsScore: data.gps_score ?? 50, // 1-100 범위
-            peiScore: data.pei_score ?? 50, // 1-100 범위
-            staffCoachingTime: 0,
-            superOrg: 0,
-            refreshOff: data.refresh_off_usage_rate ?? 0,
-            coachingTime: data.coaching_time ?? 40,
-          })
-          setFormData({
-            comment: data.people_goal ?? "",
-            gpsScore: data.gps_score ?? 50, // 1-100 범위
-            peiScore: data.pei_score ?? 50, // 1-100 범위
-            staffCoachingTime: 0,
-            superOrg: 0,
-            refreshOff: data.refresh_off_usage_rate ?? 0,
-            coachingTime: data.coaching_time ?? 40,
-          })
-          // Set status from database
-          setCurrentStatus(data.status || 'Draft')
-          // Set lastUpdated from database
-          if (data.updated_at) {
-            const date = new Date(data.updated_at)
-            const year = date.getFullYear()
-            const month = date.getMonth() + 1
-            const day = date.getDate()
-            setLastUpdated(`${year}년 ${month}월 ${day}일`)
-          }
+          peopleGoalsData = data
+          console.log("✅ Plan: Found people_goals data:", data)
+        } else {
+          console.log("ℹ️ Plan: No people_goals data found")
         }
       } catch (dbErr) {
-        console.log("No existing people goals data found")
+        console.log("ℹ️ Plan: No existing people_goals data found:", dbErr)
+      }
+
+      // GPS/PEI 초기값 로드 (연도 2506 데이터에서)
+      let initialGpsScore = 50
+      let initialPeiScore = 50
+      let initialRefreshOff = 0
+      
+      try {
+        // 사번 정규화 (95129 → 095129)
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        // GPS/PEI 테이블용 5자리 사번 (098095 → 98095)
+        const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
+        console.log(`🔍 Loading initial GPS/PEI values: ${targetEmpno} → ${normalizedEmpno} → ${fiveDigitEmpno}`)
+        
+        const { data: gpsData, error: gpsError } = await supabase
+          .from("L_GPS_PEI_Table")
+          .select("GPS, PEI")
+          .eq("EMPNO", fiveDigitEmpno)
+          .eq("연도", "2506")
+          .maybeSingle()
+        
+        if (gpsError) {
+          console.error("GPS/PEI 초기값 조회 에러:", gpsError)
+        }
+        
+        if (gpsData) {
+          // 0.71 형태를 71%로 변환
+          if (gpsData.GPS && gpsData.GPS !== '-') {
+            initialGpsScore = Math.round(parseFloat(gpsData.GPS) * 100)
+          }
+          if (gpsData.PEI && gpsData.PEI !== '-') {
+            initialPeiScore = Math.round(parseFloat(gpsData.PEI) * 100)
+          }
+          console.log("✅ GPS/PEI 초기값 로드:", { GPS: gpsData.GPS, PEI: gpsData.PEI, initialGpsScore, initialPeiScore })
+        }
+      } catch (initialErr) {
+        console.log("GPS/PEI 초기값 로드 실패:", initialErr)
+      }
+
+      // people_goals 데이터가 있으면 그것을 우선 사용, 없으면 초기값 사용
+      if (peopleGoalsData) {
+        setAssessmentData({
+          comment: peopleGoalsData.people_goal ?? "",
+          gpsScore: peopleGoalsData.gps_score ?? initialGpsScore,
+          peiScore: peopleGoalsData.pei_score ?? initialPeiScore,
+          staffCoachingTime: 0,
+          superOrg: 0,
+          refreshOff: peopleGoalsData.refresh_off_usage_rate ?? initialRefreshOff,
+          coachingTime: peopleGoalsData.coaching_time ?? 0,
+        })
+        setFormData({
+          comment: peopleGoalsData.people_goal ?? "",
+          gpsScore: peopleGoalsData.gps_score ?? initialGpsScore,
+          peiScore: peopleGoalsData.pei_score ?? initialPeiScore,
+          staffCoachingTime: 0,
+          superOrg: 0,
+          refreshOff: peopleGoalsData.refresh_off_usage_rate ?? initialRefreshOff,
+          coachingTime: peopleGoalsData.coaching_time ?? 0,
+        })
+        // Set status from database
+        setCurrentStatus(peopleGoalsData.status || 'Draft')
+        // Set lastUpdated from database
+        if (peopleGoalsData.updated_at) {
+          const date = new Date(peopleGoalsData.updated_at)
+          const year = date.getFullYear()
+          const month = date.getMonth() + 1
+          const day = date.getDate()
+          setLastUpdated(`${year}년 ${month}월 ${day}일`)
+        }
+      } else {
+        // 기존 데이터가 없으면 초기값 사용
+        setAssessmentData({
+          comment: "",
+          gpsScore: initialGpsScore,
+          peiScore: initialPeiScore,
+          staffCoachingTime: 0,
+          superOrg: 0,
+          refreshOff: initialRefreshOff,
+          coachingTime: 0,
+        })
+        setFormData({
+          comment: "",
+          gpsScore: initialGpsScore,
+          peiScore: initialPeiScore,
+          staffCoachingTime: 0,
+          superOrg: 0,
+          refreshOff: initialRefreshOff,
+          coachingTime: 0,
+        })
       }
     } catch (error) {
       setDbError(String(error))
@@ -226,8 +298,13 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
     }
     setIsLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      console.log(`🔧 Plan: Saving with normalized empno: ${currentUser.empno} → ${normalizedEmpno}`)
+      
       const insertData = {
-        employee_id: currentUser.empno,
+        employee_id: normalizedEmpno,
         people_goal: formData.comment,
         gps_score: formData.gpsScore, // 그대로 1-100 정수값 저장
         pei_score: formData.peiScore, // 그대로 1-100 정수값 저장
@@ -512,6 +589,13 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
               </div>
             </div>
 
+            {/* 안내 문구 - 3개 카드 아래 */}
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-600 mt-4">
+              <div className="text-sm text-black dark:text-white">
+                <strong>안내:</strong> 최초 입력값은 전기(2506) 조직의 GPS/PEI 비율이며, 당기(2606) 조직 목표를 기재부탁드립니다.
+              </div>
+            </div>
+
             {/* Enhanced Staff Coaching Time/Budget Section - Full Width */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
@@ -532,14 +616,11 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="text-center">
-                      <div className="text-4xl font-bold text-orange-900 dark:text-orange-100">
-                        {coachingQuarter}
+                      <div className="text-5xl font-bold text-orange-900 dark:text-orange-100">
+                        {coachingYear}
                       </div>
-                      <div className="text-sm text-orange-700 dark:text-orange-300">
-                        시간 ({coachingQuarterLabel.year}년 {coachingQuarterLabel.quarter}분기 기준)
-                      </div>
-                      <div className="text-xs text-orange-700 dark:text-orange-300 mt-1">
-                        {coachingYearLabel}년 누적: <b>{coachingYear}시간</b>
+                      <div className="text-lg text-orange-700 dark:text-orange-300">
+                        {coachingYearLabel}년 누적 시간
                       </div>
                     </div>
 
@@ -572,42 +653,35 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                         </div>
                       )}
                       <div className="flex justify-between text-sm">
-                        <span className="text-orange-700 dark:text-orange-300">달성</span>
+                        <span className="text-orange-700 dark:text-orange-300">실제: {coachingYear}시간</span>
                         <span className="font-medium text-orange-900 dark:text-orange-100">
-                          {assessmentData.staffCoachingTime}시간
+                          목표: {assessmentData.coachingTime}시간
                         </span>
                       </div>
                       <div className="h-3 bg-orange-200 dark:bg-orange-800 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full transition-all duration-300"
                           style={{
-                            width: `${Math.min((assessmentData.staffCoachingTime / 40) * 100, 100)}%`,
+                            width: `${Math.min((coachingYear / assessmentData.coachingTime) * 100, 100)}%`,
                           }}
                         ></div>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-orange-600 dark:text-orange-400">0시간</span>
                         <div className="flex items-center gap-1">
-                          {assessmentData.staffCoachingTime >= 40 ? (
+                          {coachingYear >= assessmentData.coachingTime ? (
                             <CheckCircle className="h-3 w-3 text-green-600" />
                           ) : (
                             <TrendingUp className="h-3 w-3 text-orange-600" />
                           )}
                           <span className="text-xs font-bold text-orange-700 dark:text-orange-300">
-                            {Math.round((assessmentData.staffCoachingTime / 40) * 100)}%
+                            {Math.round((coachingYear / assessmentData.coachingTime) * 100)}%
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-orange-200 dark:border-orange-700">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-orange-700 dark:text-orange-300">주간 평균</span>
-                        <span className="text-xs font-medium text-orange-900 dark:text-orange-100">
-                          {weeklyAvg}시간/주
-                        </span>
-                      </div>
-                    </div>
+
                   </CardContent>
                 </Card>
 
@@ -697,7 +771,6 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
             </div>
           </div>
         </CardContent>
-
       </Card>
     </div>
   )
