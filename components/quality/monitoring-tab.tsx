@@ -216,32 +216,35 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         // 3. 내가 투입한 시간만 필터링
         const myTimeData = (allTimeData || []).filter(item => item.EMPNO === normalizedEmpno);
         
-        // 4. 프로젝트별 상세 데이터 생성
-        const detailData = (chargeProjects || []).map(project => {
-          const projectCode = project.PRJTCD;
-          const projectName = project.PRJTNM;
-          
-          // 이 프로젝트의 전체 팀원 시간 합계
-          const projectTotalTime = (allTimeData || [])
-            .filter(item => item.PRJTCD === projectCode)
-            .reduce((sum: number, item: any) => sum + (parseFloat(item.total_use_time) || 0), 0);
-          
-          // 이 프로젝트에서 내가 투입한 시간
-          const myProjectTime = (myTimeData || [])
-            .filter(item => item.PRJTCD === projectCode)
-            .reduce((sum: number, item: any) => sum + (parseFloat(item.total_use_time) || 0), 0);
-          
-          // 비율 계산
-          const ratio = projectTotalTime > 0 ? (myProjectTime / projectTotalTime) * 100 : 0;
-          
-          return {
-            PRJTCD: projectCode,
-            PRJTNM: projectName,
-            el_time: myProjectTime,
-            total_time: projectTotalTime,
-            ratio: Math.round(ratio * 100) / 100
-          };
-        });
+        // 4. 프로젝트별 상세 데이터 생성 - 시간 데이터가 있는 것만
+        const detailData = (chargeProjects || [])
+          .map(project => {
+            const projectCode = project.PRJTCD;
+            const projectName = project.PRJTNM;
+            
+            // 이 프로젝트의 전체 팀원 시간 합계
+            const projectTotalTime = (allTimeData || [])
+              .filter(item => item.PRJTCD === projectCode)
+              .reduce((sum: number, item: any) => sum + (parseFloat(item.total_use_time) || 0), 0);
+            
+            // 이 프로젝트에서 내가 투입한 시간
+            const myProjectTime = (myTimeData || [])
+              .filter(item => item.PRJTCD === projectCode)
+              .reduce((sum: number, item: any) => sum + (parseFloat(item.total_use_time) || 0), 0);
+            
+            // 비율 계산
+            const ratio = projectTotalTime > 0 ? (myProjectTime / projectTotalTime) * 100 : 0;
+            
+            return {
+              PRJTCD: projectCode,
+              PRJTNM: projectName,
+              el_time: myProjectTime,
+              total_time: projectTotalTime,
+              ratio: Math.round(ratio * 100) / 100
+            };
+          })
+          .filter(item => item.total_time > 0) // 시간 데이터가 있는 것만 필터링
+          .sort((a, b) => b.ratio - a.ratio); // 비율 높은 순으로 정렬
         
         // 5. 전체 합계 계산
         const totalProjectTime = detailData.reduce((sum, item) => sum + item.total_time, 0);
@@ -447,10 +450,10 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         
         // Monitoring 데이터에서 진행상황 설정 (3개 카테고리)
         const validStatus = ['Draft', '작성중', '완료'];
-        const noneMonitoring = monitorings.find(m => m.type === 'none')
-        const qualityMonitoring = monitorings.find(m => m.type === 'Quality향상')
-        const 효율화Monitoring = monitorings.find(m => m.type === '효율화계획')
-        const 신상품Monitoring = monitorings.find(m => m.type === '신상품개발')
+        const noneMonitoring = monitorings.find((m: any) => m.type === 'none')
+        const qualityMonitoring = monitorings.find((m: any) => m.type === 'Quality향상')
+        const 효율화Monitoring = monitorings.find((m: any) => m.type === '효율화계획')
+        const 신상품Monitoring = monitorings.find((m: any) => m.type === '신상품개발')
         
         if (latestPlan.type === 'none' || (!qualityMonitoring && !효율화Monitoring && !신상품Monitoring)) {
           // none 타입이거나 모니터링 데이터가 없으면 단순 표시
