@@ -620,7 +620,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                         {coachingYear}
                       </div>
                       <div className="text-lg text-orange-700 dark:text-orange-300">
-                        {coachingYearLabel}년 누적 시간
+                        2606기 누적 시간
                       </div>
                     </div>
 

@@ -22,6 +22,7 @@ import {
   Copy,
   Check,
   ExternalLink,
+  Link2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -52,6 +53,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [isLinksOpen, setIsLinksOpen] = useState(false)
   const [copiedItem, setCopiedItem] = useState<string | null>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
   const { resolvedTheme } = useTheme()
@@ -137,52 +139,14 @@ export function Sidebar() {
           
           <div className="border-t border-slate-200 dark:border-gray-800 p-2 w-full">
             <nav className="space-y-1 w-full">
-              {/* PowerBI 바로가기 링크 */}
-              <a
-                href="https://app.powerbi.com/reportEmbed?reportId=fba2870b-f923-4b09-95a5-4634de6d2fc5&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-700 dark:hover:text-orange-300"
+              {/* Links 버튼 */}
+              <button
+                onClick={() => setIsLinksOpen(true)}
+                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
               >
-                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3" />
-                <span className="truncate">My Career+ (PowerBI)</span>
-              </a>
-              
-              {/* My People+ 바로가기 링크 */}
-              <a
-                href="https://app.powerbi.com/reportEmbed?reportId=9a63b16c-3e6d-40d7-8339-df119261fede&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300"
-              >
-                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3" />
-                <span className="truncate">My People+ (PowerBI)</span>
-              </a>
-              
-              {/* My EPC+ 바로가기 링크 */}
-              <a
-                href="https://app.powerbi.com/reportEmbed?reportId=b2a2d963-7ff6-4ac2-b72a-74294d412c7d&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-700 dark:hover:text-green-300"
-              >
-                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3" />
-                <span className="truncate">My EPC+ (PowerBI)</span>
-              </a>
-              
-              {/* X-Los Collaboration Dashboard 바로가기 링크 */}
-              <a
-                href="https://app.powerbi.com/reportEmbed?reportId=295f8c79-8fde-4ba1-b405-60604fa83625&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300"
-              >
-                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3 self-center" />
-                <div className="flex flex-col">
-                  <span className="text-sm">X-Los Collaboration</span>
-                  <span className="text-sm">Dashboard</span>
-                </div>
-              </a>
+                <Link2 className="h-5 w-5 flex-shrink-0 mr-3" />
+                <span className="truncate">Links</span>
+              </button>
               
               {bottomNavigation.map((item) => (
                 <NavItem key={item.name} item={item} isBottom />
@@ -197,6 +161,88 @@ export function Sidebar() {
             </nav>
           </div>
         </div>
+
+        {/* Links Dialog */}
+        <Dialog open={isLinksOpen} onOpenChange={setIsLinksOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold">Quick Links</DialogTitle>
+              <DialogDescription className="text-base">PowerBI 대시보드 및 외부 시스템 바로가기</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-4">
+              {/* My Career+ (PowerBI) */}
+              <a
+                href="https://app.powerbi.com/reportEmbed?reportId=fba2870b-f923-4b09-95a5-4634de6d2fc5&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-start rounded-lg px-4 py-3 text-sm font-medium transition-colors border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3 mt-0.5 text-gray-600 dark:text-gray-400" />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">My Career+ (PowerBI)</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    파트너분들의 개인 관리지표를 데이터베이스화하여 자동화된 리포트를 통해 쉽고 편리하게 활용 가능
+                  </span>
+                </div>
+              </a>
+              
+              {/* My People+ (PowerBI) */}
+              <a
+                href="https://app.powerbi.com/reportEmbed?reportId=9a63b16c-3e6d-40d7-8339-df119261fede&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-start rounded-lg px-4 py-3 text-sm font-medium transition-colors border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3 mt-0.5 text-gray-600 dark:text-gray-400" />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">My People+ (PowerBI)</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    HC 데이터를 데이터베이스화하여 자동화된 리포트를 통한 활용
+                  </span>
+                </div>
+              </a>
+              
+              {/* My EPC+ (PowerBI) */}
+              <a
+                href="https://app.powerbi.com/reportEmbed?reportId=b2a2d963-7ff6-4ac2-b72a-74294d412c7d&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-start rounded-lg px-4 py-3 text-sm font-medium transition-colors border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3 mt-0.5 text-gray-600 dark:text-gray-400" />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">My EPC+ (PowerBI)</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    EPC 데이터 분석 및 프로젝트 성과 관리 대시보드
+                  </span>
+                </div>
+              </a>
+              
+              {/* X-Los Collaboration Dashboard */}
+              <a
+                href="https://app.powerbi.com/reportEmbed?reportId=295f8c79-8fde-4ba1-b405-60604fa83625&autoAuth=true&ctid=513294a0-3e20-41b2-a970-6d30bf1546fa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-start rounded-lg px-4 py-3 text-sm font-medium transition-colors border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900"
+              >
+                <ExternalLink className="h-5 w-5 flex-shrink-0 mr-3 mt-0.5 text-gray-600 dark:text-gray-400" />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">X-Los Collaboration Dashboard</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    부서간 협업 현황 및 성과 분석 대시보드
+                  </span>
+                </div>
+              </a>
+            </div>
+
+            <DialogFooter className="sm:justify-center">
+              <Button variant="outline" onClick={() => setIsLinksOpen(false)} className="text-base">
+                닫기
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Help Dialog 유지 */}
         <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>

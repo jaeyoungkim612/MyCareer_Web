@@ -75,12 +75,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
     router.push("/non-audit-detail")
   }
 
-  // 실제값과 목표값을 받아 상태 자동 판정
-  const getStatusBadge = (actual: number, target: number) => {
-    if (actual >= target + 5) return <Badge className="bg-red-500">Over Budget</Badge>;
-    if (actual >= target) return <Badge className="bg-orange-500">Near Target</Badge>;
-    return <Badge className="bg-green-500">On Track</Badge>;
-  }
+
 
   const getTrendIcon = (trend: number) => {
     if (trend > 0) return <TrendingUp className="h-4 w-4 text-red-600" />  // 초과는 나쁨
@@ -553,7 +548,6 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                     <Percent className="mr-2 h-5 w-5" />
                     Year End 이전 시간 비율
                   </span>
-                  {getStatusBadge(actualYearEndRatio, targetMetrics.yearEndTimeRatio)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -692,7 +686,6 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                     <Award className="mr-2 h-5 w-5" />
                     EL 투입시간 비율
                   </span>
-                  {getStatusBadge(actualElInputRatio, targetMetrics.elInputHours)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -827,7 +820,6 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                     <TrendingUp className="mr-2 h-5 w-5" />
                     AX/DX Transition 비율
                   </span>
-                  {getStatusBadge(0, targetMetrics.axTransitionRatio)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -856,7 +848,6 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                     <CheckCircle className="mr-2 h-5 w-5" />
                     EER 평가 결과
                   </span>
-                  <Badge className="bg-green-500">On Track</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
