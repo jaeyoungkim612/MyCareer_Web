@@ -14,6 +14,27 @@ import { BusinessGoalsService, type BusinessGoal } from "@/lib/business-goals-se
 // 백만원 단위 변환 함수
 const toMillion = (value: number | string) => Number(value) / 1_000_000;
 
+// 적절한 단위로 올림 처리하는 함수
+const roundUpToNiceNumber = (value: number) => {
+  if (value <= 1000) {
+    // 1000백만원 이하: 100백만원 단위로 올림
+    return Math.ceil(value / 100) * 100;
+  } else if (value <= 10000) {
+    // 1000~10000백만원: 500백만원 단위로 올림  
+    return Math.ceil(value / 500) * 500;
+  } else {
+    // 10000백만원 초과: 1000백만원 단위로 올림
+    return Math.ceil(value / 1000) * 1000;
+  }
+};
+
+// 막대 그래프 최대값을 적절하게 계산하는 함수
+const calculateChartMax = (actual: number, budget: number) => {
+  const maxValue = Math.max(actual, budget);
+  // 둘 중 큰 값에 10% 여유만 주고 적절한 단위로 올림
+  return roundUpToNiceNumber(maxValue * 1.1);
+};
+
 interface BusinessMonitoringTabProps {
   empno?: string
   readOnly?: boolean
@@ -262,15 +283,15 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               <>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-orange-500 rounded"></div>
-                  <span className="text-xs text-gray-600">Rev</span>
+                  <span className="text-xs text-gray-600">Revenue</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-emerald-500 rounded"></div>
-                  <span className="text-xs text-gray-600">BL</span>
+                  <span className="text-xs text-gray-600">Backlog</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-violet-500 rounded"></div>
-                  <span className="text-xs text-gray-600">PL</span>
+                  <span className="text-xs text-gray-600">Pipeline</span>
                 </div>
               </>
             ) : (
@@ -288,7 +309,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis
                   type="number"
-                  domain={[0, Math.max(budget * 1.2, actual * 1.1)]}
+                  domain={[0, calculateChartMax(actual, budget)]}
                   tickFormatter={(value) => formatDisplayValue(value, displayType)}
                 />
                 <YAxis type="category" dataKey="name" hide />
@@ -346,7 +367,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             </ResponsiveContainer>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="text-sm text-gray-500">실제</div>
               <div className="text-xl font-bold text-gray-900">
@@ -359,19 +380,19 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               </div>
               {/* 구성 요소 하단 표시 (breakdown이 있을 때만) */}
               {breakdown && (
-                <div className="flex items-center space-x-2 text-xs mt-1">
+                <div className="flex items-center flex-wrap gap-1 text-xs mt-1">
                   <span className="text-gray-400">(</span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-orange-500"></div>
                     <span className="text-gray-600">Rev {Math.ceil(breakdown.revenue).toLocaleString('ko-KR')}</span>
                   </div>
                   <span className="text-gray-400">+</span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                     <span className="text-gray-600">BL {Math.ceil(breakdown.backlog).toLocaleString('ko-KR')}</span>
                   </div>
                   <span className="text-gray-400">+</span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-violet-500"></div>
                     <span className="text-gray-600">PL {Math.ceil(breakdown.pipeline).toLocaleString('ko-KR')}</span>
                   </div>
@@ -518,15 +539,15 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               <>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-orange-500 rounded"></div>
-                  <span className="text-xs text-gray-600">Rev</span>
+                  <span className="text-xs text-gray-600">Revenue</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-emerald-500 rounded"></div>
-                  <span className="text-xs text-gray-600">BL</span>
+                  <span className="text-xs text-gray-600">Backlog</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-violet-500 rounded"></div>
-                  <span className="text-xs text-gray-600">PL</span>
+                  <span className="text-xs text-gray-600">Pipeline</span>
                 </div>
               </>
             ) : (
@@ -550,7 +571,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis
                   type="number"
-                  domain={[0, Math.max(totalBudget * 1.2, totalActual * 1.1)]}
+                  domain={[0, calculateChartMax(totalActual, totalBudget)]}
                   tickFormatter={(value) => formatDisplayValue(value)}
                 />
                 <YAxis type="category" dataKey="name" hide />
@@ -611,25 +632,25 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             </ResponsiveContainer>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="text-sm text-gray-500">실제</div>
               <div className="text-xl font-bold text-gray-900">{totalActual !== undefined && totalActual !== null ? `${Math.ceil(totalActual).toLocaleString('ko-KR')}백만원` : '-'}</div>
               {/* 구성 요소 하단 표시 (totalBreakdown이 있을 때만) */}
               {totalBreakdown && (
-                <div className="flex items-center space-x-2 text-xs mt-1">
+                <div className="flex items-center flex-wrap gap-1 text-xs mt-1">
                   <span className="text-gray-400">(</span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-orange-500"></div>
                     <span className="text-gray-600">Rev {Math.ceil(totalBreakdown.auditRevenue + totalBreakdown.nonAuditRevenue).toLocaleString('ko-KR')}</span>
                   </div>
                   <span className="text-gray-400">+</span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                     <span className="text-gray-600">BL {Math.ceil(totalBreakdown.auditBacklog + totalBreakdown.nonAuditBacklog).toLocaleString('ko-KR')}</span>
                   </div>
                   <span className="text-gray-400">+</span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-violet-500"></div>
                     <span className="text-gray-600">PL {Math.ceil(totalBreakdown.pipeline).toLocaleString('ko-KR')}</span>
                   </div>

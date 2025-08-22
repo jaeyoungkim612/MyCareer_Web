@@ -92,9 +92,10 @@ export class PeopleGoalsService {
     }
   }
 
-  // 코칭 시간 통계 (이번 분기, 올해 누적)
+  // 코칭 시간 통계 (이번 분기, 회계연도 누적: 6월말 기준 2025-3Q ~ 2026-2Q)
   static async getCoachingTimeStats(empno: string, year: number, quarter: number): Promise<{ quarterHours: number, yearHours: number }> {
     const yearQuarter = `${year}-Q${quarter}`;
+    
     // 이번 분기: 여러 row 합산
     const { data: quarterRows, error: qErr } = await supabase
       .from('v_coaching_time_quarterly')
@@ -103,16 +104,30 @@ export class PeopleGoalsService {
       .eq('year_quarter', yearQuarter);
     if (qErr && qErr.code !== 'PGRST116') throw qErr;
 
-    // 올해 누적: input_year로 필터
+    // 회계연도 누적 (6월말 기준): 2025-3Q ~ 2026-2Q
+    const fiscalYearQuarters = [
+      '2025-Q3', '2025-Q4', 
+      '2026-Q1', '2026-Q2'
+    ];
+    
+    console.log(`🗓️ Coaching: Fiscal year quarters for ${empno}:`, fiscalYearQuarters);
+    
     const { data: yearRows, error: yErr } = await supabase
       .from('v_coaching_time_quarterly')
-      .select('total_use_time')
+      .select('total_use_time, year_quarter')
       .eq('EMPNO', empno)
-      .eq('input_year', year.toString());
+      .in('year_quarter', fiscalYearQuarters);
     if (yErr) throw yErr;
 
     const quarterHours = (quarterRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);
     const yearHours = (yearRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);
+
+    console.log(`📊 Coaching time stats for ${empno}:`, {
+      currentQuarter: yearQuarter,
+      quarterHours,
+      fiscalYearTotal: yearHours,
+      fiscalYearData: yearRows
+    });
 
     return { quarterHours, yearHours };
   }

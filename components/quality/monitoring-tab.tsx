@@ -194,14 +194,28 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         return;
       }
       
-      const projectCodes = (chargeProjects || []).map(item => item.PRJTCD);
+      // 프로젝트 코드 필터링: 중간 부분이 01 또는 11인 것만 선택
+      const filteredProjectCodes = (chargeProjects || [])
+        .map(item => item.PRJTCD)
+        .filter(code => {
+          // 프로젝트 코드가 XXXXX-XX-XXX 형태에서 중간 XX가 01 또는 11인지 확인
+          const parts = code.split('-');
+          if (parts.length >= 2) {
+            const middlePart = parts[1];
+            return middlePart === '01' || middlePart === '11';
+          }
+          return false;
+        });
       
-      if (projectCodes.length > 0) {
+      console.log('📊 Original project codes:', (chargeProjects || []).map(item => item.PRJTCD));
+      console.log('📊 Filtered project codes (01, 11 only):', filteredProjectCodes);
+      
+      if (filteredProjectCodes.length > 0) {
         // 2. 해당 프로젝트들의 모든 사람 시간 데이터 조회 (총시간 계산용)
         const { data: allTimeData, error: allTimeError } = await supabase
           .from('v_project_time')
           .select('PRJTCD, EMPNO, EMPNM, total_use_time')
-          .in('PRJTCD', projectCodes);
+          .in('PRJTCD', filteredProjectCodes);
         
         if (allTimeError) {
           console.error('Error fetching all time data:', allTimeError);
@@ -211,8 +225,12 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         // 3. 내가 투입한 시간만 필터링
         const myTimeData = (allTimeData || []).filter(item => item.EMPNO === normalizedEmpno);
         
-        // 4. 프로젝트별 상세 데이터 생성 - 시간 데이터가 있는 것만
-        const detailData = (chargeProjects || [])
+        // 4. 프로젝트별 상세 데이터 생성 - 필터링된 프로젝트 중 시간 데이터가 있는 것만
+        const filteredChargeProjects = (chargeProjects || []).filter(project => 
+          filteredProjectCodes.includes(project.PRJTCD)
+        );
+        
+        const detailData = filteredChargeProjects
           .map(project => {
             const projectCode = project.PRJTCD;
             const projectName = project.PRJTNM;
@@ -259,7 +277,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         setElTotalTime(0);
         setElMyTime(0);
         setElDetailData([]);
-        console.log('📈 No projects where user is CHARGPTR');
+        console.log('📈 No filtered projects (01, 11 only) where user is CHARGPTR');
       }
       
     } catch (error) {
@@ -757,7 +775,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">
-                            총 {elDetailData.length}개 담당 프로젝트
+                            총 {elDetailData.length}개 담당 프로젝트 (중간코드 01, 11만 포함)
                           </span>
                           <span className="text-lg font-bold">
                             전체 비율: {actualElInputRatio}%
@@ -783,7 +801,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                             ) : elDetailData.length === 0 ? (
                               <TableRow>
                                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                  담당하는 프로젝트가 없습니다.
+                                  담당하는 프로젝트가 없습니다 (중간코드 01, 11 조건).
                                 </TableCell>
                               </TableRow>
                             ) : (
@@ -851,18 +869,17 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-bold text-black dark:text-white">Compliant</span>
-                    <span className="text-base text-muted-foreground">/ Compliant</span>
+                <div className="flex items-center justify-center space-x-6">
+                  {/* Compliant 카드 - 선택된 상태 */}
+                  <div className="flex flex-col items-center justify-center p-8 border-2 border-green-500 bg-green-50 dark:bg-green-900/20 rounded-lg shadow-md min-w-[160px] min-h-[140px]">
+                    <CheckCircle className="h-10 w-10 text-green-600 mb-4" />
+                    <span className="text-xl font-bold text-green-700 dark:text-green-300">Compliant</span>
                   </div>
-                  <Progress value={100} className="h-3" />
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">vs Target</span>
-                    <span className="flex items-center text-green-600">
-                      <CheckCircle className="h-4 w-4" />
-                      <span className="ml-1">달성</span>
-                    </span>
+                  
+                  {/* Incompliant 카드 - 비선택된 상태 */}
+                  <div className="flex flex-col items-center justify-center p-8 border border-gray-300 bg-gray-50 dark:bg-gray-800 rounded-lg min-w-[160px] min-h-[140px] opacity-60">
+                    <X className="h-10 w-10 text-gray-400 mb-4" />
+                    <span className="text-xl text-gray-500">Incompliant</span>
                   </div>
                 </div>
               </CardContent>

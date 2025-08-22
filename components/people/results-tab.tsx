@@ -111,24 +111,12 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
         console.log(`🔍 Results Tab: Querying with normalized empno: ${targetEmpno} → ${normalizedEmpno}, GPS/PEI empno: ${fiveDigitEmpno}`)
         
-        // HR 정보, GPS/PEI 실데이터(2606), GPS/PEI 목표기준(2506), 목표 데이터, 성과평가 데이터, Refresh Off 데이터를 동시에 가져오기
-        const [hrResult, scoreResult, fallbackTargetResult, goalResult, performanceResult, refreshOffResult] = await Promise.all([
+        // HR 정보, 목표 데이터, 성과평가 데이터, Refresh Off 데이터를 먼저 가져오기
+        const [hrResult, goalResult, performanceResult, refreshOffResult] = await Promise.all([
           supabase
             .from("a_hr_master")
             .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
             .eq("EMPNO", normalizedEmpno)
-            .maybeSingle(),
-          supabase
-            .from("L_GPS_PEI_Table")
-            .select("GPS, PEI")
-            .eq("EMPNO", fiveDigitEmpno)
-            .eq("연도", "2606")
-            .maybeSingle(),
-          supabase
-            .from("L_GPS_PEI_Table")
-            .select("GPS, PEI")
-            .eq("EMPNO", fiveDigitEmpno)
-            .eq("연도", "2506")
             .maybeSingle(),
           supabase
             .from("people_goals")
@@ -150,22 +138,12 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         ])
         
         const { data: hrData, error: hrError } = hrResult
-        const { data: scoreData, error: scoreError } = scoreResult
-        const { data: fallbackTargetData, error: fallbackTargetError } = fallbackTargetResult
         const { data: goalDataResult, error: goalError } = goalResult
         const { data: performanceData, error: performanceError } = performanceResult
         const { data: refreshOffDataResult, error: refreshOffError } = refreshOffResult
         
         if (hrError) {
           console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
-        }
-        
-        if (scoreError) {
-          console.error(`❌ GPS/PEI 실데이터(2606) 조회 에러:`, scoreError)
-        }
-        
-        if (fallbackTargetError) {
-          console.error(`❌ GPS/PEI 목표기준(2506) 조회 에러:`, fallbackTargetError)
         }
         
         if (goalError) {
@@ -178,6 +156,59 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
 
         if (refreshOffError) {
           console.log('❌ Refresh Off 데이터 조회 에러:', refreshOffError)
+        }
+
+        // GPS/PEI 실데이터(2606) 조회 - 여러 사번 형식으로 시도
+        let scoreData = null
+        let fallbackTargetData = null
+        
+        console.log(`🔍 Results: GPS/PEI 데이터 조회 시작...`)
+        
+        // 여러 사번 형식으로 시도해보기
+        const empnoVariations = [
+          fiveDigitEmpno,           // 98095
+          normalizedEmpno,          // 098095
+          targetEmpno,              // 원본
+          fiveDigitEmpno.padStart(6, '0'), // 098095
+          fiveDigitEmpno.padStart(5, '0')  // 98095
+        ]
+        
+        console.log(`🔍 Results: GPS/PEI empno variations:`, empnoVariations)
+        
+        // 2606 실데이터 조회
+        for (const empnoVariation of empnoVariations) {
+          const { data, error } = await supabase
+            .from("L_GPS_PEI_Table")
+            .select('"GPS(ItS)", "GPS(PEI)"')
+            .eq('"EMPNO"', empnoVariation)
+            .eq('"연도"', "2606")
+            .maybeSingle()
+          
+          console.log(`🔍 Results: Trying 2606 empno "${empnoVariation}":`, { data, error })
+          
+          if (data && !error) {
+            scoreData = data
+            console.log(`✅ Results: Found 2606 data with empno: ${empnoVariation}`)
+            break
+          }
+        }
+        
+        // 2506 목표기준 데이터 조회
+        for (const empnoVariation of empnoVariations) {
+          const { data, error } = await supabase
+            .from("L_GPS_PEI_Table")
+            .select('"GPS(ItS)", "GPS(PEI)"')
+            .eq('"EMPNO"', empnoVariation)
+            .eq('"연도"', "2506")
+            .maybeSingle()
+          
+          console.log(`🔍 Results: Trying 2506 empno "${empnoVariation}":`, { data, error })
+          
+          if (data && !error) {
+            fallbackTargetData = data
+            console.log(`✅ Results: Found 2506 data with empno: ${empnoVariation}`)
+            break
+          }
         }
 
         // HR 정보 설정
@@ -201,11 +232,13 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
 
         // GPS/PEI 실데이터 설정
         if (scoreData) {
-          setGpsScore(scoreData.GPS)
-          setPeiScore(scoreData.PEI)
-          console.log("✅ GPS/PEI actual data loaded:", scoreData)
+          const gpsItsValue = (scoreData as any)['GPS(ItS)']
+          const gpsPeiValue = (scoreData as any)['GPS(PEI)']
+          setGpsScore(gpsItsValue)
+          setPeiScore(gpsPeiValue)
+          console.log("✅ Results: GPS/PEI actual data loaded:", { 'GPS(ItS)': gpsItsValue, 'GPS(PEI)': gpsPeiValue })
         } else {
-          console.log("ℹ️ No GPS/PEI actual data found for 2606")
+          console.log("ℹ️ Results: No GPS/PEI actual data found for 2606")
           setGpsScore(null)
           setPeiScore(null)
         }
@@ -232,26 +265,29 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           console.log("  - GPS target:", finalGpsTarget)
           console.log("  - PEI target:", finalPeiTarget)
         } else {
-          console.log("❌ No people_goals data found, trying fallback...")
+          console.log("❌ Results: No people_goals data found, trying fallback...")
           if (fallbackTargetData) {
             // people_goals에 없으면 2506 데이터를 목표로 사용
-            console.log("📊 Using 2506 fallback data:", fallbackTargetData)
-            if (fallbackTargetData.GPS && fallbackTargetData.GPS !== '-') {
-              finalGpsTarget = Math.round(parseFloat(fallbackTargetData.GPS) * 100) // 0.71 → 71
-              console.log(`  - GPS: ${fallbackTargetData.GPS} → ${finalGpsTarget}%`)
+            console.log("📊 Results: Using 2506 fallback data:", fallbackTargetData)
+            const gpsItsValue = (fallbackTargetData as any)['GPS(ItS)']
+            const gpsPeiValue = (fallbackTargetData as any)['GPS(PEI)']
+            
+            if (gpsItsValue && gpsItsValue !== '-') {
+              finalGpsTarget = Math.round(parseFloat(gpsItsValue) * 100) // 0.71 → 71
+              console.log(`  - GPS(ItS): ${gpsItsValue} → ${finalGpsTarget}%`)
             }
-            if (fallbackTargetData.PEI && fallbackTargetData.PEI !== '-') {
-              finalPeiTarget = Math.round(parseFloat(fallbackTargetData.PEI) * 100) // 0.82 → 82
-              console.log(`  - PEI: ${fallbackTargetData.PEI} → ${finalPeiTarget}%`)
+            if (gpsPeiValue && gpsPeiValue !== '-') {
+              finalPeiTarget = Math.round(parseFloat(gpsPeiValue) * 100) // 0.82 → 82
+              console.log(`  - GPS(PEI): ${gpsPeiValue} → ${finalPeiTarget}%`)
             }
-            console.log("✅ Goal data from 2506 fallback:", { 
-              GPS: fallbackTargetData.GPS, 
-              PEI: fallbackTargetData.PEI, 
+            console.log("✅ Results: Goal data from 2506 fallback:", { 
+              'GPS(ItS)': gpsItsValue, 
+              'GPS(PEI)': gpsPeiValue, 
               finalGpsTarget, 
               finalPeiTarget 
             })
           } else {
-            console.log("❌ No fallback data available either!")
+            console.log("❌ Results: No fallback data available either!")
           }
         }
         
@@ -774,13 +810,50 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           </Card>
         </div>
 
-        {/* 2행: GPS Score, PEI Score, Staff Coaching Time */}
+        {/* 2행: PEI Score, GPS Score, Staff Coaching Time */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {/* GPS Score Card */}
+          {/* PEI Score Card - 먼저 배치 */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                GPS Score
+                GPS(PEI) Score
+                {userInfo?.org_nm && (
+                  <span className="text-xs text-muted-foreground font-normal ml-2">
+                    - {userInfo.org_nm}
+                  </span>
+                )}
+              </CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-2xl font-bold">
+                  {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-%'}
+                </div>
+                <div className="text-xs text-gray-400">
+                  2606 기준
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span>실제: {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-'}</span>
+                  <span>목표: {peiAchievement.target > 0 ? `${peiAchievement.target}%` : '-'}</span>
+                </div>
+                <Progress value={peiAchievement.rate > 0 ? Math.min(peiAchievement.rate, 100) : 0} className="h-1.5" />
+                <div className="text-center">
+                  <span className={`text-xs font-medium ${peiAchievement.rate >= 100 ? 'text-green-600' : peiAchievement.rate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
+                    {peiAchievement.rate > 0 ? `달성률 ${peiAchievement.rate}%` : '데이터 없음'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* GPS Score Card - 두 번째 배치 */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                GPS(ItS) Score
                 {userInfo?.org_nm && (
                   <span className="text-xs text-muted-foreground font-normal ml-2">
                     - {userInfo.org_nm}
@@ -812,43 +885,6 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               </div>
             </CardContent>
           </Card>
-
-        {/* PEI Score Card */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              PEI Score
-              {userInfo?.org_nm && (
-                <span className="text-xs text-muted-foreground font-normal ml-2">
-                  - {userInfo.org_nm}
-                </span>
-              )}
-            </CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-between items-center mb-2">
-              <div className="text-2xl font-bold">
-                {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-%'}
-              </div>
-              <div className="text-xs text-gray-400">
-                2606 기준
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span>실제: {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-'}</span>
-                <span>목표: {peiAchievement.target > 0 ? `${peiAchievement.target}%` : '-'}</span>
-              </div>
-              <Progress value={peiAchievement.rate > 0 ? Math.min(peiAchievement.rate, 100) : 0} className="h-1.5" />
-              <div className="text-center">
-                <span className={`text-xs font-medium ${peiAchievement.rate >= 100 ? 'text-green-600' : peiAchievement.rate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {peiAchievement.rate > 0 ? `달성률 ${peiAchievement.rate}%` : '데이터 없음'}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Staff Coaching Time Card */}
         <Card>

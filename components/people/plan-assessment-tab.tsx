@@ -63,18 +63,24 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
     loadUserInfoAndInitialize()
   }, [empno])
 
-  // 코칭 시간 불러오기
+  // 코칭 시간 불러오기 (회계연도 기준: 2025-3Q ~ 2026-2Q)
   useEffect(() => {
     const fetchCoaching = async () => {
       if (!currentUser?.empno) return
       const now = new Date()
-      const year = 2025 // 고정으로 2025년 사용
+      const year = now.getFullYear() // 현재 연도 사용
       const quarter = Math.ceil((now.getMonth() + 1) / 3)
       setCoachingQuarterLabel({ year, quarter })
       setCoachingYearLabel(year)
       try {
         const { quarterHours, yearHours } = await PeopleGoalsService.getCoachingTimeStats(currentUser.empno, year, quarter)
-        console.log("코칭 시간 쿼리 결과:", { quarterHours, yearHours, empno: currentUser.empno, year, quarter })
+        console.log("📊 Plan: 코칭 시간 쿼리 결과 (회계연도 기준):", { 
+          quarterHours, 
+          yearHours, 
+          empno: currentUser.empno, 
+          currentQuarter: `${year}-Q${quarter}`,
+          fiscalYear: "2025-3Q ~ 2026-2Q"
+        })
         setCoachingQuarter(quarterHours)
         setCoachingYear(yearHours)
       } catch (e) {
@@ -87,15 +93,125 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
   useEffect(() => {
     const fetchBudgetAndCost = async () => {
       if (!currentUser?.empno || !coachingYearLabel) return
-      const { data, error } = await supabase
-        .from('v_coaching_time_quarterly')
-        .select('coaching_budget, total_amt')
-        .eq('EMPNO', currentUser.empno)
-        .eq('input_year', coachingYearLabel.toString())
-      if (!error && data) {
-        setBudget(data.reduce((sum, row) => sum + Number(row.coaching_budget || 0), 0))
-        setCost(data.reduce((sum, row) => sum + Number(row.total_amt || 0), 0))
+      
+      // 1. L_Coaching_Budget에서 가장 최근 기준연도의 코칭 예산 가져오기
+      let budgetAmount = 0
+      try {
+        // 사번 정규화 (95129 → 095129)
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+        // L_Coaching_Budget 테이블용 5자리 사번 (098095 → 98095)
+        const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
+        
+        console.log(`🔍 Fetching coaching budget: ${currentUser.empno} → ${normalizedEmpno} → ${fiveDigitEmpno}`)
+        
+        // 가장 최근 기준연도 찾기
+        const { data: latestYearData, error: yearError } = await supabase
+          .from('L_Coaching_Budget')
+          .select('"기준연도"')
+          .order('"기준연도"', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        
+        console.log(`🔍 Latest year query result:`, { latestYearData, yearError })
+        
+        if (latestYearData && !yearError) {
+          const latestYear = (latestYearData as any)['기준연도']
+          console.log(`📅 Latest coaching budget year: ${latestYear}`)
+          
+          // 먼저 해당 연도에 어떤 사번들이 있는지 확인
+          const { data: allEmpnos, error: empnoError } = await supabase
+            .from('L_Coaching_Budget')
+            .select('"사번"')
+            .eq('"기준연도"', latestYear)
+            .limit(10)
+          
+          console.log(`🔍 Sample empnos in ${latestYear}:`, allEmpnos?.map(row => (row as any)['사번']))
+          
+          // 여러 사번 형식으로 시도해보기
+          const empnoVariations = [
+            fiveDigitEmpno,           // 98095
+            normalizedEmpno,          // 098095
+            currentUser.empno,        // 원본
+            fiveDigitEmpno.padStart(6, '0'), // 098095
+            fiveDigitEmpno.padStart(5, '0')  // 98095
+          ]
+          
+          console.log(`🔍 Trying empno variations:`, empnoVariations)
+          
+          let budgetData = null
+          let budgetError = null
+          let matchedEmpno = null
+          
+          // 각 사번 형식으로 순차 시도
+          for (const empnoVariation of empnoVariations) {
+            const { data, error } = await supabase
+              .from('L_Coaching_Budget')
+              .select('"coaching budget"')
+              .eq('"기준연도"', latestYear)
+              .eq('"사번"', empnoVariation)
+            
+            console.log(`🔍 Trying empno "${empnoVariation}":`, { data, error })
+            
+            if (data && data.length > 0) {
+              budgetData = data
+              budgetError = error
+              matchedEmpno = empnoVariation
+              console.log(`✅ Found data with empno: ${empnoVariation}`)
+              break
+            }
+          }
+          
+          if (budgetData && !budgetError) {
+            budgetAmount = budgetData.reduce((sum, row: any) => {
+              // text 타입을 숫자로 변환 (콤마 제거 후 변환)
+              const budgetText = row['coaching budget'] || '0'
+              const budget = Number(budgetText.toString().replace(/,/g, '')) || 0
+              console.log(`🔍 Budget item: "${budgetText}" → ${budget}`)
+              return sum + budget
+            }, 0)
+            console.log(`💰 Total coaching budget for ${matchedEmpno}: ${budgetAmount}`)
+          } else {
+            console.log(`ℹ️ No coaching budget found for any empno variation in year ${latestYear}`)
+            console.log(`❌ Tried variations:`, empnoVariations)
+          }
+        }
+      } catch (budgetErr) {
+        console.error("코칭 예산 조회 오류:", budgetErr)
       }
+      
+      // 2. v_coaching_time_quarterly에서 지출 내역 가져오기 (회계연도 기준: 2025-3Q ~ 2026-2Q)
+      let costAmount = 0
+      try {
+        // 회계연도 분기 목록
+        const fiscalYearQuarters = [
+          '2025-Q3', '2025-Q4', 
+          '2026-Q1', '2026-Q2'
+        ];
+        
+        console.log(`🗓️ Plan: Fetching coaching cost for fiscal year quarters:`, fiscalYearQuarters)
+        
+        const { data, error } = await supabase
+          .from('v_coaching_time_quarterly')
+          .select('total_amt, year_quarter')
+          .eq('EMPNO', currentUser.empno)
+          .in('year_quarter', fiscalYearQuarters)
+        
+        if (!error && data) {
+          costAmount = data.reduce((sum, row) => sum + Number(row.total_amt || 0), 0)
+          console.log(`💰 Plan: Coaching cost calculation:`, { 
+            empno: currentUser.empno, 
+            fiscalYearData: data, 
+            totalCost: costAmount 
+          })
+        }
+      } catch (costErr) {
+        console.error("코칭 지출 조회 오류:", costErr)
+      }
+      
+      setBudget(budgetAmount)
+      setCost(costAmount)
+      console.log(`📊 Final coaching budget/cost: ${budgetAmount} / ${costAmount}`)
     }
     fetchBudgetAndCost()
   }, [currentUser, coachingYearLabel])
@@ -183,10 +299,10 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         console.log("ℹ️ Plan: No existing people_goals data found:", dbErr)
       }
 
-      // GPS/PEI 초기값 로드 (연도 2506 데이터에서)
+      // GPS/PEI 초기값 로드 (가장 최근 연도 데이터에서)
       let initialGpsScore = 50
       let initialPeiScore = 50
-      let initialRefreshOff = 0
+      let initialRefreshOff = 95 // 기본값을 95%로 설정
       
       try {
         // 사번 정규화 (95129 → 095129)
@@ -196,26 +312,73 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
         console.log(`🔍 Loading initial GPS/PEI values: ${targetEmpno} → ${normalizedEmpno} → ${fiveDigitEmpno}`)
         
-        const { data: gpsData, error: gpsError } = await supabase
+        // 가장 최근 연도 찾기
+        const { data: latestYearData, error: yearError } = await supabase
           .from("L_GPS_PEI_Table")
-          .select("GPS, PEI")
-          .eq("EMPNO", fiveDigitEmpno)
-          .eq("연도", "2506")
+          .select('"연도"')
+          .order('"연도"', { ascending: false })
+          .limit(1)
           .maybeSingle()
         
-        if (gpsError) {
-          console.error("GPS/PEI 초기값 조회 에러:", gpsError)
-        }
-        
-        if (gpsData) {
-          // 0.71 형태를 71%로 변환
-          if (gpsData.GPS && gpsData.GPS !== '-') {
-            initialGpsScore = Math.round(parseFloat(gpsData.GPS) * 100)
+        if (latestYearData && !yearError) {
+          const latestYear = (latestYearData as any)['연도']
+          console.log(`📅 Latest GPS/PEI year: ${latestYear}`)
+          
+          // 여러 사번 형식으로 시도해보기
+          const empnoVariations = [
+            fiveDigitEmpno,           // 98095
+            normalizedEmpno,          // 098095
+            targetEmpno,              // 원본
+            fiveDigitEmpno.padStart(6, '0'), // 098095
+            fiveDigitEmpno.padStart(5, '0')  // 98095
+          ]
+          
+          console.log(`🔍 Trying GPS/PEI empno variations:`, empnoVariations)
+          
+          let gpsData = null
+          let matchedEmpno = null
+          
+          // 각 사번 형식으로 순차 시도
+          for (const empnoVariation of empnoVariations) {
+            const { data, error } = await supabase
+              .from("L_GPS_PEI_Table")
+              .select('"GPS(PEI)", "GPS(ItS)"')
+              .eq('"EMPNO"', empnoVariation)
+              .eq('"연도"', latestYear)
+              .maybeSingle()
+            
+            console.log(`🔍 Trying GPS/PEI empno "${empnoVariation}":`, { data, error })
+            
+            if (data && !error) {
+              gpsData = data
+              matchedEmpno = empnoVariation
+              console.log(`✅ Found GPS/PEI data with empno: ${empnoVariation}`)
+              break
+            }
           }
-          if (gpsData.PEI && gpsData.PEI !== '-') {
-            initialPeiScore = Math.round(parseFloat(gpsData.PEI) * 100)
+          
+          if (gpsData) {
+            // 0.71 형태를 71%로 변환
+            const gpsPeiValue = (gpsData as any)['GPS(PEI)']
+            const gpsItsValue = (gpsData as any)['GPS(ItS)']
+            
+            if (gpsPeiValue && gpsPeiValue !== '-') {
+              initialPeiScore = Math.round(parseFloat(gpsPeiValue) * 100)
+            }
+            if (gpsItsValue && gpsItsValue !== '-') {
+              initialGpsScore = Math.round(parseFloat(gpsItsValue) * 100)
+            }
+            console.log("✅ GPS/PEI 초기값 로드:", { 
+              matchedEmpno,
+              'GPS(PEI)': gpsPeiValue, 
+              'GPS(ItS)': gpsItsValue, 
+              initialPeiScore, 
+              initialGpsScore 
+            })
+          } else {
+            console.log(`ℹ️ No GPS/PEI data found for any empno variation in year ${latestYear}`)
+            console.log(`❌ Tried variations:`, empnoVariations)
           }
-          console.log("✅ GPS/PEI 초기값 로드:", { GPS: gpsData.GPS, PEI: gpsData.PEI, initialGpsScore, initialPeiScore })
         }
       } catch (initialErr) {
         console.log("GPS/PEI 초기값 로드 실패:", initialErr)
@@ -390,9 +553,9 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
   const weeks = getWeeksInQuarter(coachingQuarterLabel.year, coachingQuarterLabel.quarter);
   const weeklyAvg = weeks > 0 ? Math.round(coachingQuarter / weeks) : 0;
 
-  const monthlyAvg = cost !== null ? Math.ceil(cost / 12 / 1000000) : 0
+  const monthlyAvg = cost !== null ? +(cost / 12 / 1000000).toFixed(1) : 0
   const exceeded = (cost !== null && budget !== null && cost > budget)
-    ? Math.ceil((cost - budget) / 1000000)
+    ? +((cost - budget) / 1000000).toFixed(1)
     : 0
   // percent 계산 및 JSX에서 cost, budget이 null일 때 안전하게 처리
   const percent = (cost !== null && budget !== null && budget > 0)
@@ -499,41 +662,12 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* First row: GPS, PEI, Refresh Off */}
+            {/* First row: GPS(PEI), GPS(ItS), Refresh Off */}
             <div className="grid grid-cols-3 gap-6">
-              {/* GPS Score */}
+              {/* GPS(PEI) Score - 먼저 배치 */}
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label htmlFor="gps-score">GPS Score (%)</Label>
-                  <span className="text-sm font-medium">
-                    {isEditMode ? `${formData.gpsScore}%` : `${assessmentData.gpsScore}%`}
-                  </span>
-                </div>
-                {isEditMode ? (
-                  <div className="flex items-center gap-2">
-                    <Slider
-                      id="gps-score"
-                      min={1}
-                      max={100}
-                      step={1}
-                      value={[formData.gpsScore]}
-                      onValueChange={(value) => handleInputChange("gpsScore", value[0])}
-                    />
-                    <span className="w-12 text-center">{formData.gpsScore}%</span>
-                  </div>
-                ) : (
-                  <div className="h-5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-orange-600 rounded-full"
-                      style={{ width: `${assessmentData.gpsScore}%` }}
-                    ></div>
-                  </div>
-                )}
-              </div>
-              {/* PEI Score */}
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="pei-score">PEI Score (%)</Label>
+                  <Label htmlFor="pei-score">GPS(PEI) Score (%)</Label>
                   <span className="text-sm font-medium">
                     {isEditMode ? `${formData.peiScore}%` : `${assessmentData.peiScore}%`}
                   </span>
@@ -555,6 +689,35 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     <div
                       className="h-full bg-orange-600 rounded-full"
                       style={{ width: `${assessmentData.peiScore}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+              {/* GPS(ItS) Score - 두 번째 배치 */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="gps-score">GPS(ItS) Score (%)</Label>
+                  <span className="text-sm font-medium">
+                    {isEditMode ? `${formData.gpsScore}%` : `${assessmentData.gpsScore}%`}
+                  </span>
+                </div>
+                {isEditMode ? (
+                  <div className="flex items-center gap-2">
+                    <Slider
+                      id="gps-score"
+                      min={1}
+                      max={100}
+                      step={1}
+                      value={[formData.gpsScore]}
+                      onValueChange={(value) => handleInputChange("gpsScore", value[0])}
+                    />
+                    <span className="w-12 text-center">{formData.gpsScore}%</span>
+                  </div>
+                ) : (
+                  <div className="h-5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-orange-600 rounded-full"
+                      style={{ width: `${assessmentData.gpsScore}%` }}
                     ></div>
                   </div>
                 )}
@@ -592,7 +755,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
             {/* 안내 문구 - 3개 카드 아래 */}
             <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-600 mt-4">
               <div className="text-sm text-black dark:text-white">
-                <strong>안내:</strong> 최초 입력값은 전기(2506) 조직의 GPS/PEI 비율이며, 당기(2606) 조직 목표를 기재부탁드립니다.
+                <strong>안내:</strong> 최초 입력값은 최근 조직의 GPS(PEI)/GPS(ItS) 비율이며, 당기(2606) 조직 목표를 기재부탁드립니다.
               </div>
             </div>
 
@@ -706,11 +869,11 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-center p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{budget !== null ? `${Math.ceil(budget/1000000).toLocaleString('ko-KR')}백만원` : '-'}</div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{budget !== null ? `${(budget/1000000).toFixed(1)}백만원` : '-'}</div>
                         <div className="text-xs text-slate-600 dark:text-slate-400">예산</div>
                       </div>
                       <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{cost !== null ? `${Math.ceil(cost/1000000).toLocaleString('ko-KR')}백만원` : '-'}</div>
+                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{cost !== null ? `${(cost/1000000).toFixed(1)}백만원` : '-'}</div>
                         <div className="text-xs text-red-600 dark:text-red-400">지출</div>
                       </div>
                     </div>
@@ -743,11 +906,11 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-600 dark:text-slate-400">초과 금액</span>
-                        <span className="text-sm font-bold text-red-600 dark:text-red-400">{Math.ceil(exceeded).toLocaleString('ko-KR')}백만원</span>
+                        <span className="text-sm font-bold text-red-600 dark:text-red-400">{exceeded}백만원</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-600 dark:text-slate-400">월 평균 지출</span>
-                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{Math.ceil(monthlyAvg).toLocaleString('ko-KR')}백만원</span>
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{monthlyAvg}백만원</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-600 dark:text-slate-400">예산 대비 지출</span>

@@ -462,6 +462,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       </span>
                     </div>
                   )}
+                  <p className="text-xs text-muted-foreground">대상기간은 25년 6월 이후 부터 입니다</p>
                 </div>
               </CardContent>
             </Card>
@@ -516,6 +517,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       </span>
                     </div>
                   )}
+                  <p className="text-xs text-muted-foreground">대상기간은 25년 6월 이후 부터 입니다</p>
                 </div>
               </CardContent>
             </Card>
@@ -570,6 +572,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       </span>
                     </div>
                   )}
+                  <p className="text-xs text-muted-foreground">대상기간은 25년 6월 이후 부터 입니다</p>
                 </div>
               </CardContent>
             </Card>

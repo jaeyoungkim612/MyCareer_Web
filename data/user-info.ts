@@ -117,7 +117,8 @@ export class UserInfoMapper {
         gradcd: hrData.GRADCD,
         tl_empno: hrData.TL_EMPNO,
         pos_ymd: hrData.POS_YMD,
-        job_info_nm: hrData.JOB_INFO_NM,
+        // L_직무및활동 테이블의 "보직"만 사용
+        job_info_nm: (jobActivityData as any)?.["보직"] || null,
         cm_cd: hrData.CM_CD,
         emp_stat: hrData.EMP_STAT,
         work_type_nm: hrData.WORK_TYPE_NM,
@@ -146,6 +147,8 @@ export class UserInfoMapper {
       console.log("🎯 Final user info assembled:", {
         empno: userInfo.empno,
         empnm: userInfo.empnm,
+        job_info_nm: userInfo.job_info_nm,
+        job_info_source: (jobActivityData as any)?.["보직"] ? "L_직무및활동" : "없음",
         industry_specialization: userInfo.industry_specialization,
         council_tf: userInfo.council_tf,
         gsp_focus_30: userInfo.gsp_focus_30

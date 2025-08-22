@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
 import { PerformanceRadarChart } from "@/components/dashboard/performance-radar-chart"
-import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw, User, Users, Search, Filter, Eye } from "lucide-react"
+import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw, User, Users, Search, Filter, Eye, Edit, Save, X, HelpCircle } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import type { UserMasterInfo } from "@/data/user-info"
@@ -19,7 +19,7 @@ import { GSPService, type GSPData } from "@/lib/gsp-service"
 import { supabase } from "@/lib/supabase"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { TeamMemberDetailDialog } from "@/components/team-member-detail-dialog"
 import { ApprovalPanel } from "@/components/approval/approval-panel"
@@ -52,6 +52,16 @@ export default function Intro() {
 
   // 반려 상태 관리
   const [hasRejection, setHasRejection] = useState(false)
+
+  // 스파이더맵 편집 상태 관리
+  const [isEditingSpiderMap, setIsEditingSpiderMap] = useState(false)
+  const [editingScores, setEditingScores] = useState({
+    Business: { current: 0, target: 0 },
+    People: { current: 0, target: 0 },
+    Collaboration: { current: 0, target: 0 },
+    Quality: { current: 0, target: 0 },
+    'Industry & TL': { current: 0, target: 0 }
+  })
 
   // 다이얼로그 열림 상태를 전역에 알림
   useEffect(() => {
@@ -690,6 +700,81 @@ export default function Intro() {
     }
   }
 
+
+
+
+
+  // 스파이더맵 편집 시작
+  const handleStartEditingSpiderMap = async () => {
+    try {
+      const currentUser = AuthService.getCurrentUser()
+      if (!currentUser?.empno) return
+
+      // 현재 점수를 가져와서 편집 폼에 설정
+      const { getAllScores, loadScoresForEmployee } = await import("@/data/performance-scores")
+      await loadScoresForEmployee(currentUser.empno)
+      const scores = getAllScores()
+      
+      const scoreData = scores.reduce((acc, score) => {
+        acc[score.category] = {
+          current: score.currentScore || 0,
+          target: score.targetScore || 0
+        }
+        return acc
+      }, {} as any)
+
+      setEditingScores(scoreData)
+      setIsEditingSpiderMap(true)
+    } catch (error) {
+      console.error("점수 로딩 실패:", error)
+      setIsEditingSpiderMap(true) // 실패해도 편집 모드는 열기
+    }
+  }
+
+  // 스파이더맵 편집 취소
+  const handleCancelEditingSpiderMap = () => {
+    setIsEditingSpiderMap(false)
+  }
+
+  // 스파이더맵 점수 저장
+  const handleSaveSpiderMapScores = async () => {
+    try {
+      const currentUser = AuthService.getCurrentUser()
+      if (!currentUser?.empno) {
+        alert("사용자 정보가 없습니다.")
+        return
+      }
+
+      // 각 카테고리별로 점수 업데이트
+      const { updateScoreByCategory } = await import("@/data/performance-scores")
+      
+      for (const [category, scores] of Object.entries(editingScores)) {
+        await updateScoreByCategory(category, scores.current, scores.target)
+      }
+
+      setIsEditingSpiderMap(false)
+      alert("점수가 저장되었습니다!")
+      
+      // 페이지 새로고침으로 스파이더맵 업데이트
+      window.location.reload()
+    } catch (error) {
+      console.error("점수 저장 실패:", error)
+      alert("점수 저장에 실패했습니다.")
+    }
+  }
+
+  // 점수 입력 핸들러
+  const handleScoreChange = (category: string, type: 'current' | 'target', value: string) => {
+    const numValue = Math.max(0, Math.min(10, Number(value) || 0))
+    setEditingScores(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category as keyof typeof prev],
+        [type]: numValue
+      }
+    }))
+  }
+
   // 검색/필터 로직
   const filteredReviewees = userRole?.reviewees.filter((reviewee) => {
     const matchesSearch = reviewee.성명.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -951,15 +1036,127 @@ export default function Intro() {
 
             {/* 오른쪽: Spider Web Chart */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <RadarIcon className="mr-2 h-5 w-5 text-orange-600" />
-                자기평가점수 Spider Web
-              </h3>
-              <div className="bg-white p-4 rounded-md h-full min-h-[360px] flex justify-center items-center">
-                <div className="w-[280px] h-[280px] flex items-center justify-center">
-                  <PerformanceRadarChart />
+              <h3 className="text-lg font-semibold flex items-center justify-between">
+                <div className="flex items-center">
+                  <RadarIcon className="mr-2 h-5 w-5 text-orange-600" />
+                  자기평가점수 Spider Web
                 </div>
-              </div>
+                {!isEditingSpiderMap && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStartEditingSpiderMap}
+                    className="flex items-center gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    편집
+                  </Button>
+                )}
+              </h3>
+              
+              {isEditingSpiderMap ? (
+                // 편집 모드 - 점수 입력 폼
+                <div className="bg-white p-6 rounded-md border">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h4 className="text-lg font-medium">점수 편집</h4>
+                    <div className="flex gap-2">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8">
+                            <HelpCircle className="h-4 w-4 text-gray-400" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-lg">
+                          <DialogHeader>
+                            <DialogTitle>점수 예시</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3 text-sm">
+                            <div className="border-l-4 border-green-500 pl-3 py-2">
+                              <div className="font-semibold text-green-600">10점: 탁월</div>
+                              <div className="text-gray-600 dark:text-gray-300 text-xs">조직 및 본인이 기대하는 역량지표에서 탁월 내외 <span className="font-bold">전반적으로 탁월한 성과를 창출</span>한 수준</div>
+                            </div>
+                            <div className="border-l-4 border-blue-500 pl-3 py-2">
+                              <div className="font-semibold text-blue-600">7-9점: 우수</div>
+                              <div className="text-gray-600 dark:text-gray-300 text-xs">조직 및 본인이 기대하는 역량지표에서 탁월 대비 일정 <span className="font-bold">역량에서 기대 이상의 뛰어난 성과를 창출</span>한 수준</div>
+                            </div>
+                            <div className="border-l-4 border-yellow-500 pl-3 py-2">
+                              <div className="font-semibold text-yellow-600">4-6점: 보통</div>
+                              <div className="text-gray-600 dark:text-gray-300 text-xs">조직 및 본인이 기대하는 역량지표에서 <span className="font-bold">적절한 수준의 기대에 부합</span>하는 성과를 창출한 수준</div>
+                            </div>
+                            <div className="border-l-4 border-orange-500 pl-3 py-2">
+                              <div className="font-semibold text-orange-600">1-3점: 개선필요</div>
+                              <div className="text-gray-600 dark:text-gray-300 text-xs">조직 및 본인이 기대하는 역량지표에서 <span className="font-bold">기대에 미치지 못하며 개선이 필요</span>한 수준</div>
+                            </div>
+                            <div className="border-l-4 border-red-500 pl-3 py-2">
+                              <div className="font-semibold text-red-600">0점: 미흡</div>
+                              <div className="text-gray-600 dark:text-gray-300 text-xs">조직 및 본인이 기대하는 역량지표에서 <span className="font-bold">현저히 부족하여 즉시 개선이 필요</span>한 수준</div>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelEditingSpiderMap}
+                        className="flex items-center gap-1"
+                      >
+                        <X className="h-4 w-4" />
+                        취소
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveSpiderMapScores}
+                        className="flex items-center gap-1"
+                      >
+                        <Save className="h-4 w-4" />
+                        저장
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-4">
+                    {Object.entries(editingScores).map(([category, scores]) => (
+                      <div key={category} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="font-medium text-sm w-32">{category}</div>
+                        <div className="flex items-center gap-6">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-yellow-600 font-medium whitespace-nowrap">자기평가:</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="10"
+                              step="0.1"
+                              value={scores.current}
+                              onChange={(e) => handleScoreChange(category, 'current', e.target.value)}
+                              className="w-20 h-8 text-center"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-orange-600 font-medium whitespace-nowrap">개선목표:</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="10"
+                              step="0.1"
+                              value={scores.target}
+                              onChange={(e) => handleScoreChange(category, 'target', e.target.value)}
+                              className="w-20 h-8 text-center"
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500">(0-10점)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                // 보기 모드 - 스파이더 차트
+                <div className="bg-white p-4 rounded-md min-h-[400px] flex justify-center items-center overflow-hidden">
+                  <div className="w-[300px] h-[300px] flex items-center justify-center">
+                    <PerformanceRadarChart />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
