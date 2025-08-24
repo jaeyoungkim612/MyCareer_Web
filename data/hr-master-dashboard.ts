@@ -48,4 +48,9 @@ export interface HrMasterDashboardRow {
   dept_backlog_audit?: number
   dept_backlog_non_audit?: number
   dept_pipeline_current_total?: number
+  // AUDITYN 구분된 파이프라인 컬럼들 추가
+  pipeline_audit_current_total?: number
+  pipeline_non_audit_current_total?: number
+  dept_pipeline_audit_current_total?: number
+  dept_pipeline_non_audit_current_total?: number
 } 

@@ -116,11 +116,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   const myAuditBacklog = toMillion(budgetData?.current_audit_backlog ?? 0); // BACKLOG
   const myNonAuditRevenue = toMillion(budgetData?.current_non_audit_revenue ?? 0); // 매출
   const myNonAuditBacklog = toMillion(budgetData?.current_non_audit_backlog ?? 0); // BACKLOG
-  const myPipeline = toMillion(budgetData?.pipeline_current_total ?? 0); // 파이프라인
+  const myAuditPipeline = toMillion(budgetData?.pipeline_audit_current_total ?? 0); // 감사 파이프라인
+  const myNonAuditPipeline = toMillion(budgetData?.pipeline_non_audit_current_total ?? 0); // 비감사 파이프라인
   
   // My 감사/비감사 실제 합계 (매출 + BACKLOG + 파이프라인)
-  const myAuditActual = myAuditRevenue + myAuditBacklog + (myPipeline * 0.5); // 파이프라인은 50% 배분
-  const myNonAuditActual = myNonAuditRevenue + myNonAuditBacklog + (myPipeline * 0.5); // 파이프라인은 50% 배분
+  const myAuditActual = myAuditRevenue + myAuditBacklog + myAuditPipeline; // 각각의 파이프라인 사용
+  const myNonAuditActual = myNonAuditRevenue + myNonAuditBacklog + myNonAuditPipeline; // 각각의 파이프라인 사용
   const myAuditBudget = Number(budgetData?.budget_audit ?? 0); // 이미 백만원단위
   const myNonAuditBudget = Number(budgetData?.budget_non_audit ?? 0); // 이미 백만원단위
   const myTotalActual = myAuditActual + myNonAuditActual;
@@ -131,11 +132,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   const teamAuditBacklog = toMillion(budgetData?.dept_backlog_audit ?? 0); // BACKLOG
   const teamNonAuditRevenue = toMillion(budgetData?.dept_revenue_non_audit ?? 0); // 매출
   const teamNonAuditBacklog = toMillion(budgetData?.dept_backlog_non_audit ?? 0); // BACKLOG
-  const teamPipeline = toMillion(budgetData?.dept_pipeline_current_total ?? 0); // 파이프라인
+  const teamAuditPipeline = toMillion(budgetData?.dept_pipeline_audit_current_total ?? 0); // 감사 파이프라인
+  const teamNonAuditPipeline = toMillion(budgetData?.dept_pipeline_non_audit_current_total ?? 0); // 비감사 파이프라인
   
   // Team 감사/비감사 실제 합계 (매출 + BACKLOG + 파이프라인)
-  const teamAuditActual = teamAuditRevenue + teamAuditBacklog + (teamPipeline * 0.5); // 파이프라인은 50% 배분
-  const teamNonAuditActual = teamNonAuditRevenue + teamNonAuditBacklog + (teamPipeline * 0.5); // 파이프라인은 50% 배분
+  const teamAuditActual = teamAuditRevenue + teamAuditBacklog + teamAuditPipeline; // 각각의 파이프라인 사용
+  const teamNonAuditActual = teamNonAuditRevenue + teamNonAuditBacklog + teamNonAuditPipeline; // 각각의 파이프라인 사용
   const teamAuditBudget = Number(budgetData?.dept_budget_audit ?? 0);
   const teamNonAuditBudget = Number(budgetData?.dept_budget_non_audit ?? 0);
   const teamTotalActual = teamAuditActual + teamNonAuditActual;
@@ -732,7 +734,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 auditBacklog: myAuditBacklog,
                 nonAuditRevenue: myNonAuditRevenue,
                 nonAuditBacklog: myNonAuditBacklog,
-                pipeline: myPipeline
+                pipeline: myAuditPipeline + myNonAuditPipeline
               }}
             />
 
@@ -750,7 +752,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 auditBacklog: teamAuditBacklog,
                 nonAuditRevenue: teamNonAuditRevenue,
                 nonAuditBacklog: teamNonAuditBacklog,
-                pipeline: teamPipeline
+                pipeline: teamAuditPipeline + teamNonAuditPipeline
               }}
             />
           </div>
@@ -776,7 +778,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 breakdown={{
                   revenue: myAuditRevenue,
                   backlog: myAuditBacklog,
-                  pipeline: myPipeline * 0.5
+                  pipeline: myAuditPipeline
                 }}
               />
 
@@ -792,7 +794,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 breakdown={{
                   revenue: teamAuditRevenue,
                   backlog: teamAuditBacklog,
-                  pipeline: teamPipeline * 0.5
+                  pipeline: teamAuditPipeline
                 }}
               />
             </div>
@@ -819,7 +821,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 breakdown={{
                   revenue: myNonAuditRevenue,
                   backlog: myNonAuditBacklog,
-                  pipeline: myPipeline * 0.5
+                  pipeline: myNonAuditPipeline
                 }}
               />
 
@@ -835,7 +837,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 breakdown={{
                   revenue: teamNonAuditRevenue,
                   backlog: teamNonAuditBacklog,
-                  pipeline: teamPipeline * 0.5
+                  pipeline: teamNonAuditPipeline
                 }}
               />
             </div>
