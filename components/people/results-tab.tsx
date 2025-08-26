@@ -861,6 +861,9 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               <UserCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
+              <div className="text-xs text-gray-500 mb-2 text-left">
+                * ITS: intend to stay (조직 잔류 의향)
+              </div>
               <div className="flex justify-between items-center mb-2">
                 <div className="text-2xl font-bold">
                   {gpsAchievement.actual > 0 ? `${gpsAchievement.actual}%` : '-%'}
@@ -879,6 +882,11 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                   <span className={`text-xs font-medium ${gpsAchievement.rate >= 100 ? 'text-green-600' : gpsAchievement.rate >= 80 ? 'text-amber-600' : gpsAchievement.rate > 0 ? 'text-red-600' : 'text-gray-500'}`}>
                     {gpsAchievement.rate > 0 ? `달성률 ${gpsAchievement.rate}%` : '데이터 없음'}
                   </span>
+                  {gpsAchievement.rate === 0 && (
+                    <div className="text-xs text-gray-400 mt-1 text-left">
+                      * ITS: intend to stay (조직 잔류 의향)
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
