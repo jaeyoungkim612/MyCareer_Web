@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 import Image from "next/image"
+import Link from "next/link"
+import { HelpCircle, Bell } from "lucide-react"
 
 export function LoginForm() {
   const [empno, setEmpno] = useState("")
@@ -278,8 +280,21 @@ export function LoginForm() {
             </Button>
           </form>
 
-          <div className="mt-8 text-center text-lg text-gray-500">
-            <p>최초 로그인 시 기본 비밀번호는 <strong className="text-orange-600">3131</strong>입니다.</p>
+          <div className="mt-8 space-y-4">
+            <div className="text-center text-lg text-gray-500">
+              <p>최초 로그인 시 기본 비밀번호는 <strong className="text-orange-600">3131</strong>입니다.</p>
+            </div>
+            
+            {/* 시작 안내 페이지 링크 */}
+            <div className="text-center">
+              <a href="/guide.html" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="lg" className="text-lg font-medium">
+                  <Bell className="mr-2 h-5 w-5" />
+                  My Career+ 사용법 알아보기
+                  <HelpCircle className="ml-2 h-5 w-5" />
+                </Button>
+              </a>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
 import { PerformanceRadarChart } from "@/components/dashboard/performance-radar-chart"
 import { LayoutDashboard, RadarIcon, ListChecks, Bell, MessageSquare, RefreshCw, User, Users, Search, Filter, Eye, Edit, Save, X, HelpCircle } from "lucide-react"
+import Link from "next/link"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import type { UserMasterInfo } from "@/data/user-info"
@@ -851,7 +852,9 @@ export default function Intro() {
           >
             <RefreshCw className={`h-4 w-4 text-muted-foreground ${isLoading ? 'animate-spin' : ''}`} />
           </button>
-          <Bell className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-orange-500 transition-colors" />
+          <Link href="/guide.html" title="설명서" target="_blank">
+            <Bell className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-orange-500 transition-colors" />
+          </Link>
         </div>
       </div>
 

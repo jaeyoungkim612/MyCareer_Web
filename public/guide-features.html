@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intro - My Career+</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .sidebar-scroll::-webkit-scrollbar { width: 6px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .feature-card:hover { transform: translateY(-2px); transition: all 0.2s ease; }
+    </style>
+    <script>
+        function toggleScoreGuide() {
+            const scoreGuide = document.getElementById('scoreGuide');
+            const button = event.target;
+            
+            if (scoreGuide.classList.contains('hidden')) {
+                scoreGuide.classList.remove('hidden');
+                button.textContent = '숨기기';
+            } else {
+                scoreGuide.classList.add('hidden');
+                button.textContent = '예시 보기';
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="flex h-screen">
+        
+        <!-- 사이드바 -->
+        <div class="w-80 bg-white shadow-xl border-r border-gray-200 flex flex-col">
+            <!-- 로고 헤더 -->
+            <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+                <div class="flex items-center gap-3">
+                    <img src="/images/pwc_logo_light.png" alt="PwC Logo" width="40" height="20" class="object-contain" />
+                    <div>
+                        <h1 class="text-white font-bold text-lg">My Career+ 가이드</h1>
+                        <p class="text-orange-100 text-sm">단계별 사용법 안내</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 네비게이션 메뉴 -->
+            <nav class="flex-1 overflow-y-auto sidebar-scroll">
+                <div class="p-4 space-y-2">
+                    
+                    <!-- 시작하기 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">시작하기</h3>
+                        <a href="/guide.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                            <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                            </svg>
+                            <span class="font-medium">메인 가이드</span>
+                        </a>
+                    </div>
+                    
+                    <!-- 기본 설정 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">기본 설정</h3>
+                        <div class="space-y-1">
+                            <a href="/guide-login.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                </svg>
+                                <span>로그인하기</span>
+                            </a>
+                            <a href="/guide-settings.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>기본정보 변경하기</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- 주요 기능 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">주요 기능</h3>
+                        <div class="space-y-1">
+                            <a href="/guide-features.html" class="flex items-center gap-3 px-3 py-2.5 bg-orange-50 text-orange-600 border-r-2 border-orange-600 rounded-lg font-medium">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0018 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.072M5.25 21h.008v.008H5.25V21zm9.288 0h.008v.008h-.008V21z" />
+                                </svg>
+                                <span>Intro</span>
+                                <div class="ml-auto">
+                                    <span class="bg-orange-600 text-white text-xs px-2 py-1 rounded-full">현재</span>
+                                </div>
+                            </a>
+                            <a href="/guide-manual.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                <span>기능별 작성방법</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                </div>
+            </nav>
+            
+            <!-- 하단 도움말 -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="text-center">
+                    <div class="text-sm text-gray-600 mb-2">문의사항</div>
+                    <div class="text-xs text-gray-500">AX Node / Assurance DA</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 메인 컨텐츠 영역 -->
+        <div class="flex-1 overflow-y-auto">
+            <div class="container mx-auto px-8 py-8 max-w-6xl">
+                
+                <!-- 페이지 헤더 -->
+                <div class="mb-8">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="p-2 bg-orange-100 rounded-lg">
+                            <svg class="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0018 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.072M5.25 21h.008v.008H5.25V21zm9.288 0h.008v.008h-.008V21z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold text-gray-900">Intro</h1>
+                            <p class="text-lg text-gray-600">내 평가 기능과 리뷰어 기능을 자세히 알아보세요</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 기능 소개 탭 -->
+                <div class="max-w-6xl mx-auto space-y-8">
+                    
+                    <!-- 내 평가 기능 섹션 -->
+                    <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                        <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-6 border-b">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-blue-500 rounded-lg">
+                                    <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-bold text-gray-900">👤 내 평가 기능</h2>
+                                    <p class="text-blue-700">본인의 Performance 목표 설정 및 자기평가</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- 대시보드 메인 기능 -->
+                            <div class="mb-8">
+                                <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                    <svg class="h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0018 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.072M5.25 21h.008v.008H5.25V21zm9.288 0h.008v.008h-.008V21z" />
+                                    </svg>
+                                    📊 메인 대시보드
+                                </h3>
+                                
+                                <div class="grid md:grid-cols-2 gap-6">
+                                    <div class="feature-card bg-gray-50 p-4 rounded-lg border">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <div class="p-2 bg-green-100 rounded-lg">
+                                                <svg class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800">프로필 정보</h4>
+                                                <p class="text-sm text-gray-600">개인 정보 및 소속 현황</p>
+                                            </div>
+                                        </div>
+                                        <ul class="text-sm text-gray-600 space-y-1">
+                                            <li>• 기본 프로필 (이름, 사번, 직급)</li>
+                                            <li>• 소속 부서 및 보직 정보</li>
+                                            <li>• 산업전문화, GSP/Focus 30, TF&Council</li>
+                                            <li>• Settings에서 정보 변경 신청</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="feature-card bg-gray-50 p-4 rounded-lg border">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <div class="p-2 bg-purple-100 rounded-lg">
+                                                <svg class="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.611L5 14.5" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800">Spider Web Chart</h4>
+                                                <p class="text-sm text-gray-600">5개 영역 자기평가 점수</p>
+                                            </div>
+                                        </div>
+                                        <ul class="text-sm text-gray-600 space-y-1">
+                                            <li>• Business, People, Collaboration, Quality, Industry 점수</li>
+                                            <li>• 현재 점수와 개선 목표 설정 
+                                                <button onclick="toggleScoreGuide()" class="ml-2 text-blue-600 hover:text-blue-800 text-xs underline cursor-pointer">
+                                                    예시 보기
+                                                </button>
+                                            </li>
+                                            <li>• 시각적 레이더 차트로 한눈에 확인</li>
+                                            <li>• 편집 버튼으로 점수 수정 가능</li>
+                                        </ul>
+                                        
+                                        <!-- 점수 가이드 (접힌 상태로 시작) -->
+                                        <div id="scoreGuide" class="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200 hidden">
+                                            <h5 class="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                                                </svg>
+                                                점수 가이드
+                                            </h5>
+                                            <div class="space-y-2 text-xs">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-3 h-3 bg-green-500 rounded"></div>
+                                                    <span><strong>10점 (탁월):</strong> 전반적으로 탁월한 성과를 창출한 수준</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-3 h-3 bg-blue-500 rounded"></div>
+                                                    <span><strong>7-9점 (우수):</strong> 기대 이상의 뛰어난 성과를 창출한 수준</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-3 h-3 bg-yellow-500 rounded"></div>
+                                                    <span><strong>4-6점 (보통):</strong> 적절한 수준의 기대에 부합하는 성과</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-3 h-3 bg-orange-500 rounded"></div>
+                                                    <span><strong>1-3점 (개선필요):</strong> 기대에 미치지 못하며 개선이 필요</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-3 h-3 bg-red-500 rounded"></div>
+                                                    <span><strong>0점 (미흡):</strong> 현저히 부족하여 즉시 개선이 필요</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="feature-card bg-gray-50 p-4 rounded-lg border">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <div class="p-2 bg-blue-100 rounded-lg">
+                                                <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.691 1.34 3.059 2.993 3.059h15.514c1.653 0 2.993-1.368 2.993-3.059v-11.52c0-1.691-1.34-3.059-2.993-3.059H5.243c-1.653 0-2.993 1.368-2.993 3.059v11.52z" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800">평가결과</h4>
+                                                <p class="text-sm text-gray-600">리뷰어 피드백 확인</p>
+                                            </div>
+                                        </div>
+                                        <ul class="text-sm text-gray-600 space-y-1">
+                                            <li>• Reviewer의 평가 피드백</li>
+                                            <li>• 평가자 정보</li>
+                                            <li>• 평가 날짜 및 상세 코멘트</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="feature-card bg-gray-50 p-4 rounded-lg border">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <div class="p-2 bg-orange-100 rounded-lg">
+                                                <svg class="h-5 w-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h4.125M8.25 8.25V6.108" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800">Performance Summary</h4>
+                                                <p class="text-sm text-gray-600">항목별 상세 관리</p>
+                                            </div>
+                                        </div>
+                                        <ul class="text-sm text-gray-600 space-y-1">
+                                            <li>• Business, People, Collaboration, Quality, Industry</li>
+                                            <li>• 각 영역별 Status Summary 제공</li>
+                                            <li>• 목표 설정, 진행 현황</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+
+                        </div>
+                    </div>
+
+                    <!-- 리뷰어 기능 섹션 -->
+                    <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                        <div class="bg-gradient-to-r from-green-50 to-green-100 p-6 border-b">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-green-500 rounded-lg">
+                                    <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-bold text-gray-900">👨‍💼 리뷰어 기능</h2>
+                                    <p class="text-green-700">팀원 평가 및 관리 (1차 Reviewer 권한)</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <!-- 팀원 현황 대시보드 -->
+                                <div class="feature-card bg-gray-50 p-5 rounded-lg border">
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="p-2 bg-blue-100 rounded-lg">
+                                            <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-gray-800">팀원 현황 대시보드</h4>
+                                            <p class="text-sm text-gray-600">평가 대상자 통합 관리</p>
+                                        </div>
+                                    </div>
+                                    <ul class="text-sm text-gray-600 space-y-2">
+                                        <li>• <strong>검색 및 필터링:</strong> 팀원 이름, 사번, 팀별 검색</li>
+                                        <li>• <strong>진행률 모니터링:</strong> Plan/중간평가/기말평가 완료율</li>
+                                        <li>• <strong>상태 뱃지:</strong> 미작성/작성중/완료 상태 한눈에 확인</li>
+                                        <li>• <strong>실시간 업데이트:</strong> 팀원 작업 현황 자동 갱신</li>
+                                        <li>• <strong>작성내역 확인:</strong> 5개 영역별 Plan/평가 내용</li>
+                                        <li>• <strong>리뷰어 피드백:</strong> 코멘트 작성</li>
+                                    </ul>
+                                </div>
+                                
+                                <!-- 승인 관리 -->
+                                <div class="feature-card bg-gray-50 p-5 rounded-lg border">
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="p-2 bg-green-100 rounded-lg">
+                                            <svg class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-gray-800">승인 요청 관리</h4>
+                                            <p class="text-sm text-gray-600">팀원 변경 신청 검토</p>
+                                        </div>
+                                    </div>
+                                    <ul class="text-sm text-gray-600 space-y-2">
+                                        <li>• <strong>GSP 정보 변경:</strong> 보직, 산업전문화, GSP/Focus 30</li>
+                                        <li>• <strong>승인 알림:</strong> 새로운 변경 신청 실시간 알림</li>
+                                        <li>• <strong>승인/반려 처리:</strong> 신청 내용 검토 후 결정</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <!-- 네비게이션 -->
+                    <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4 text-center">가이드 네비게이션</h2>
+                        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                            <a href="/guide-settings.html" class="flex-1 sm:flex-none">
+                                <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                                    </svg>
+                                    <span>이전: 기본정보 변경하기</span>
+                                </button>
+                            </a>
+                            <a href="/guide-manual.html" class="flex-1 sm:flex-none">
+                                <button class="w-full bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                                    <span>다음: 기능별 작성방법</span>
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                    </svg>
+                                </button>
+                            </a>
+                        </div>
+                        <p class="text-sm text-gray-500 text-center mt-4">
+                            💡 각 기능을 익힌 후 실제 작성 방법을 확인하세요
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

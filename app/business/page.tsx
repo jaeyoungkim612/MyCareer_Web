@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BarChart3, Edit2, Check, X, HelpCircle } from "lucide-react"
+import { BarChart3, Edit2, Check, X, HelpCircle, BookOpen, ExternalLink } from "lucide-react"
 import { BusinessPlanTab } from "@/components/business/plan-tab"
 import { BusinessMonitoringTab } from "@/components/business/status-tab"
 import { BusinessSelfAssessmentTab } from "@/components/business/self-assessment-tab"
@@ -168,6 +168,18 @@ export default function BusinessPage() {
             Business
           </h1>
           <p className="text-muted-foreground mt-2">Business Development 활동을 계획하고 상태를 관리할 수 있습니다.</p>
+          <div className="mt-3">
+            <a
+              href="/guide-manual.html#business"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 transition-colors group"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>Business 작성 방법 확인하기</span>
+              <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </a>
+          </div>
         </div>
 
         {/* Score Display - Now on the right */}

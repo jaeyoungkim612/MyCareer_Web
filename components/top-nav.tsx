@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Bell, LogOut, User, Settings } from "lucide-react"
+import Link from "next/link"
 import { AuthService } from "@/lib/auth-service"
 import { UserInfoMapper } from "@/data/user-info"
 import { useRouter } from "next/navigation"
@@ -98,7 +99,9 @@ export function TopNav() {
 
       {/* 사용자 정보 및 아바타 */}
       <div className="flex items-center space-x-4">
-        <Bell className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-orange-500 transition-colors" />
+        <Link href="/guide.html" title="설명서" target="_blank">
+          <Bell className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-orange-500 transition-colors" />
+        </Link>
         
         {/* 로그아웃 버튼 */}
         <Button

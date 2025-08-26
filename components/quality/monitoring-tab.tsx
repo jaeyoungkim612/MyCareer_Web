@@ -879,7 +879,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                   {/* Incompliant 카드 - 비선택된 상태 */}
                   <div className="flex flex-col items-center justify-center p-8 border border-gray-300 bg-gray-50 dark:bg-gray-800 rounded-lg min-w-[160px] min-h-[140px] opacity-60">
                     <X className="h-10 w-10 text-gray-400 mb-4" />
-                    <span className="text-xl text-gray-500">Incompliant</span>
+                    <span className="text-xl text-gray-500">Non-compliant</span>
                   </div>
                 </div>
               </CardContent>

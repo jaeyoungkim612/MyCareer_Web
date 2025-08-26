@@ -7,12 +7,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Target } from "lucide-react"
-import { Clock, Users, Edit, Save, X, DollarSign, TrendingUp, AlertTriangle, CheckCircle, User, CheckCircle2 } from "lucide-react"
+import { Clock, Users, Edit, Save, X, DollarSign, TrendingUp, AlertTriangle, CheckCircle, User, CheckCircle2, Eye } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { AuthService } from "@/lib/auth-service"
 import { UserInfoMapper } from "@/data/user-info"
-import { PeopleGoalsService } from "@/lib/people-goals-service"
+import { PeopleGoalsService, TeamMemberCoachingData } from "@/lib/people-goals-service"
 import { supabase } from "@/lib/supabase"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 // 분기별 주 수 계산 함수
 function getWeeksInQuarter(year: number, quarter: number) {
@@ -41,6 +43,11 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
   
   // Add lastUpdated state
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  
+  // 팀원 코칭 시간 관련 state 추가
+  const [teamCoachingData, setTeamCoachingData] = useState<TeamMemberCoachingData[]>([])
+  const [isTeamDetailDialogOpen, setIsTeamDetailDialogOpen] = useState(false)
+  const [isLoadingTeamData, setIsLoadingTeamData] = useState(false)
   
   const [assessmentData, setAssessmentData] = useState({
     comment: "",
@@ -88,6 +95,26 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       }
     }
     fetchCoaching()
+  }, [currentUser])
+
+  // 팀원 코칭 시간 데이터 로드
+  useEffect(() => {
+    const fetchTeamCoachingData = async () => {
+      if (!currentUser?.empno) return
+      
+      setIsLoadingTeamData(true)
+      try {
+        const teamData = await PeopleGoalsService.getTeamCoachingTimeStats(currentUser.empno)
+        setTeamCoachingData(teamData)
+        console.log("📊 Team coaching data loaded:", teamData)
+      } catch (error) {
+        console.error("Error loading team coaching data:", error)
+      } finally {
+        setIsLoadingTeamData(false)
+      }
+    }
+    
+    fetchTeamCoachingData()
   }, [currentUser])
 
   useEffect(() => {
@@ -342,7 +369,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           for (const empnoVariation of empnoVariations) {
             const { data, error } = await supabase
               .from("L_GPS_PEI_Table")
-              .select('"GPS(PEI)", "GPS(ItS)"')
+              .select('"GPS(PEI)", "GPS(ITS)"')
               .eq('"EMPNO"', empnoVariation)
               .eq('"연도"', latestYear)
               .maybeSingle()
@@ -360,7 +387,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           if (gpsData) {
             // 0.71 형태를 71%로 변환
             const gpsPeiValue = (gpsData as any)['GPS(PEI)']
-            const gpsItsValue = (gpsData as any)['GPS(ItS)']
+            const gpsItsValue = (gpsData as any)['GPS(ITS)']
             
             if (gpsPeiValue && gpsPeiValue !== '-') {
               initialPeiScore = Math.round(parseFloat(gpsPeiValue) * 100)
@@ -371,7 +398,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
             console.log("✅ GPS/PEI 초기값 로드:", { 
               matchedEmpno,
               'GPS(PEI)': gpsPeiValue, 
-              'GPS(ItS)': gpsItsValue, 
+              'GPS(ITS)': gpsItsValue, 
               initialPeiScore, 
               initialGpsScore 
             })
@@ -549,6 +576,64 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
     setIsEditMode(false)
   }
 
+  // 팀 전체 코칭 시간 계산
+  const totalTeamCoachingHours = teamCoachingData.reduce((sum, member) => sum + member.totalCoachingHours, 0)
+
+  // 팀원 상세 정보 다이얼로그 컴포넌트
+  const TeamCoachingDetailDialog = () => (
+    <Dialog open={isTeamDetailDialogOpen} onOpenChange={setIsTeamDetailDialogOpen}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-orange-600" />
+            팀원 코칭 시간 상세 (PRJTCD 기준)
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg">
+            <div className="text-sm text-orange-800 dark:text-orange-200">
+              <strong>총 {teamCoachingData.length}명</strong>의 팀원 • 
+              <strong> 누적 {totalTeamCoachingHours}시간</strong> • 
+              평균 {teamCoachingData.length > 0 ? Math.round(totalTeamCoachingHours / teamCoachingData.length) : 0}시간/인
+            </div>
+          </div>
+          
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>사번</TableHead>
+                <TableHead>성명</TableHead>
+                <TableHead>조직</TableHead>
+                <TableHead>직급</TableHead>
+                <TableHead className="text-right">누적 시간</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {teamCoachingData.map((member) => (
+                <TableRow key={member.empno}>
+                  <TableCell className="font-mono text-sm">{member.empno}</TableCell>
+                  <TableCell className="font-medium">{member.empnm}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{member.org_nm}</TableCell>
+                  <TableCell className="text-sm">{member.gradnm}</TableCell>
+                  <TableCell className="text-right font-bold text-orange-600">
+                    {member.totalCoachingHours}시간
+                  </TableCell>
+                </TableRow>
+              ))}
+              {teamCoachingData.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    팀원 데이터가 없습니다.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+
   // 주간 평균 계산
   const weeks = getWeeksInQuarter(coachingQuarterLabel.year, coachingQuarterLabel.quarter);
   const weeklyAvg = weeks > 0 ? Math.round(coachingQuarter / weeks) : 0;
@@ -662,7 +747,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* First row: GPS(PEI), GPS(ItS), Refresh Off */}
+            {/* First row: GPS(PEI), GPS(ITS), Refresh Off */}
             <div className="grid grid-cols-3 gap-6">
               {/* GPS(PEI) Score - 먼저 배치 */}
               <div className="space-y-2">
@@ -693,10 +778,10 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                   </div>
                 )}
               </div>
-              {/* GPS(ItS) Score - 두 번째 배치 */}
+              {/* GPS(ITS) Score - 두 번째 배치 */}
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label htmlFor="gps-score">GPS(ItS) Score (%)</Label>
+                  <Label htmlFor="gps-score">GPS(ITS) Score (%)</Label>
                   <span className="text-sm font-medium">
                     {isEditMode ? `${formData.gpsScore}%` : `${assessmentData.gpsScore}%`}
                   </span>
@@ -755,7 +840,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
             {/* 안내 문구 - 3개 카드 아래 */}
             <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-600 mt-4">
               <div className="text-sm text-black dark:text-white">
-                <strong>안내:</strong> 최초 입력값은 최근 조직의 GPS(PEI)/GPS(ItS) 비율이며, 당기(2606) 조직 목표를 기재부탁드립니다.
+                <strong>안내:</strong> 최초 입력값은 최근 조직의 GPS(PEI)/GPS(ITS) 비율이며, 당기(2606) 조직 목표를 기재부탁드립니다.
               </div>
             </div>
 
@@ -778,7 +863,8 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="text-center">
+                    {/* 개인 코칭 시간 */}
+                    <div className="text-center border-b border-orange-200 dark:border-orange-700 pb-4">
                       <div className="text-5xl font-bold text-orange-900 dark:text-orange-100">
                         {coachingYear}
                       </div>
@@ -787,7 +873,35 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    {/* 팀 코칭 시간 */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-orange-700 dark:text-orange-300">팀 전체 누적</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-orange-900 dark:text-orange-100">
+                            {isLoadingTeamData ? "..." : `${totalTeamCoachingHours}시간`}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setIsTeamDetailDialogOpen(true)}
+                            className="h-6 px-2 text-xs border-orange-300 hover:bg-orange-100"
+                            disabled={isLoadingTeamData}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            상세
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-orange-600 dark:text-orange-400">
+                        팀원 {teamCoachingData.length}명 • 
+                        평균 {teamCoachingData.length > 0 ? Math.round(totalTeamCoachingHours / teamCoachingData.length) : 0}시간/인
+                      </div>
+                    </div>
+
+                    {/* 목표 시간 섹션 - 기존과 동일하지만 border-top 추가 */}
+                    <div className="space-y-2 pt-2 border-t border-orange-200 dark:border-orange-700">
                       {isEditMode ? (
                         <div className="flex items-center justify-between space-y-2">
                           <Label htmlFor="coaching-time">목표 코칭 시간</Label>
@@ -935,6 +1049,9 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           </div>
         </CardContent>
       </Card>
+
+      {/* 팀원 상세 다이얼로그 */}
+      <TeamCoachingDetailDialog />
     </div>
   )
 }

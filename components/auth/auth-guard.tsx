@@ -13,7 +13,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // 인증이 필요없는 페이지들
   const publicPaths = ["/login", "/verify"]
-  const isPublicPath = publicPaths.includes(pathname)
+  const isPublicPath = publicPaths.includes(pathname) || pathname.startsWith('/getting-started') || pathname.startsWith('/guide')
   const isSettingsPath = pathname === "/settings"
 
 

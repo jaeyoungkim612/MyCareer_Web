@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Users, Edit2, Check, X, HelpCircle } from "lucide-react"
+import { Users, Edit2, Check, X, HelpCircle, BookOpen, ExternalLink } from "lucide-react"
 import { PlanAssessmentTab } from "@/components/people/plan-assessment-tab"
 import { ResultsTab } from "@/components/people/results-tab"
 import { SelfAssessmentTab } from "@/components/people/self-assessment-tab"
@@ -118,6 +118,18 @@ export default function PeoplePage() {
             People
           </h1>
           <p className="text-muted-foreground mt-2">People과 관련된 활동을 계획하고 모니터링할 수 있습니다.</p>
+          <div className="mt-3">
+            <a
+              href="/guide-manual.html#people"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 transition-colors group"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>People 작성 방법 확인하기</span>
+              <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </a>
+          </div>
         </div>
 
         <Card className="px-6 py-2 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">

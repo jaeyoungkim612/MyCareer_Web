@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 - My Career+</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .sidebar-scroll::-webkit-scrollbar { width: 6px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="flex h-screen">
+        
+        <!-- 사이드바 -->
+        <div class="w-80 bg-white shadow-xl border-r border-gray-200 flex flex-col">
+            <!-- 로고 헤더 -->
+            <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+                <div class="flex items-center gap-3">
+                    <img src="/images/pwc_logo_light.png" alt="PwC Logo" width="40" height="20" class="object-contain" />
+                    <div>
+                        <h1 class="text-white font-bold text-lg">My Career+ 가이드</h1>
+                        <p class="text-orange-100 text-sm">단계별 사용법 안내</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 네비게이션 메뉴 -->
+            <nav class="flex-1 overflow-y-auto sidebar-scroll">
+                <div class="p-4 space-y-2">
+                    
+                    <!-- 시작하기 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">시작하기</h3>
+                        <a href="/guide.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                            <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                            </svg>
+                            <span class="font-medium">메인 가이드</span>
+                        </a>
+                    </div>
+                    
+                    <!-- 기본 설정 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">기본 설정</h3>
+                        <div class="space-y-1">
+                            <a href="/guide-login.html" class="flex items-center gap-3 px-3 py-2.5 bg-orange-50 text-orange-600 border-r-2 border-orange-600 rounded-lg font-medium">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                </svg>
+                                <span>로그인하기</span>
+                                <div class="ml-auto">
+                                    <span class="bg-orange-600 text-white text-xs px-2 py-1 rounded-full">현재</span>
+                                </div>
+                            </a>
+                            <a href="/guide-settings.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>기본정보 변경하기</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- 주요 기능 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">주요 기능</h3>
+                        <div class="space-y-1">
+                            <a href="/guide-features.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0018 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.072M5.25 21h.008v.008H5.25V21zm9.288 0h.008v.008h-.008V21z" />
+                                </svg>
+                                <span>Intro</span>
+                            </a>
+                            <a href="/guide-manual.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                <span>기능별 작성방법</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                </div>
+            </nav>
+            
+            <!-- 하단 도움말 -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="text-center">
+                    <div class="text-sm text-gray-600 mb-2">문의사항</div>
+                    <div class="text-xs text-gray-500">AX Node / Assurance DA</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 메인 컨텐츠 영역 -->
+        <div class="flex-1 overflow-y-auto">
+            <div class="container mx-auto px-8 py-8 max-w-5xl">
+                
+                <!-- 페이지 헤더 -->
+                <div class="mb-8">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="p-2 bg-orange-100 rounded-lg">
+                            <svg class="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold text-gray-900">로그인하기</h1>
+                            <p class="text-lg text-gray-600">사번과 비밀번호로 첫 로그인을 진행해보세요</p>
+                        </div>
+                    </div>
+                </div>
+
+        <!-- 로그인 정보 카드들 -->
+        <div class="max-w-4xl mx-auto space-y-6">
+            
+            <!-- 로그인 정보 카드 -->
+            <div class="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <svg class="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                    <h2 class="text-xl font-bold text-black">로그인 정보</h2>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="font-semibold text-black mb-2">아이디</h3>
+                        <p class="text-gray-700 mb-3">회사에서 부여받은 6자리 사번</p>
+                        <div class="font-mono text-lg font-bold bg-gray-100 p-3 rounded text-center">
+                            예시: 095129
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold text-black mb-2">최초 비밀번호</h3>
+                        <p class="text-gray-700 mb-3">모든 직원의 초기 비밀번호는 동일</p>
+                        <div class="font-mono text-2xl font-bold bg-gray-100 p-3 rounded text-center text-orange-600">
+                            3131
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 최초 로그인 후 나타나는 화면 -->
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h3 class="font-bold text-gray-800 mb-3">📱 최초 로그인 후 나타나는 화면</h3>
+                    <div class="bg-gray-100 p-4 rounded-lg border-2 border-dashed border-gray-300">
+                        <div class="text-center space-y-3">
+                            <div class="text-lg font-bold text-orange-600">최초 설정</div>
+                            <div class="text-sm text-gray-600">최초 로그인 시 비밀번호 변경 후 기본정보를 입력해주세요.</div>
+                            
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="p-2 bg-gray-100 rounded flex items-center gap-2">
+                                    <svg class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                    </svg>
+                                    기본정보 변경
+                                </div>
+                                <div class="p-2 bg-gray-100 rounded flex items-center gap-2">
+                                    <svg class="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                    </svg>
+                                    비밀번호 변경
+                                </div>
+                            </div>
+                            
+                            <div class="bg-gray-200 p-3 rounded text-xs">
+                                <div class="font-bold mb-1 text-orange-600">비밀번호 변경</div>
+                                <div class="text-gray-600 mb-2">최초 로그인 시 비밀번호를 변경해주세요. (현재 비밀번호: 3131)</div>
+                                
+                                <div class="space-y-2">
+                                    <div class="text-left">
+                                        <div class="text-gray-500 text-xs">현재 비밀번호</div>
+                                        <div class="h-6 bg-white border rounded px-2 text-xs flex items-center text-gray-500">현재 비밀번호를 입력하세요</div>
+                                    </div>
+                                    <div class="text-left">
+                                        <div class="text-gray-500 text-xs">새로운 비밀번호</div>
+                                        <div class="h-6 bg-white border rounded px-2 text-xs flex items-center text-gray-500">새로운 비밀번호를 입력하세요</div>
+                                    </div>
+                                    <div class="text-left">
+                                        <div class="text-gray-500 text-xs">새로운 비밀번호 확인</div>
+                                        <div class="h-6 bg-white border rounded px-2 text-xs flex items-center text-gray-500">새로운 비밀번호를 다시 입력하세요</div>
+                                    </div>
+                                    <button class="w-full bg-orange-600 text-white text-xs py-1 rounded mt-2">비밀번호 변경</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-700 mt-3 text-center">
+                        ⬆️ <strong>이런 화면이 나타나면 반드시 비밀번호를 변경해야 합니다!</strong>
+                    </p>
+                    
+                    <!-- 주의사항 -->
+                    <div class="mt-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <div class="flex items-start gap-3">
+                            <svg class="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                            </svg>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-orange-800 mb-2">💡 중요 안내</h4>
+                                <div class="space-y-1 text-sm text-orange-700">
+                                    <p>• <strong>비밀번호 변경을 완료하지 않으면 다른 기능을 이용할 수 없습니다</strong></p>
+                                    <p>• 변경 완료 후에야 My Career+ 모든 기능에 접근 가능합니다</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+
+            <!-- 비밀번호 규칙 카드 -->
+            <div class="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <svg class="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h4.125M8.25 8.25V6.108" />
+                    </svg>
+                    <h2 class="text-xl font-bold text-black">안전한 비밀번호 규칙</h2>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="font-bold text-black mb-3">📋 필수 요구사항</h3>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2 text-sm">
+                                <svg class="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span><strong>8자 이상</strong> 길이</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm">
+                                <svg class="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span><strong>영문 대문자</strong> 포함 (A-Z)</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm">
+                                <svg class="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span><strong>영문 소문자</strong> 포함 (a-z)</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm">
+                                <svg class="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span><strong>숫자</strong> 포함 (0-9)</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm">
+                                <svg class="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span><strong>특수문자</strong> 포함 (!@#$%^&*)</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-bold text-black mb-3">💡 추천 예시</h3>
+                        <div class="space-y-2">
+                            <div class="p-3 bg-gray-100 rounded-lg">
+                                <div class="font-mono text-sm font-bold text-orange-600">MyCareer2025!</div>
+                                <div class="text-xs text-gray-600">대소문자 + 숫자 + 특수문자</div>
+                            </div>
+                            <div class="p-3 bg-gray-100 rounded-lg">
+                                <div class="font-mono text-sm font-bold text-orange-600">Pwc@Work123</div>
+                                <div class="text-xs text-gray-600">회사명 + 특수문자 + 숫자</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 다음 단계 -->
+            <div class="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4 text-center">다음 단계</h3>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="/login" target="_blank" class="flex-1 sm:flex-none">
+                        <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-lg font-medium text-lg transition-colors flex items-center justify-center gap-2">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                            </svg>
+                            지금 로그인하기
+                        </button>
+                    </a>
+                    <a href="/guide-settings.html" class="flex-1 sm:flex-none">
+                        <button class="w-full bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium text-lg transition-colors flex items-center justify-center gap-2">
+                            <span>다음: 기본정보 변경</span>
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                            </svg>
+                        </button>
+                    </a>
+                </div>
+                <p class="text-sm text-gray-500 text-center mt-4">
+                    💡 로그인 완료 후 기본정보 변경 가이드를 확인하세요
+                </p>
+            </div>
+
+            </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>기능별 작성방법 - My Career+</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .sidebar-scroll::-webkit-scrollbar { width: 6px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .feature-card:hover { transform: translateY(-2px); transition: all 0.2s ease; }
+        .tab-button {
+            transition: all 0.3s ease;
+        }
+        .tab-button.active {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: white;
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+    <script>
+        function showTab(tabName) {
+            // 모든 탭 내용 숨기기
+            const contents = document.querySelectorAll('.tab-content');
+            contents.forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // 모든 탭 버튼 비활성화
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // 선택된 탭 내용 보이기
+            document.getElementById(tabName).classList.add('active');
+            
+            // 선택된 탭 버튼 활성화
+            event.target.classList.add('active');
+        }
+        
+        // 해시에 따라 탭 활성화 함수
+        function activateTabFromHash() {
+            const hash = window.location.hash.substring(1); // # 제거
+            
+            if (hash && document.getElementById(hash)) {
+                // 모든 탭 내용 숨기기
+                const contents = document.querySelectorAll('.tab-content');
+                contents.forEach(content => {
+                    content.classList.remove('active');
+                });
+                
+                // 모든 탭 버튼 비활성화
+                const buttons = document.querySelectorAll('.tab-button');
+                buttons.forEach(button => {
+                    button.classList.remove('active');
+                });
+                
+                // 해당 탭 내용 보이기
+                document.getElementById(hash).classList.add('active');
+                
+                // 해당 탭 버튼 활성화
+                const targetButton = document.querySelector(`[onclick="showTab('${hash}')"]`);
+                if (targetButton) {
+                    targetButton.classList.add('active');
+                }
+            } else {
+                // 기본적으로 첫 번째 탭 활성화
+                document.querySelector('.tab-button').classList.add('active');
+                document.querySelector('.tab-content').classList.add('active');
+            }
+        }
+        
+        // 페이지 로드 시 해시 확인하여 탭 활성화
+        document.addEventListener('DOMContentLoaded', function() {
+            activateTabFromHash();
+        });
+        
+        // 해시 변경 시 탭 활성화
+        window.addEventListener('hashchange', function() {
+            activateTabFromHash();
+        });
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="flex h-screen">
+        
+        <!-- 사이드바 -->
+        <div class="w-80 bg-white shadow-xl border-r border-gray-200 flex flex-col">
+            <!-- 로고 헤더 -->
+            <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+                <div class="flex items-center gap-3">
+                    <img src="/images/pwc_logo_light.png" alt="PwC Logo" width="40" height="20" class="object-contain" />
+                    <div>
+                        <h1 class="text-white font-bold text-lg">My Career+ 가이드</h1>
+                        <p class="text-orange-100 text-sm">단계별 사용법 안내</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 네비게이션 메뉴 -->
+            <nav class="flex-1 overflow-y-auto sidebar-scroll">
+                <div class="p-4 space-y-2">
+                    
+                    <!-- 시작하기 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">시작하기</h3>
+                        <a href="/guide.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                            <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                            </svg>
+                            <span class="font-medium">메인 가이드</span>
+                        </a>
+                    </div>
+                    
+                    <!-- 기본 설정 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">기본 설정</h3>
+                        <div class="space-y-1">
+                            <a href="/guide-login.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                </svg>
+                                <span>로그인하기</span>
+                            </a>
+                            <a href="/guide-settings.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>기본정보 변경하기</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- 주요 기능 섹션 -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">주요 기능</h3>
+                        <div class="space-y-1">
+                            <a href="/guide-features.html" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors group">
+                                <svg class="h-5 w-5 group-hover:text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0018 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.072M5.25 21h.008v.008H5.25V21zm9.288 0h.008v.008h-.008V21z" />
+                                </svg>
+                                <span>Intro</span>
+                            </a>
+                            <a href="/guide-manual.html" class="flex items-center gap-3 px-3 py-2.5 bg-orange-50 text-orange-600 border-r-2 border-orange-600 rounded-lg font-medium">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                <span>기능별 작성방법</span>
+                                <div class="ml-auto">
+                                    <span class="bg-orange-600 text-white text-xs px-2 py-1 rounded-full">현재</span>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                    
+                </div>
+            </nav>
+            
+            <!-- 하단 도움말 -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="text-center">
+                    <div class="text-sm text-gray-600 mb-2">문의사항</div>
+                    <div class="text-xs text-gray-500">AX Node / Assurance DA</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 메인 컨텐츠 영역 -->
+        <div class="flex-1 overflow-y-auto">
+            <div class="container mx-auto px-8 py-8 max-w-6xl">
+                
+                <!-- 페이지 헤더 -->
+                <div class="mb-8">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="p-2 bg-orange-100 rounded-lg">
+                            <svg class="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold text-gray-900">기능별 작성방법</h1>
+                            <p class="text-lg text-gray-600">5개 평가 영역별 상세 가이드</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 탭 네비게이션 -->
+                <div class="mb-8">
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="showTab('business')" class="tab-button px-6 py-3 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            💼 Business
+                        </button>
+                        <button onclick="showTab('people')" class="tab-button px-6 py-3 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            👥 People
+                        </button>
+                        <button onclick="showTab('collaboration')" class="tab-button px-6 py-3 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            🤝 Collaboration
+                        </button>
+                        <button onclick="showTab('quality')" class="tab-button px-6 py-3 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            ⭐ Quality
+                        </button>
+                        <button onclick="showTab('industry')" class="tab-button px-6 py-3 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+                            🏢 Industry & TL
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 탭 내용들 -->
+                <div class="space-y-8">
+                    
+                    <!-- Business 탭 -->
+                    <div id="business" class="tab-content">
+                        <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-6 border-b">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-blue-500 rounded-lg">
+                                        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H15.75c.621 0 1.125.504 1.125 1.125v.375m-13.5 0h12m-12 0v5.25c0 .621.504 1.125 1.125 1.125h12c.621 0 1.125-.504 1.125-1.125V6H3.75z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-2xl font-bold text-gray-900">💼 Business</h2>
+                                        <p class="text-blue-700">비즈니스 역량 및 성과 창출</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-6">
+                                <!-- Plan 섹션 -->
+                                <div class="mb-8">
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h4.125M8.25 8.25V6.108" />
+                                        </svg>
+                                        📝 Plan 작성 항목
+                                    </h3>
+                                    <div class="grid md:grid-cols-2 gap-4">
+                                        <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                            <h4 class="font-semibold text-blue-800 mb-2">Goals</h4>
+                                            <p class="text-sm text-blue-700">Business 역량과 관련된 당기 목표를 기재해주세요.</p>
+                                        </div>
+                                        <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                            <h4 class="font-semibold text-blue-800 mb-2">My Budget</h4>
+                                            <p class="text-sm text-blue-700">개별 파트너별로 조직에서 배부받은 총 예산, 감사 예산, 비감사 예산이 입력되어 있습니다.</p>
+                                        </div>
+                                        <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                            <h4 class="font-semibold text-blue-800 mb-2">Audit Budget</h4>
+                                            <p class="text-sm text-blue-700">예상되는 Audit BD 목표(계약기준) 수임 건수 및 수임 예상 금액을 기재부탁드립니다.</p>
+                                        </div>
+                                        <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                            <h4 class="font-semibold text-blue-800 mb-2">Non-Audit Budget</h4>
+                                            <p class="text-sm text-blue-700">예상되는 Non Audit BD 목표(계약기준) 수임 건수 및 수임 예상 금액을 기재부탁드립니다.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Status 섹션 -->
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                        📊 Status 모니터링
+                                    </h3>
+                                    <div class="space-y-3">
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-2">Total Budget Overview</h4>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
+                                                <div>• <strong>My Budget:</strong> 개별 파트너별 예산 대비 예상 <strong>실적(*)</strong></div>
+                                                <div>• <strong>Team Budget:</strong> 조직의 총 예산 대비 예상 <strong>실적(*)</strong></div>
+                                                <div>• <strong>My 감사 Budget:</strong> 개별 파트너별 감사 예산 대비 예상 감사 <strong>실적(*)</strong></div>
+                                                <div>• <strong>Team 감사 Budget:</strong> 조직의 총 감사 예산 대비 예상 감사 <strong>실적(*)</strong></div>
+                                                <div>• <strong>My 비감사 Budget:</strong> 개별 파트너별 비감사 예산 대비 예상 비감사 <strong>실적(*)</strong></div>
+                                                <div>• <strong>Team 비감사 Budget:</strong> 조직의 총 비감사 예산 대비 예상 비감사 <strong>실적(*)</strong></div>
+                                            </div>
+                                            <p class="text-xs text-gray-600 mt-2">※ (*) TBA 상 Revenue, Backlog, Salesforce 상 Pipeline 합산금액 기준</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- People 탭 -->
+                    <div id="people" class="tab-content">
+                        <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div class="bg-gradient-to-r from-green-50 to-green-100 p-6 border-b">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-green-500 rounded-lg">
+                                        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-2xl font-bold text-gray-900">👥 People</h2>
+                                        <p class="text-green-700">팀 관리 및 인재 개발</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-6">
+                                <!-- Plan 섹션 -->
+                                <div class="mb-8">
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h4.125M8.25 8.25V6.108" />
+                                        </svg>
+                                        📝 Plan 작성 항목
+                                    </h3>
+                                    <div class="space-y-4">
+                                        <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+                                            <h4 class="font-semibold text-green-800 mb-2">Goals</h4>
+                                            <p class="text-sm text-green-700">People 역량과 관련된 당기 목표를 기재해주세요.</p>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+                                            <h4 class="font-semibold text-green-800 mb-3">Performance Metrics</h4>
+                                            <div class="grid md:grid-cols-2 gap-3">
+                                                <div class="text-sm text-green-700">
+                                                    <strong>GPS(PEI) Score:</strong><br/>
+                                                    최초입력값은 최근 단위조직의 GPS(PEI)비율이며, 당기(2606) 조직 목표를 기재
+                                                </div>
+                                                <div class="text-sm text-green-700">
+                                                    <strong>GPS(ITS) Score:</strong><br/>
+                                                    최초입력값은 최근 단위조직의 GPS(ITS)비율이며, 당기(2606) 조직 목표를 기재
+                                                </div>
+                                                <div class="text-sm text-green-700 md:col-span-2">
+                                                    <strong>Refresh Off 사용률:</strong><br/>
+                                                    최초 입력값은 ASR 평균 Refresh Off 사용률이며, 당기(2606) 조직 목표를 기재
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+                                            <h4 class="font-semibold text-green-800 mb-3">Staff Coaching Time & Budget</h4>
+                                            <div class="grid md:grid-cols-2 gap-3">
+                                                <div class="text-sm text-green-700">
+                                                    <strong>코칭시간현황:</strong><br/>
+                                                    당기의 담당파트너가 사용한 Coaching 누적시간
+                                                </div>
+                                                <div class="text-sm text-green-700">
+                                                    <strong>코칭예산:</strong><br/>
+                                                    당기의 담당파트너의 코칭 예산과 지출내역
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Status 섹션 -->
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                        📊 Status 모니터링
+                                    </h3>
+                                    <div class="grid md:grid-cols-2 gap-4">
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">Utilization</h4>
+                                            <div class="space-y-2 text-sm text-gray-700">
+                                                <div>• <strong>Util-A:</strong> 담당인원의 Util A 비율 (팀 상세보기 가능)</div>
+                                                <div>• <strong>Util-B:</strong> 담당인원의 Util B 비율 (팀 상세보기 가능)</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">성과 지표</h4>
+                                            <div class="space-y-2 text-sm text-gray-700">
+                                                <div>• <strong>GPS(PEI) Score:</strong> GPS 이후 업데이트</div>
+                                                <div>• <strong>GPS(ITS) Score:</strong> GPS 이후 업데이트</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">코칭 활동</h4>
+                                            <div class="space-y-2 text-sm text-gray-700">
+                                                <div>• <strong>Staff Coaching Time:</strong> 목표 대비 실제 코칭 시간</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">Refresh Off  활용</h4>
+                                            <div class="space-y-2 text-sm text-gray-700">
+                                                <div>• <strong>Refresh Off 사용률:</strong> 담당인원의 Refresh Off  사용률 (팀 상세보기 가능)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collaboration 탭 -->
+                    <div id="collaboration" class="tab-content">
+                        <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div class="bg-gradient-to-r from-purple-50 to-purple-100 p-6 border-b">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-purple-500 rounded-lg">
+                                        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-2xl font-bold text-gray-900">🤝 Collaboration</h2>
+                                        <p class="text-purple-700">협업 및 네트워킹</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-6">
+                                <!-- Plan 섹션 -->
+                                <div class="mb-8">
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h4.125M8.25 8.25V6.108" />
+                                        </svg>
+                                        📝 Plan 작성 항목
+                                    </h3>
+                                    <div class="space-y-4">
+                                        <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                            <h4 class="font-semibold text-purple-800 mb-2">Goals</h4>
+                                            <p class="text-sm text-purple-700">Collaboration 역량과 관련된 당기 목표를 기재해주세요.</p>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                            <h4 class="font-semibold text-purple-800 mb-3">Collaboration Target Metrics</h4>
+                                            <div class="space-y-3">
+                                                <div class="text-sm text-purple-700">
+                                                    <strong>X-Los 협업:</strong><br/>
+                                                    X-Los 협업 목표 건수/목표 금액을 기재해주세요.
+                                                </div>
+                                                <div class="text-sm text-purple-700">
+                                                    <strong>Los내 협업:</strong><br/>
+                                                    Los내 협업 목표 건수/목표 금액을 기재해주세요.
+                                                </div>
+                                                <div class="text-sm text-purple-700">
+                                                    <strong>AX Node 협업:</strong><br/>
+                                                    AX Node 협업 목표 건수/목표 금액을 기재해주세요.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Status 섹션 -->
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                        📊 Status 모니터링
+                                    </h3>
+                                    <div class="space-y-4">
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">Collaboration Monitoring</h4>
+                                            <div class="grid md:grid-cols-3 gap-4">
+                                                <div class="text-sm text-gray-700">
+                                                    <strong>X-Los 협업:</strong><br/>
+                                                    목표 건수/목표 금액을 나타냅니다.<br/>
+                                                    <span class="text-xs text-gray-500">※ 해당 조직에서 확정 시 업데이트</span>
+                                                </div>
+                                                <div class="text-sm text-gray-700">
+                                                    <strong>Los내 협업:</strong><br/>
+                                                    목표 건수/목표 금액을 나타냅니다.<br/>
+                                                    <span class="text-xs text-gray-500">※ 해당 조직에서 확정 시 업데이트</span>
+                                                </div>
+                                                <div class="text-sm text-gray-700">
+                                                    <strong>AX Node 협업:</strong><br/>
+                                                    목표 건수/목표 금액을 나타냅니다.<br/>
+                                                    <span class="text-xs text-gray-500">※ 해당 조직에서 확정 시 업데이트</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                                            <h4 class="font-semibold text-orange-800 mb-2">💡 협업 성과 측정 방법</h4>
+                                            <div class="text-sm text-orange-700 space-y-1">
+                                                <p>• <strong>건수 기준:</strong> 실제 성사된 협업 프로젝트 수</p>
+                                                <p>• <strong>금액 기준:</strong> 협업을 통해 창출된 매출 규모</p>
+                                                <p>• <strong>업데이트:</strong> 관련 조직의 확정 후 실시간 반영</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quality 탭 -->
+                    <div id="quality" class="tab-content">
+                        <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 p-6 border-b">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-yellow-500 rounded-lg">
+                                        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-2xl font-bold text-gray-900">⭐ Quality</h2>
+                                        <p class="text-yellow-700">품질 관리 및 전문성</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-6">
+                                <!-- Plan 섹션 -->
+                                <div class="mb-8">
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h4.125M8.25 8.25V6.108" />
+                                        </svg>
+                                        📝 Plan 작성 항목
+                                    </h3>
+                                    <div class="space-y-4">
+                                        <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                            <h4 class="font-semibold text-yellow-800 mb-2">Goals</h4>
+                                            <p class="text-sm text-yellow-700">Quality 역량과 관련된 당기 목표를 기재해주세요.</p>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                            <h4 class="font-semibold text-yellow-800 mb-3">감사 목표 (Audit Targets)</h4>
+                                            <div class="space-y-2 text-sm text-yellow-700">
+                                                <div>• <strong>Year-end 이전 시간 비율 목표</strong></div>
+                                                <div>• <strong>EL 투입시간 비율 목표</strong></div>
+                                                <div>• <strong>AX/DX Transition 비율 목표</strong> (가중평균)</div>
+                                                <div>• <strong>EER 평가결과 목표</strong></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                            <h4 class="font-semibold text-yellow-800 mb-3">비감사목표</h4>
+                                            <div class="space-y-2 text-sm text-yellow-700">
+                                                <div>• 비감사 Quality 향상</div>
+                                                <div>• 효율화 계획</div>
+                                                <div>• 신상품 개발 등</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                            <h4 class="font-semibold text-yellow-800 mb-3">실적현황</h4>
+                                            <p class="text-sm text-yellow-700">현재 감사 및 비감사 Adjusted EM/EM 정보를 참고하시기 바랍니다.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Status 섹션 -->
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                        📊 Status 모니터링
+                                    </h3>
+                                    <div class="grid md:grid-cols-2 gap-4">
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">감사 성과 (Audit Performance)</h4>
+                                            <div class="space-y-2 text-sm text-gray-700">
+                                                <div>• <strong>Year-end 이전 시간 비율</strong></div>
+                                                <div>• <strong>EL 투입시간 비율</strong></div>
+                                                <div>• <strong>AX/DX Transition 비율</strong> (가중평균)</div>
+                                                <div>• <strong>EER 평가결과</strong></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">비감사서비스 성과</h4>
+                                            <div class="space-y-2 text-sm text-gray-700">
+                                                <div>• 비감사 Quality 향상</div>
+                                                <div>• 효율화 계획 실행</div>
+                                                <div>• 신상품 개발 성과</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Industry & TL 탭 -->
+                    <div id="industry" class="tab-content">
+                        <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div class="bg-gradient-to-r from-red-50 to-red-100 p-6 border-b">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-red-500 rounded-lg">
+                                        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15l-.75 18H5.25L4.5 3z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-2xl font-bold text-gray-900">🏢 Industry & TL</h2>
+                                        <p class="text-red-700">산업 전문성 및 사고 리더십</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-6">
+                                <!-- Plan 섹션 -->
+                                <div class="mb-8">
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h4.125M8.25 8.25V6.108" />
+                                        </svg>
+                                        📝 Plan 작성 항목
+                                    </h3>
+                                    <div class="space-y-4">
+                                        <div class="p-4 bg-red-50 rounded-lg border border-red-200">
+                                            <h4 class="font-semibold text-red-800 mb-2">Goals</h4>
+                                            <p class="text-sm text-red-700">Industry&TL 역량과 관련된 당기 목표를 기재해주세요.</p>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-red-50 rounded-lg border border-red-200">
+                                            <h4 class="font-semibold text-red-800 mb-3">Activity Planning</h4>
+                                            <div class="space-y-2 text-sm text-red-700">
+                                                <div>• <strong>TL 활동:</strong> Thought Leadership 활동 계획</div>
+                                                <div>• <strong>BD 연계 TL:</strong> 비즈니스 개발과 연계된 리더십 활동</div>
+                                                <div>• <strong>산업별 감사 효율화/집중화:</strong> 산업 특성을 반영한 감사 프로세스 개선</div>
+                                                <div>• <strong>산업전문화를 통한 신규 서비스 개발 및 지원:</strong> 산업 전문성 기반 신상품/서비스 개발</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Status 섹션 -->
+                                <div>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                        📊 Status 모니터링
+                                    </h3>
+                                    <div class="space-y-4">
+                                        <div class="p-4 bg-gray-50 rounded-lg border">
+                                            <h4 class="font-semibold text-gray-800 mb-3">Industry & TL Activity Monitoring</h4>
+                                            <div class="grid md:grid-cols-2 gap-4">
+                                                <div class="space-y-2">
+                                                    <div class="text-sm text-gray-700">
+                                                        <strong>TL 활동:</strong><br/>
+                                                        실제 수행한 Thought Leadership 활동 현황
+                                                    </div>
+                                                    <div class="text-sm text-gray-700">
+                                                        <strong>BD 연계 TL:</strong><br/>
+                                                        비즈니스 개발과 연계된 리더십 활동 성과
+                                                    </div>
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <div class="text-sm text-gray-700">
+                                                        <strong>산업별 감사 효율화/집중화:</strong><br/>
+                                                        감사 프로세스 개선 활동 및 성과
+                                                    </div>
+                                                    <div class="text-sm text-gray-700">
+                                                        <strong>신규 서비스 개발 및 지원:</strong><br/>
+                                                        산업전문화 기반 신상품/서비스 개발 현황
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="text-xs text-gray-500 mt-3">※ Activity별로 구체적인 성과와 기여도를 기재부탁드립니다.</p>
+                                        </div>
+                                        
+                                        <div class="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                                            <h4 class="font-semibold text-orange-800 mb-2">💡 평가 포인트</h4>
+                                            <div class="text-sm text-orange-700 space-y-1">
+                                                <p>• <strong>정량적 성과:</strong> 활동 건수, 참여 규모, 매출 기여도</p>
+                                                <p>• <strong>정성적 영향:</strong> 업계 인지도, 클라이언트 만족도, 내부 역량 향상</p>
+                                                <p>• <strong>지속성:</strong> 일회성이 아닌 지속적인 활동과 성과 창출</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 네비게이션 -->
+                <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mt-8">
+                    <h2 class="text-xl font-bold text-gray-900 mb-4 text-center">가이드 네비게이션</h2>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                        <a href="/guide-features.html" class="flex-1 sm:flex-none">
+                            <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                                </svg>
+                                <span>이전: Intro</span>
+                            </button>
+                        </a>
+                        <a href="/login" target="_blank" class="flex-1 sm:flex-none">
+                            <button class="w-full bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                                <span>다음: 로그인</span>
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                </svg>
+                            </button>
+                        </a>
+                    </div>
+                    <p class="text-sm text-gray-500 text-center mt-4">
+                        💡 각 영역별 상세 가이드를 참고하여 목표를 설정하세요
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

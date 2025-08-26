@@ -12,6 +12,17 @@ export interface PeopleGoal {
   updated_at?: string
 }
 
+// 팀원 코칭 데이터 인터페이스
+export interface TeamMemberCoachingData {
+  empno: string
+  empnm: string
+  org_nm: string
+  job_info_nm: string
+  gradnm: string
+  totalCoachingHours: number
+  coachingData: any[]
+}
+
 export class PeopleGoalsService {
   // 최신 목표 가져오기
   static async getLatestGoals(employeeId: string): Promise<PeopleGoal | null> {
@@ -130,5 +141,128 @@ export class PeopleGoalsService {
     });
 
     return { quarterHours, yearHours };
+  }
+
+  // 팀원들의 코칭 시간 통계 (리뷰어의 PRJTCD 기준)
+  static async getTeamCoachingTimeStats(managerEmpno: string): Promise<TeamMemberCoachingData[]> {
+    try {
+      // 1. 회계연도 분기 정의
+      const fiscalYearQuarters = [
+        '2025-Q3', '2025-Q4', 
+        '2026-Q1', '2026-Q2'
+      ]
+      
+      // 2. 리뷰어의 PRJTCD들을 먼저 조회
+      const { data: managerProjects, error: projectError } = await supabase
+        .from('v_coaching_time_quarterly')
+        .select('PRJTCD')
+        .eq('EMPNO', managerEmpno)
+        .in('year_quarter', fiscalYearQuarters)
+      
+      if (projectError) {
+        console.error("Error fetching manager projects:", projectError)
+        return []
+      }
+      
+      if (!managerProjects || managerProjects.length === 0) {
+        console.log("🔍 No coaching projects found for manager:", managerEmpno)
+        return []
+      }
+      
+      // 3. 리뷰어의 고유 PRJTCD 목록 추출
+      const managerPRJTCDs = [...new Set(managerProjects.map(p => p.PRJTCD))]
+      console.log(`📋 Manager ${managerEmpno} PRJTCD list:`, managerPRJTCDs)
+      
+      // 4. 해당 PRJTCD들에서 리뷰어가 아닌 다른 EMPNO들의 코칭 시간 조회
+      const { data: teamCoachingData, error: teamError } = await supabase
+        .from('v_coaching_time_quarterly')
+        .select('EMPNO, PRJTCD, total_use_time, year_quarter')
+        .in('PRJTCD', managerPRJTCDs)
+        .neq('EMPNO', managerEmpno)  // 리뷰어 제외
+        .in('year_quarter', fiscalYearQuarters)
+      
+      if (teamError) {
+        console.error("Error fetching team coaching data:", teamError)
+        return []
+      }
+      
+      if (!teamCoachingData || teamCoachingData.length === 0) {
+        console.log("🔍 No team coaching data found for projects:", managerPRJTCDs)
+        return []
+      }
+      
+      // 5. EMPNO별로 그룹화하여 누적 시간 계산
+      const empnoMap = new Map<string, number>()
+      teamCoachingData.forEach(row => {
+        const empno = row.EMPNO
+        const hours = Number(row.total_use_time || 0)
+        empnoMap.set(empno, (empnoMap.get(empno) || 0) + hours)
+      })
+      
+      console.log(`📊 Team coaching hours by EMPNO:`, Object.fromEntries(empnoMap))
+      
+      // 6. ReviewerService로 팀원 목록 가져와서 매칭
+      const { ReviewerService } = await import('./reviewer-service')
+      const userRole = await ReviewerService.getUserRole(managerEmpno)
+      
+      // 7. 팀원들의 HR 정보와 코칭 시간 매칭
+      const teamMembersData: TeamMemberCoachingData[] = []
+      
+      for (const [empno, totalHours] of empnoMap.entries()) {
+        try {
+          const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+          
+          // HR 정보 조회
+          const { data: hrData } = await supabase
+            .from('a_hr_master')
+            .select('EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM')
+            .eq('EMPNO', normalizedEmpno)
+            .maybeSingle()
+          
+          // 리뷰어 테이블에서 매칭되는 팀원 찾기
+          const revieweeInfo = userRole.reviewees?.find(r => 
+            ReviewerService.normalizeEmpno(r.사번) === normalizedEmpno
+          )
+          
+          teamMembersData.push({
+            empno: empno,
+            empnm: hrData?.EMPNM || revieweeInfo?.성명 || empno,
+            org_nm: hrData?.ORG_NM || revieweeInfo?.['FY26 팀명'] || '',
+            job_info_nm: hrData?.JOB_INFO_NM || '',
+            gradnm: hrData?.GRADNM || '',
+            totalCoachingHours: totalHours,
+            coachingData: teamCoachingData.filter(row => row.EMPNO === empno)
+          })
+          
+        } catch (error) {
+          console.error(`Error fetching HR data for EMPNO ${empno}:`, error)
+          // 에러가 있어도 기본 정보는 추가
+          teamMembersData.push({
+            empno: empno,
+            empnm: empno,
+            org_nm: '',
+            job_info_nm: '',
+            gradnm: '',
+            totalCoachingHours: totalHours,
+            coachingData: teamCoachingData.filter(row => row.EMPNO === empno)
+          })
+        }
+      }
+      
+      // 8. 코칭 시간 순으로 정렬 (많은 순)
+      teamMembersData.sort((a, b) => b.totalCoachingHours - a.totalCoachingHours)
+      
+      console.log(`📊 Final team coaching data for manager ${managerEmpno}:`, {
+        managerPRJTCDs,
+        totalMembers: teamMembersData.length,
+        teamMembersData
+      })
+      
+      return teamMembersData
+      
+    } catch (error) {
+      console.error("Error fetching team coaching time stats:", error)
+      return []
+    }
   }
 } 

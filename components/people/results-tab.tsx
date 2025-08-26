@@ -179,7 +179,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         for (const empnoVariation of empnoVariations) {
           const { data, error } = await supabase
             .from("L_GPS_PEI_Table")
-            .select('"GPS(ItS)", "GPS(PEI)"')
+            .select('"GPS(ITS)", "GPS(PEI)"')
             .eq('"EMPNO"', empnoVariation)
             .eq('"연도"', "2606")
             .maybeSingle()
@@ -197,7 +197,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         for (const empnoVariation of empnoVariations) {
           const { data, error } = await supabase
             .from("L_GPS_PEI_Table")
-            .select('"GPS(ItS)", "GPS(PEI)"')
+            .select('"GPS(ITS)", "GPS(PEI)"')
             .eq('"EMPNO"', empnoVariation)
             .eq('"연도"', "2506")
             .maybeSingle()
@@ -232,11 +232,11 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
 
         // GPS/PEI 실데이터 설정
         if (scoreData) {
-          const gpsItsValue = (scoreData as any)['GPS(ItS)']
+          const gpsItsValue = (scoreData as any)['GPS(ITS)']
           const gpsPeiValue = (scoreData as any)['GPS(PEI)']
           setGpsScore(gpsItsValue)
           setPeiScore(gpsPeiValue)
-          console.log("✅ Results: GPS/PEI actual data loaded:", { 'GPS(ItS)': gpsItsValue, 'GPS(PEI)': gpsPeiValue })
+          console.log("✅ Results: GPS/PEI actual data loaded:", { 'GPS(ITS)': gpsItsValue, 'GPS(PEI)': gpsPeiValue })
         } else {
           console.log("ℹ️ Results: No GPS/PEI actual data found for 2606")
           setGpsScore(null)
@@ -269,19 +269,19 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           if (fallbackTargetData) {
             // people_goals에 없으면 2506 데이터를 목표로 사용
             console.log("📊 Results: Using 2506 fallback data:", fallbackTargetData)
-            const gpsItsValue = (fallbackTargetData as any)['GPS(ItS)']
+            const gpsItsValue = (fallbackTargetData as any)['GPS(ITS)']
             const gpsPeiValue = (fallbackTargetData as any)['GPS(PEI)']
             
             if (gpsItsValue && gpsItsValue !== '-') {
               finalGpsTarget = Math.round(parseFloat(gpsItsValue) * 100) // 0.71 → 71
-              console.log(`  - GPS(ItS): ${gpsItsValue} → ${finalGpsTarget}%`)
+              console.log(`  - GPS(ITS): ${gpsItsValue} → ${finalGpsTarget}%`)
             }
             if (gpsPeiValue && gpsPeiValue !== '-') {
               finalPeiTarget = Math.round(parseFloat(gpsPeiValue) * 100) // 0.82 → 82
               console.log(`  - GPS(PEI): ${gpsPeiValue} → ${finalPeiTarget}%`)
             }
             console.log("✅ Results: Goal data from 2506 fallback:", { 
-              'GPS(ItS)': gpsItsValue, 
+              'GPS(ITS)': gpsItsValue, 
               'GPS(PEI)': gpsPeiValue, 
               finalGpsTarget, 
               finalPeiTarget 
@@ -635,10 +635,9 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                   {utilizationData.utilAAverage !== null ? `${utilizationData.utilAAverage}%` : '-%'}
                 </div>
                 <div className="text-xs text-gray-400">
-                  팀 평균
                   {utilizationData.utilDate && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      기준: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                      대상기간: 2025-04-01 ~ {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR').replace(/\. /g, '-').replace(/\.$/, '')}
                     </div>
                   )}
                 </div>
@@ -669,7 +668,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                         <DialogTitle>팀 Util A 상세 현황</DialogTitle>
                         {utilizationData.utilDate && (
                           <div className="text-sm text-muted-foreground">
-                            기준일자: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                            대상기간: 2025-04-01 ~ {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR').replace(/\. /g, '-').replace(/\.$/, '')}
                           </div>
                         )}
                       </DialogHeader>
@@ -728,10 +727,9 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                   {utilizationData.utilBAverage !== null ? `${utilizationData.utilBAverage}%` : '-%'}
                 </div>
                 <div className="text-xs text-gray-400">
-                  팀 평균
                   {utilizationData.utilDate && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      기준: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                      대상기간: 2025-04-01 ~ {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR').replace(/\. /g, '-').replace(/\.$/, '')}
                     </div>
                   )}
                 </div>
@@ -762,7 +760,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                         <DialogTitle>팀 Util B 상세 현황</DialogTitle>
                         {utilizationData.utilDate && (
                           <div className="text-sm text-muted-foreground">
-                            기준일자: {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR')}
+                            대상기간: 2025-04-01 ~ {new Date(utilizationData.utilDate).toLocaleDateString('ko-KR').replace(/\. /g, '-').replace(/\.$/, '')}
                           </div>
                         )}
                       </DialogHeader>
@@ -853,7 +851,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                GPS(ItS) Score
+                GPS(ITS) Score
                 {userInfo?.org_nm && (
                   <span className="text-xs text-muted-foreground font-normal ml-2">
                     - {userInfo.org_nm}

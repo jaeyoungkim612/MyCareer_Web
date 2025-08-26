@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Award, Edit2, Check, X, HelpCircle } from "lucide-react"
+import { Award, Edit2, Check, X, HelpCircle, BookOpen, ExternalLink } from "lucide-react"
 import QualityPlanTab from "@/components/quality/plan-tab"
 import QualityMonitoringTab from "@/components/quality/monitoring-tab"
 import QualitySelfAssessmentTab from "@/components/quality/self-assessment-tab"
@@ -118,6 +118,18 @@ export default function QualityPage() {
           <p className="text-muted-foreground mt-2">
             전문영역 개발 및 품질 관리 현황을 확인하고 개선 활동을 추적합니다
           </p>
+          <div className="mt-3">
+            <a
+              href="/guide-manual.html#quality"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 transition-colors group"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>Quality 작성 방법 확인하기</span>
+              <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </a>
+          </div>
         </div>
 
         {/* Score Display - Now on the right */}

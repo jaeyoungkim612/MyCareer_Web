@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Building, Edit2, Check, X, HelpCircle } from "lucide-react"
+import { Building, Edit2, Check, X, HelpCircle, BookOpen, ExternalLink } from "lucide-react"
 import IndustryPlanTab from "@/components/industry/plan-tab"
 import IndustryMonitoringTab from "@/components/industry/monitoring-tab"
 import IndustrySelfAssessmentTab from "@/components/industry/self-assessment-tab"
@@ -114,6 +114,18 @@ export default function IndustryPage() {
             Industry & Thought Leadership
           </h1>
           <p className="text-muted-foreground mt-2">Industry 및 Thought Leadership 활동 현황을 관리합니다</p>
+          <div className="mt-3">
+            <a
+              href="/guide-manual.html#industry"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 transition-colors group"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>Industry & TL 작성 방법 확인하기</span>
+              <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </a>
+          </div>
         </div>
 
         {/* Score Display - Now on the right */}

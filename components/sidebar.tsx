@@ -23,6 +23,7 @@ import {
   Check,
   ExternalLink,
   Link2,
+  BookOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -139,6 +140,18 @@ export function Sidebar() {
           
           <div className="border-t border-slate-200 dark:border-gray-800 p-2 w-full">
             <nav className="space-y-1 w-full">
+              {/* 가이드 바로가기 */}
+              <a
+                href="/guide.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center rounded-md px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap text-slate-600 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 group"
+              >
+                <BookOpen className="h-5 w-5 flex-shrink-0 mr-3 group-hover:text-orange-600 dark:group-hover:text-orange-400" />
+                <span className="truncate">Guide</span>
+                <ExternalLink className="h-3 w-3 flex-shrink-0 ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-orange-600 dark:text-orange-400" />
+              </a>
+              
               {/* Links 버튼 */}
               <button
                 onClick={() => setIsLinksOpen(true)}
