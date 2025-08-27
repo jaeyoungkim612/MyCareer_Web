@@ -387,7 +387,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-orange-600" />
-                <label className="text-sm font-medium">산업별 감사 효율화/집중화</label>
+                <label className="text-sm font-medium">산업별 감사 효율화/집중화 + Client Centric</label>
               </div>
               <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                 {isEditing ? (

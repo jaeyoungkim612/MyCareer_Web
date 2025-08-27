@@ -13,11 +13,11 @@ import { FileText, Save, X, CheckCircle2 } from "lucide-react"
 const sectionTitles = [
   "Thought Leadership 활동(간행물, 기고, 세미나, Workshop)",
   "BD연계 Thought Leadership 계획",
-  "산업별 감사 효율화/집중화",
+  "산업별 감사 효율화/집중화 + Client Centric",
   "산업전문화를 통한 신규 서비스 개발 및 지원"
 ];
 const defaultComment = sectionTitles.join('\n\n');
-const commentPlaceholder = `Thought Leadership 활동(간행물, 기고, 세미나, Workshop)\n여기에 내용을 입력하세요...\n\nBD연계 Thought Leadership 계획\n여기에 내용을 입력하세요...\n\n산업별 감사 효율화/집중화\n여기에 내용을 입력하세요...\n\n산업전문화를 통한 신규 서비스 개발 및 지원\n여기에 내용을 입력하세요...`;
+const commentPlaceholder = `Thought Leadership 활동(간행물, 기고, 세미나, Workshop)\n여기에 내용을 입력하세요...\n\nBD연계 Thought Leadership 계획\n여기에 내용을 입력하세요...\n\n산업별 감사 효율화/집중화 + Client Centric\n여기에 내용을 입력하세요...\n\n산업전문화를 통한 신규 서비스 개발 및 지원\n여기에 내용을 입력하세요...`;
 
 function parseSections(comment: string) {
   const result: Record<string, string> = {};
