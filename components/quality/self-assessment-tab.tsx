@@ -245,7 +245,7 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
             </span>
             {renderBadges(midAssessment)}
           </CardTitle>
-          <CardDescription>Quality Self Assessment (Mid-term)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueMid} onValueChange={setTabValueMid} className="space-y-4">
@@ -309,7 +309,7 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
             </span>
             {renderBadges(finalAssessment)}
           </CardTitle>
-          <CardDescription>Quality Self Assessment (Final)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueFinal} onValueChange={setTabValueFinal} className="space-y-4">

@@ -231,7 +231,7 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
             </span>
             {renderBadges(midAssessment)}
           </CardTitle>
-          <CardDescription>Collaboration Self Assessment (Mid-term)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueMid} onValueChange={setTabValueMid} className="space-y-4">
@@ -297,7 +297,7 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
             </span>
             {renderBadges(finalAssessment)}
           </CardTitle>
-          <CardDescription>Collaboration Self Assessment (Final)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueFinal} onValueChange={setTabValueFinal} className="space-y-4">

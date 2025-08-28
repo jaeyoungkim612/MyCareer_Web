@@ -717,7 +717,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           {/* 헤더 */}
           <div className="flex items-center mb-6">
             <PieChartIcon className="mr-3 h-6 w-6 text-blue-600" />
-                            <span className="text-lg font-bold text-gray-900">Total Budget Overview</span>
+                            <span className="text-lg font-bold text-gray-900">Total Budget</span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -762,7 +762,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <FileText className="mr-3 h-6 w-6 text-orange-600" />
-                              <span className="text-lg font-bold text-gray-900">감사 Budget Overview</span>
+                              <span className="text-lg font-bold text-gray-900">감사 Budget</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -805,7 +805,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <BarChart3 className="mr-3 h-6 w-6 text-blue-600" />
-                              <span className="text-lg font-bold text-gray-900">비감사서비스 Budget Overview</span>
+                              <span className="text-lg font-bold text-gray-900">비감사서비스 Budget</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

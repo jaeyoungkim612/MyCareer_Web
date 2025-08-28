@@ -375,7 +375,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
               <Target className="mr-2 h-5 w-5 text-orange-600" />
               Goals
             </CardTitle>
-            <CardDescription>Your collaboration objectives and strategy</CardDescription>
+
           </CardHeader>
           <CardContent>
             {isEditMode ? (
@@ -383,7 +383,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                 id="self-comment"
                 value={formData.comment ?? ""}
                 onChange={(e) => handleInputChange("comment", e.target.value)}
-                placeholder="Describe your collaboration strategy and goals..."
+                placeholder="협업 목표와 전략을 입력하세요..."
                 className="min-h-[600px]"
               />
             ) : (
@@ -392,7 +392,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                   {planData.selfAssessment.comment ? (
                     <p className="text-sm whitespace-pre-line">{planData.selfAssessment.comment}</p>
                   ) : (
-                    <div className="text-muted-foreground italic">협업 전략과 목표를 입력하세요</div>
+                    <div className="text-muted-foreground italic">협업 목표와 전략을 입력하세요</div>
                   )}
                 </div>
               </div>
@@ -406,9 +406,9 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
         <CardHeader>
           <CardTitle className="flex items-center">
             <TrendingUp className="mr-2 h-5 w-5 text-orange-600" />
-            Collaboration Target Metrics
+협업 목표 지표
           </CardTitle>
-          <CardDescription>Set your collaboration targets by period</CardDescription>
+
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-3">
@@ -437,7 +437,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       <span className="font-medium text-lg">
                         {planData.selfAssessment.xlosCollaboration.count || "-"}
                       </span>
-                      <span className="text-sm text-muted-foreground">projects</span>
+                      <span className="text-sm text-muted-foreground">건</span>
                     </div>
                   )}
                 </div>
@@ -492,7 +492,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       <span className="font-medium text-lg">
                         {planData.selfAssessment.losCollaboration.count || "-"}
                       </span>
-                      <span className="text-sm text-muted-foreground">projects</span>
+                      <span className="text-sm text-muted-foreground">건</span>
                     </div>
                   )}
                 </div>
@@ -547,7 +547,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
                       <span className="font-medium text-lg">
                         {planData.selfAssessment.axNodeCollaboration.count || "-"}
                       </span>
-                      <span className="text-sm text-muted-foreground">referrals</span>
+                      <span className="text-sm text-muted-foreground">건</span>
                     </div>
                   )}
                 </div>

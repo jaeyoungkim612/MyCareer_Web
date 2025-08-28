@@ -307,7 +307,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="password" className="w-full">
+          <Tabs defaultValue="basic-info" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger 
                 value="basic-info" 

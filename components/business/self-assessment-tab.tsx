@@ -247,7 +247,7 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
             </span>
             {renderBadges(midAssessment)}
           </CardTitle>
-          <CardDescription>Business Self Assessment (Mid-term)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueMid} onValueChange={setTabValueMid} className="space-y-4">
@@ -311,7 +311,7 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
             </span>
             {renderBadges(finalAssessment)}
           </CardTitle>
-          <CardDescription>Business Self Assessment (Final)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueFinal} onValueChange={setTabValueFinal} className="space-y-4">

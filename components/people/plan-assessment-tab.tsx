@@ -709,27 +709,29 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
               <Target className="mr-2 h-5 w-5 text-orange-600" />
               Goals
             </CardTitle>
-            <CardDescription>Your personal assessment and goals</CardDescription>
+
           </CardHeader>
           <CardContent>
             {isEditMode ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="self-comment">Assessment Comments</Label>
+                  <Label htmlFor="self-comment">평가 의견</Label>
                   <Textarea
                     id="self-comment"
                     value={formData.comment}
                     onChange={(e) => handleInputChange("comment", e.target.value)}
-                    placeholder="Provide your self assessment comments..."
+                    placeholder="People 목표와 전략을 입력하세요..."
                     className="min-h-[600px]"
                   />
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
-                  <p className="text-sm whitespace-pre-line">{formData.comment?.trim() ? formData.comment : "목표가 설정되지 않았습니다."}</p>
-                </div>
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
+                {formData.comment?.trim() ? (
+                  <p className="text-sm whitespace-pre-line">{formData.comment}</p>
+                ) : (
+                  <div className="text-muted-foreground italic">People 목표와 전략을 입력하세요</div>
+                )}
               </div>
             )}
           </CardContent>
@@ -741,9 +743,9 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         <CardHeader>
           <CardTitle className="flex items-center">
             <Users className="mr-2 h-5 w-5 text-orange-600" />
-            Performance Metrics
+성과 지표
           </CardTitle>
-          <CardDescription>Set targets and track your performance metrics</CardDescription>
+
         </CardHeader>
         <CardContent>
           <div className="space-y-6">

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TrendingUp, TrendingDown, Minus, CheckCircle, Percent, Award, Filter, Edit, Save, X, Table, Eye } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, CheckCircle, Percent, Award, Filter, Edit, Save, X, Table, Eye, BarChart3 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { QualityMonitoringService } from "@/lib/quality-monitoring-service"
@@ -124,6 +124,10 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
   const [nonAuditGoalText, setNonAuditGoalText] = useState("")
   // 상태값 (Draft, 작성중, 완료)
   const [performanceStatus, setPerformanceStatus] = useState<{Quality향상: 'Draft'|'작성중'|'완료', 효율화계획: 'Draft'|'작성중'|'완료', 신상품개발: 'Draft'|'작성중'|'완료'}>({Quality향상: 'Draft', 효율화계획: 'Draft', 신상품개발: 'Draft'})
+  
+  // 실적 데이터 state 추가
+  const [performanceData, setPerformanceData] = useState<any>(null)
+  const [performanceLoading, setPerformanceLoading] = useState(false)
 
   // EPC 데이터 가져오기 함수
   const fetchEpcData = async () => {
@@ -371,11 +375,64 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
     }
   }, [empno])
 
+  // 실적 데이터 가져오기 함수
+  const fetchPerformanceData = async () => {
+    if (!currentUser?.empno) return;
+    
+    setPerformanceLoading(true);
+    try {
+      console.log('📊 Fetching performance data for employee:', currentUser.empno);
+      
+      // 사번 정규화
+      const { ReviewerService } = await import("@/lib/reviewer-service");
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno);
+      console.log(`🔧 Performance: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`);
+      
+      // hr_master_dashboard 뷰에서 데이터 가져오기
+      const { data, error } = await supabase
+        .from('hr_master_dashboard')
+        .select(`
+          EMPNO,
+          EMPNM,
+          current_audit_revenue,
+          current_audit_adjusted_em,
+          current_audit_em,
+          current_non_audit_revenue,
+          current_non_audit_adjusted_em,
+          current_non_audit_em,
+          total_current_revenue,
+          total_current_adjusted_em,
+          total_current_em
+        `)
+        .eq('EMPNO', normalizedEmpno)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('❌ Performance data fetch error:', error);
+        throw error;
+      }
+      
+      if (data) {
+        console.log('✅ Performance data loaded:', data);
+        setPerformanceData(data);
+      } else {
+        console.log('ℹ️ No performance data found');
+        setPerformanceData(null);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching performance data:', error);
+      setPerformanceData(null);
+    }
+    
+    setPerformanceLoading(false);
+  };
+
   // EPC 데이터 및 EL 데이터 로드
   useEffect(() => {
     if (currentUser?.empno) {
       fetchEpcData();
       fetchElInputData();
+      fetchPerformanceData();
     }
   }, [currentUser])
 
@@ -543,7 +600,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-lg font-bold">Quality Monitoring</h2>
-          <p className="text-sm text-muted-foreground">Real-time tracking of quality metrics</p>
+
         </div>
       </div>
 
@@ -552,9 +609,9 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         <CardHeader>
           <CardTitle className="flex items-center">
             <CheckCircle className="mr-2 h-5 w-5 text-orange-600" />
-            감사 성과 (Audit Performance)
+감사 성과
           </CardTitle>
-          <CardDescription>감사 품질 및 효율성 관련 실적 추적</CardDescription>
+
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2">
@@ -871,15 +928,15 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
               <CardContent>
                 <div className="flex items-center justify-center space-x-6">
                   {/* Compliant 카드 - 선택된 상태 */}
-                  <div className="flex flex-col items-center justify-center p-8 border-2 border-green-500 bg-green-50 dark:bg-green-900/20 rounded-lg shadow-md min-w-[160px] min-h-[140px]">
+                  <div className="flex flex-col items-center justify-center p-8 border-2 border-green-500 bg-green-50 dark:bg-green-900/20 rounded-lg shadow-md w-[160px] h-[140px]">
                     <CheckCircle className="h-10 w-10 text-green-600 mb-4" />
                     <span className="text-xl font-bold text-green-700 dark:text-green-300">Compliant</span>
                   </div>
                   
-                  {/* Incompliant 카드 - 비선택된 상태 */}
-                  <div className="flex flex-col items-center justify-center p-8 border border-gray-300 bg-gray-50 dark:bg-gray-800 rounded-lg min-w-[160px] min-h-[140px] opacity-60">
+                  {/* Non-compliant 카드 - 비선택된 상태 */}
+                  <div className="flex flex-col items-center justify-center p-8 border border-gray-300 bg-gray-50 dark:bg-gray-800 rounded-lg w-[160px] h-[140px] opacity-60">
                     <X className="h-10 w-10 text-gray-400 mb-4" />
-                    <span className="text-xl text-gray-500">Non-compliant</span>
+                    <span className="text-xl font-bold text-gray-500">Non-compliant</span>
                   </div>
                 </div>
               </CardContent>
@@ -888,36 +945,33 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         </CardContent>
       </Card>
 
+
+
       {/* Non-Audit Metrics */}
-      {/* 비감사서비스 성과 헤더 (카드 바깥) */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-left">
-          <div className="flex items-center">
-            <TrendingUp className="mr-2 h-5 w-5 text-orange-600" />
-            <span className="text-2xl font-bold">비감사서비스 성과 <span className="font-normal text-lg">(Non-Audit Performance)</span></span>
-          </div>
-          <div className="text-sm text-muted-foreground">비감사서비스 품질 관련 실적 추적</div>
-        </div>
-        <div className="flex gap-2 justify-end items-center">
-          {isEditingNonAuditStatus ? (
-            <>
-              <Button onClick={handleCancelNonAuditStatus} variant="outline" size="sm">
-                <X className="mr-2 h-4 w-4" />취소
-              </Button>
-              <Button onClick={handleSaveNonAuditStatus} size="sm">
-                <Save className="mr-2 h-4 w-4" />저장
-              </Button>
-            </>
-          ) : (
-            <Button onClick={handleEditNonAuditStatus} size="sm">
-              <Edit className="mr-2 h-4 w-4" />Edit
-            </Button>
-          )}
-        </div>
-      </div>
       <Card className="mb-6">
-        {/* CardHeader 제거, 내용만 남김 */}
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <TrendingUp className="mr-2 h-5 w-5 text-orange-600" />
+            비감사서비스 성과
+          </CardTitle>
+        </CardHeader>
         <CardContent>
+          <div className="flex gap-2 justify-end items-center mb-4">
+            {isEditingNonAuditStatus ? (
+              <>
+                <Button onClick={handleCancelNonAuditStatus} variant="outline" size="sm">
+                  <X className="mr-2 h-4 w-4" />취소
+                </Button>
+                <Button onClick={handleSaveNonAuditStatus} size="sm">
+                  <Save className="mr-2 h-4 w-4" />저장
+                </Button>
+              </>
+            ) : (
+              <Button onClick={handleEditNonAuditStatus} size="sm">
+                <Edit className="mr-2 h-4 w-4" />Edit
+              </Button>
+            )}
+          </div>
           <div className="space-y-4">
             {/* 3개 카테고리가 있는지 확인 */}
             {(() => {
@@ -1036,6 +1090,107 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
               }
             })()}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Performance Metrics Section - 비감사서비스 성과 하단으로 이동 */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <BarChart3 className="mr-2 h-5 w-5 text-orange-600" />
+            실적 현황
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {performanceLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="text-muted-foreground">실적 데이터 로딩 중...</div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* 감사 실적 카드 */}
+                <Card className="border-blue-200 dark:border-blue-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                      <div className="p-2 bg-blue-600 rounded-full">
+                        <CheckCircle className="h-4 w-4 text-white" />
+                      </div>
+                      감사 실적
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Adjusted EM */}
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                          {performanceData?.current_audit_adjusted_em 
+                            ? `${Math.round(Number(performanceData.current_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300">Adjusted EM</div>
+                      </div>
+                      
+                      {/* EM */}
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                          {performanceData?.current_audit_em 
+                            ? `${Math.round(Number(performanceData.current_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300">EM</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 비감사 실적 카드 */}
+                <Card className="border-green-200 dark:border-green-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
+                      <div className="p-2 bg-green-600 rounded-full">
+                        <TrendingUp className="h-4 w-4 text-white" />
+                      </div>
+                      비감사 실적
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Adjusted EM */}
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
+                          {performanceData?.current_non_audit_adjusted_em 
+                            ? `${Math.round(Number(performanceData.current_non_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-green-700 dark:text-green-300">Adjusted EM</div>
+                      </div>
+                      
+                      {/* EM */}
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
+                          {performanceData?.current_non_audit_em 
+                            ? `${Math.round(Number(performanceData.current_non_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-green-700 dark:text-green-300">EM</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="text-center pt-2">
+                <p className="text-sm text-muted-foreground">
+                  * 데이터 기준: {performanceData?.EMPNO ? `${performanceData.EMPNM} (${performanceData.EMPNO})` : '현재 사용자'}
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </>

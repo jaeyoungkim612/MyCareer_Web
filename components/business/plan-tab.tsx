@@ -497,7 +497,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
               <Target className="mr-2 h-5 w-5 text-orange-600" />
               Goals
             </CardTitle>
-            <CardDescription>Your business objectives and strategy</CardDescription>
+
           </CardHeader>
           <CardContent>
             {isEditing ? (
@@ -509,16 +509,18 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
                     name="businessGoal"
                     value={formData.businessGoal}
                     onChange={handleChange}
-                    placeholder="Describe your business strategy and goals..."
+                    placeholder="비즈니스 목표와 전략을 입력하세요..."
                     className="min-h-[600px]"
                   />
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
-                  <p className="text-sm whitespace-pre-line">{formData.businessGoal || "목표가 설정되지 않았습니다."}</p>
-                </div>
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
+                {formData.businessGoal ? (
+                  <p className="text-sm whitespace-pre-line">{formData.businessGoal}</p>
+                ) : (
+                  <div className="text-muted-foreground italic">비즈니스 목표와 전략을 입력하세요</div>
+                )}
               </div>
             )}
           </CardContent>
@@ -531,7 +533,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
               <PieChart className="mr-2 h-5 w-5 text-orange-600" />
               My Budget(TBA 기준)
             </CardTitle>
-            <CardDescription>Set your budget targets for the current period</CardDescription>
+
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-6">
@@ -582,7 +584,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
             <FileText className="mr-2 h-5 w-5 text-orange-600" />
             Audit BD 목표(계약기준)
           </CardTitle>
-          <CardDescription>Set your audit business targets for the current period</CardDescription>
+
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -650,7 +652,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
             <BarChart3 className="mr-2 h-5 w-5 text-orange-600" />
             Non-Audit BD 목표(계약기준)
           </CardTitle>
-          <CardDescription>Set your non-audit business targets for the current period</CardDescription>
+
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

@@ -149,9 +149,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
   const [userInfo, setUserInfo] = useState<any>(null)
   const [renderKey, setRenderKey] = useState(0)
   
-  // 실적 데이터 state 추가
-  const [performanceData, setPerformanceData] = useState<any>(null)
-  const [performanceLoading, setPerformanceLoading] = useState(false)
+
   
   // input refs (EER는 제거됨 - 항상 Compliant)
   const yearEndInputRef = useRef<HTMLInputElement>(null)
@@ -220,7 +218,6 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
   useEffect(() => {
     if (currentUser?.empno) {
       fetchGoal()
-      fetchPerformanceData()
     }
     // eslint-disable-next-line
   }, [currentUser])
@@ -375,55 +372,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
     setLoading(false)
   }
 
-  // 실적 데이터 가져오기 함수
-  async function fetchPerformanceData() {
-    setPerformanceLoading(true)
-    try {
-      console.log('📊 Fetching performance data for employee:', currentUser.empno)
-      
-      // 사번 정규화
-      const { ReviewerService } = await import("@/lib/reviewer-service")
-      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
-      console.log(`🔧 Performance: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`)
-      
-      // hr_master_dashboard 뷰에서 데이터 가져오기
-      const { data, error } = await supabase
-        .from('hr_master_dashboard')
-        .select(`
-          EMPNO,
-          EMPNM,
-          current_audit_revenue,
-          current_audit_adjusted_em,
-          current_audit_em,
-          current_non_audit_revenue,
-          current_non_audit_adjusted_em,
-          current_non_audit_em,
-          total_current_revenue,
-          total_current_adjusted_em,
-          total_current_em
-        `)
-        .eq('EMPNO', normalizedEmpno)
-        .maybeSingle()
-      
-      if (error) {
-        console.error('❌ Performance data fetch error:', error)
-        throw error
-      }
-      
-      if (data) {
-        console.log('✅ Performance data loaded:', data)
-        setPerformanceData(data)
-      } else {
-        console.log('ℹ️ No performance data found')
-        setPerformanceData(null)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching performance data:', error)
-      setPerformanceData(null)
-    }
-    
-    setPerformanceLoading(false)
-  }
+
 
   const handleEdit = () => {
     console.log('🖊️ Starting edit mode')
@@ -818,23 +767,27 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
               <Target className="mr-2 h-5 w-5 text-orange-600" />
               Goals
             </CardTitle>
-            <CardDescription>Your quality objectives and strategy</CardDescription>
+
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div>
-                {isEditing ? (
-                  <Textarea value={goals} onChange={(e) => setGoals(e.target.value)} className="min-h-[600px]" />
-                ) : goals ? (
-                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md min-h-[60px] flex items-start">
+            {isEditing ? (
+              <Textarea
+                value={goals}
+                onChange={(e) => setGoals(e.target.value)}
+                placeholder="품질 목표와 전략을 입력하세요..."
+                className="min-h-[600px]"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
+                  {goals ? (
                     <p className="text-sm whitespace-pre-line">{goals}</p>
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground italic">목표를 입력하세요</div>
-                )}
+                  ) : (
+                    <div className="text-muted-foreground italic">품질 목표와 전략을 입력하세요</div>
+                  )}
+                </div>
               </div>
-              {/* 뱃지(배지) 렌더링 부분 완전히 제거 */}
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -846,7 +799,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
           <CardHeader>
             <CardTitle className="flex items-center">
               <CheckCircle className="mr-2 h-5 w-5 text-orange-600" />
-              감사 목표 (Audit Targets)
+  감사 목표
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1">
@@ -1001,7 +954,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
             <div className="text-left flex-1">
               <CardTitle className="flex items-center">
                 <TrendingUp className="mr-2 h-5 w-5 text-orange-600" />
-                비감사 목표 (비감사 Quality 향상, 효율화 계획, 신상품 개발 등)
+비감사 목표
               </CardTitle>
             </div>
           </CardHeader>
@@ -1027,107 +980,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
         </Card>
       </div>
 
-      {/* Performance Metrics Section - 새로 추가 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <BarChart3 className="mr-2 h-5 w-5 text-orange-600" />
-            실적 현황 (Performance Metrics)
-          </CardTitle>
-          <CardDescription>현재 감사 및 비감사 실적 현황</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {performanceLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="text-muted-foreground">실적 데이터 로딩 중...</div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* 감사 실적 카드 */}
-                <Card className="border-blue-200 dark:border-blue-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
-                      <div className="p-2 bg-blue-600 rounded-full">
-                        <CheckCircle className="h-4 w-4 text-white" />
-                      </div>
-                      감사 실적 (Audit)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Adjusted EM */}
-                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
-                          {performanceData?.current_audit_adjusted_em 
-                            ? `${Math.round(Number(performanceData.current_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-blue-700 dark:text-blue-300">Adjusted EM</div>
-                      </div>
-                      
-                      {/* EM */}
-                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
-                          {performanceData?.current_audit_em 
-                            ? `${Math.round(Number(performanceData.current_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-blue-700 dark:text-blue-300">EM</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
 
-                {/* 비감사 실적 카드 */}
-                <Card className="border-green-200 dark:border-green-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
-                      <div className="p-2 bg-green-600 rounded-full">
-                        <TrendingUp className="h-4 w-4 text-white" />
-                      </div>
-                      비감사 실적 (Non-Audit)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Adjusted EM */}
-                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
-                          {performanceData?.current_non_audit_adjusted_em 
-                            ? `${Math.round(Number(performanceData.current_non_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-green-700 dark:text-green-300">Adjusted EM</div>
-                      </div>
-                      
-                      {/* EM */}
-                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
-                          {performanceData?.current_non_audit_em 
-                            ? `${Math.round(Number(performanceData.current_non_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-green-700 dark:text-green-300">EM</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="text-center pt-2">
-                <p className="text-sm text-muted-foreground">
-                  * 데이터 기준: {performanceData?.EMPNO ? `${performanceData.EMPNM} (${performanceData.EMPNO})` : '현재 사용자'}
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

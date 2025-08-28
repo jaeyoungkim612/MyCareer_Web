@@ -245,7 +245,7 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
             </span>
             {renderBadges(midAssessment)}
           </CardTitle>
-          <CardDescription>People Self Assessment (Mid-term)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueMid} onValueChange={setTabValueMid} className="space-y-4">
@@ -309,7 +309,7 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
             </span>
             {renderBadges(finalAssessment)}
           </CardTitle>
-          <CardDescription>People Self Assessment (Final)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueFinal} onValueChange={setTabValueFinal} className="space-y-4">

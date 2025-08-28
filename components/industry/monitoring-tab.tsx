@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Plus, FileText, Building, Target, Lightbulb, Briefcase, MoreHorizontal } from "lucide-react"
+import { Calendar, Plus, FileText, Building, Target, Lightbulb, Briefcase, Users, MoreHorizontal } from "lucide-react"
 import { format } from "date-fns"
 import { IndustryTLActivitiesService, IndustryTLActivity } from "@/lib/industry-tl-activities-service"
 import { AuthService } from "@/lib/auth-service"
@@ -193,6 +193,8 @@ export default function IndustryMonitoringTab({ empno, readOnly = false }: Indus
         return <FileText className="h-4 w-4 text-orange-600" />
       case "BD활동":
         return <Briefcase className="h-4 w-4 text-red-600" />
+      case "Client Centric":
+        return <Users className="h-4 w-4 text-cyan-600" />
       default:
         return <MoreHorizontal className="h-4 w-4 text-gray-600" />
     }
@@ -263,6 +265,7 @@ export default function IndustryMonitoringTab({ empno, readOnly = false }: Indus
                       <SelectItem value="신규 Product">신규 Product</SelectItem>
                       <SelectItem value="TL 활동">TL 활동</SelectItem>
                       <SelectItem value="BD활동">BD활동</SelectItem>
+                      <SelectItem value="Client Centric">Client Centric</SelectItem>
                       <SelectItem value="기타">기타</SelectItem>
                     </SelectContent>
                   </Select>
@@ -353,6 +356,7 @@ export default function IndustryMonitoringTab({ empno, readOnly = false }: Indus
                               <SelectItem value="신규 Product">신규 Product</SelectItem>
                               <SelectItem value="TL 활동">TL 활동</SelectItem>
                               <SelectItem value="BD활동">BD활동</SelectItem>
+                              <SelectItem value="Client Centric">Client Centric</SelectItem>
                               <SelectItem value="기타">기타</SelectItem>
                             </SelectContent>
                           </Select>

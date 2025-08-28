@@ -313,21 +313,25 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
               <Target className="mr-2 h-5 w-5 text-orange-600" />
               Goals
             </CardTitle>
-            <CardDescription>Your industry specialization and thought leadership goals</CardDescription>
+
           </CardHeader>
           <CardContent>
-            <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
-              {isEditing ? (
-                <Textarea
-                  value={formData?.goals || ""}
-                  onChange={(e) => setFormData(f => f ? { ...f, goals: e.target.value } : f)}
-                  className="min-h-[600px] mb-2"
-                  placeholder="산업전문화 목표를 입력하세요"
-                />
-              ) : (
-                <p className="text-sm whitespace-pre-line">{formData?.goals || ""}</p>
-              )}
-            </div>
+            {isEditing ? (
+              <Textarea
+                value={formData?.goals || ""}
+                onChange={(e) => setFormData(f => f ? { ...f, goals: e.target.value } : f)}
+                className="min-h-[600px] mb-2"
+                placeholder="산업전문화 목표와 전략을 입력하세요..."
+              />
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
+                {formData?.goals ? (
+                  <p className="text-sm whitespace-pre-line">{formData.goals}</p>
+                ) : (
+                  <div className="text-muted-foreground italic">산업전문화 목표와 전략을 입력하세요</div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -339,7 +343,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
             <Building className="mr-2 h-5 w-5 text-orange-600" />
             Activity Planning
           </CardTitle>
-          <CardDescription>Industry specialization and thought leadership activity plans</CardDescription>
+
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2">

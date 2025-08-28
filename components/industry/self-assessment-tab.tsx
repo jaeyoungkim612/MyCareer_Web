@@ -250,7 +250,7 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
             </span>
             {renderBadges(midAssessment)}
           </CardTitle>
-          <CardDescription>Industry & TL Self Assessment (Mid-term)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueMid} onValueChange={setTabValueMid} className="space-y-4">
@@ -314,7 +314,7 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
             </span>
             {renderBadges(finalAssessment)}
           </CardTitle>
-          <CardDescription>Industry & TL Self Assessment (Final)</CardDescription>
+
         </CardHeader>
         <CardContent>
           <Tabs value={tabValueFinal} onValueChange={setTabValueFinal} className="space-y-4">
