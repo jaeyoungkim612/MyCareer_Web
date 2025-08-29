@@ -189,6 +189,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     displayType = "percentage",
     cardClassName,
     breakdown,
+    subtitle,
   }: {
     actual: number
     budget: number
@@ -202,6 +203,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       backlog: number
       pipeline: number
     }
+    subtitle?: string
   }) => {
     const percentage = (actual / budget) * 100
     const isExceeded = actual > budget
@@ -266,7 +268,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: color }} />
-              <span className="text-lg font-semibold text-gray-900">{title}</span>
+              <div>
+                <span className="text-lg font-semibold text-gray-900">{title}</span>
+                {subtitle && (
+                  <div className="text-xs text-gray-500 mt-1">{subtitle}</div>
+                )}
+              </div>
             </div>
             <div className="flex items-center space-x-1">
               {getTrendIcon(trend)}
@@ -443,6 +450,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     cardClassName,
     isTeam = false,
     totalBreakdown,
+    subtitle,
   }: {
     auditActual: number
     nonAuditActual: number
@@ -458,6 +466,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       nonAuditBacklog: number
       pipeline: number
     }
+    subtitle?: string
   }) => {
     const totalActual = auditActual + nonAuditActual
     const percentage = Math.round((totalActual / totalBudget) * 100)
@@ -523,6 +532,9 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           <div className="flex items-center justify-between mb-6">
             <div>
               <span className="text-lg font-semibold text-gray-900">{title}</span>
+              {subtitle && (
+                <div className="text-xs text-gray-500 mt-1">{subtitle}</div>
+              )}
             </div>
             <div className="flex items-center space-x-1">
               {getTrendIcon(trend)}
@@ -744,6 +756,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               nonAuditActual={teamNonAuditActual}
               totalBudget={teamTotalBudget}
               title="Team Budget"
+              subtitle="- 9월 중 업데이트 예정"
               trend={`-${Math.round((1 - (teamTotalActual / (teamTotalBudget || 1))) * 100)}%`}
               cardClassName="shadow-sm border-l-4 border-l-gray-300"
               isTeam={true}
@@ -763,6 +776,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="flex items-center mb-6">
               <FileText className="mr-3 h-6 w-6 text-orange-600" />
                               <span className="text-lg font-bold text-gray-900">감사 Budget</span>
+              <span className="text-sm text-gray-500 ml-3">- 9월 중 업데이트 예정</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -787,6 +801,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 actual={teamAuditActual}
                 budget={teamAuditBudget}
                 title="Team 감사 Budget"
+                subtitle="- 9월 중 업데이트 예정"
                 color="#ea580c"
                 trend={`-${Math.round((1 - (teamAuditActual / (teamAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
@@ -806,6 +821,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             <div className="flex items-center mb-6">
               <BarChart3 className="mr-3 h-6 w-6 text-blue-600" />
                               <span className="text-lg font-bold text-gray-900">비감사서비스 Budget</span>
+              <span className="text-sm text-gray-500 ml-3">- 9월 중 업데이트 예정</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -830,6 +846,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 actual={teamNonAuditActual}
                 budget={teamNonAuditBudget}
                 title="Team 비감사서비스 Budget"
+                subtitle="- 9월 중 업데이트 예정"
                 color="#059669"
                 trend={`-${Math.round((1 - (teamNonAuditActual / (teamNonAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
