@@ -339,7 +339,7 @@ export default function SettingsPage() {
                   {/* 보직(HC) 입력 */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <Label htmlFor="position-edit">보직(HC)</Label>
+                      <Label htmlFor="position-edit">보직</Label>
                       {gspData?.["보직_STATUS"] === '승인대기' && (
                         <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                           승인대기
@@ -358,7 +358,7 @@ export default function SettingsPage() {
                   {/* 산업전문화(TMA/IMA) 입력 */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <Label htmlFor="specialty-edit">산업전문화(TMA/IMA)</Label>
+                      <Label htmlFor="specialty-edit">산업전문화</Label>
                       {gspData?.["산업전문화_STATUS"] === '승인대기' && (
                         <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                           승인대기

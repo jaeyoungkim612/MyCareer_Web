@@ -476,111 +476,129 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                           <TableRow>
                             <TableCell className="font-semibold text-gray-800">감사</TableCell>
                             <TableCell className="text-center font-medium">
-                              {Math.ceil((budgetData?.current_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              {Math.ceil(((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              <div className="text-xs text-gray-500 mt-1">
+                                Rev {Math.ceil((budgetData?.current_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR')} + BL {Math.ceil((budgetData?.current_audit_backlog ?? 0) / 1_000_000).toLocaleString('ko-KR')} + PL {Math.ceil((budgetData?.pipeline_audit_current_total ?? 0) / 1_000_000).toLocaleString('ko-KR')}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-medium">
                               {Math.ceil(budgetData?.budget_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center border-r">
                               <Badge className={
-                                (((budgetData?.current_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100) >= 100 
+                                ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100) >= 100 
                                 ? "bg-green-500" 
-                                : (((budgetData?.current_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100) >= 80 
+                                : ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100) >= 80 
                                 ? "bg-orange-500" 
                                 : "bg-red-500"
                               }>
-                                {Math.round(((budgetData?.current_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100)}%
+                                {Math.round(((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.budget_audit ?? 1) * 100))}%
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {Math.ceil((budgetData?.dept_revenue_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              {Math.ceil(((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              <div className="text-xs text-gray-500 mt-1">
+                                Rev {Math.ceil((budgetData?.dept_revenue_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')} + BL {Math.ceil((budgetData?.dept_backlog_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')} + PL {Math.ceil((budgetData?.dept_pipeline_audit_current_total ?? 0) / 1_000_000).toLocaleString('ko-KR')}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-medium">
                               {Math.ceil(budgetData?.dept_budget_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
-                                (((budgetData?.dept_revenue_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100) >= 100 
+                                ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100) >= 100 
                                 ? "bg-green-500" 
-                                : (((budgetData?.dept_revenue_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100) >= 80 
+                                : ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100) >= 80 
                                 ? "bg-orange-500" 
                                 : "bg-red-500"
                               }>
-                                {Math.round(((budgetData?.dept_revenue_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100)}%
+                                {Math.round(((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.dept_budget_audit ?? 1) * 100))}%
                               </Badge>
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell className="font-semibold text-gray-800">비감사</TableCell>
                             <TableCell className="text-center font-medium">
-                              {Math.ceil((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              {Math.ceil(((budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              <div className="text-xs text-gray-500 mt-1">
+                                Rev {Math.ceil((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000).toLocaleString('ko-KR')} + BL {Math.ceil((budgetData?.current_non_audit_backlog ?? 0) / 1_000_000).toLocaleString('ko-KR')} + PL {Math.ceil((budgetData?.pipeline_non_audit_current_total ?? 0) / 1_000_000).toLocaleString('ko-KR')}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-medium">
                               {Math.ceil(budgetData?.budget_non_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center border-r">
                               <Badge className={
-                                (((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100) >= 100 
+                                ((((budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100) >= 100 
                                 ? "bg-green-500" 
-                                : (((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100) >= 80 
+                                : ((((budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100) >= 80 
                                 ? "bg-orange-500" 
                                 : "bg-red-500"
                               }>
-                                {Math.round(((budgetData?.current_non_audit_revenue ?? 0) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100)}%
+                                {Math.round(((((budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.budget_non_audit ?? 1) * 100))}%
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center font-medium">
-                              {Math.ceil((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              {Math.ceil(((budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              <div className="text-xs text-gray-500 mt-1">
+                                Rev {Math.ceil((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')} + BL {Math.ceil((budgetData?.dept_backlog_non_audit ?? 0) / 1_000_000).toLocaleString('ko-KR')} + PL {Math.ceil((budgetData?.dept_pipeline_non_audit_current_total ?? 0) / 1_000_000).toLocaleString('ko-KR')}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-medium">
                               {Math.ceil(budgetData?.dept_budget_non_audit ?? 0).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
-                                (((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100) >= 100 
+                                ((((budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100) >= 100 
                                 ? "bg-green-500" 
-                                : (((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100) >= 80 
+                                : ((((budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100) >= 80 
                                 ? "bg-orange-500" 
                                 : "bg-red-500"
                               }>
-                                {Math.round(((budgetData?.dept_revenue_non_audit ?? 0) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100)}%
+                                {Math.round(((((budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000) / (budgetData?.dept_budget_non_audit ?? 1) * 100))}%
                               </Badge>
                             </TableCell>
                           </TableRow>
                           <TableRow className="border-t-2 bg-muted/20">
                             <TableCell className="font-bold text-gray-900">총합</TableCell>
                             <TableCell className="text-center font-bold">
-                              {Math.ceil(((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              {Math.ceil(((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0) + (budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              <div className="text-xs text-gray-500 mt-1 font-normal">
+                                Rev {Math.ceil(((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000).toLocaleString('ko-KR')} + BL {Math.ceil(((budgetData?.current_audit_backlog ?? 0) + (budgetData?.current_non_audit_backlog ?? 0)) / 1_000_000).toLocaleString('ko-KR')} + PL {Math.ceil(((budgetData?.pipeline_audit_current_total ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-bold">
                               {Math.ceil((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center border-r">
                               <Badge className={
-                                ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100) >= 100 
+                                ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0) + (budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100) >= 100 
                                 ? "bg-green-500" 
-                                : ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100) >= 80 
+                                : ((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0) + (budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100) >= 80 
                                 ? "bg-orange-500" 
                                 : "bg-red-500"
                               }>
-                                {Math.round(((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_non_audit_revenue ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100))}%
+                                {Math.round(((((budgetData?.current_audit_revenue ?? 0) + (budgetData?.current_audit_backlog ?? 0) + (budgetData?.pipeline_audit_current_total ?? 0) + (budgetData?.current_non_audit_revenue ?? 0) + (budgetData?.current_non_audit_backlog ?? 0) + (budgetData?.pipeline_non_audit_current_total ?? 0)) / 1_000_000) / ((budgetData?.budget_audit ?? 0) + (budgetData?.budget_non_audit ?? 0)) * 100))}%
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center font-bold">
-                              {Math.ceil(((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              {Math.ceil(((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}백만원
+                              <div className="text-xs text-gray-500 mt-1 font-normal">
+                                Rev {Math.ceil(((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000).toLocaleString('ko-KR')} + BL {Math.ceil(((budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0)) / 1_000_000).toLocaleString('ko-KR')} + PL {Math.ceil(((budgetData?.dept_pipeline_audit_current_total ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000).toLocaleString('ko-KR')}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-bold">
                               {Math.ceil((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)).toLocaleString('ko-KR')}백만원
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge className={
-                                ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100) >= 100 
+                                ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100) >= 100 
                                 ? "bg-green-500" 
-                                : ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100) >= 80 
+                                : ((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100) >= 80 
                                 ? "bg-orange-500" 
                                 : "bg-red-500"
                               }>
-                                {Math.round(((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100))}%
+                                {Math.round(((((budgetData?.dept_revenue_audit ?? 0) + (budgetData?.dept_backlog_audit ?? 0) + (budgetData?.dept_pipeline_audit_current_total ?? 0) + (budgetData?.dept_revenue_non_audit ?? 0) + (budgetData?.dept_backlog_non_audit ?? 0) + (budgetData?.dept_pipeline_non_audit_current_total ?? 0)) / 1_000_000) / ((budgetData?.dept_budget_audit ?? 0) + (budgetData?.dept_budget_non_audit ?? 0)) * 100))}%
                               </Badge>
                             </TableCell>
                           </TableRow>

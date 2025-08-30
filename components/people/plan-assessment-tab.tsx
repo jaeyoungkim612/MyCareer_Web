@@ -809,7 +809,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                   </div>
                 )}
                 <div className="text-xs text-gray-500 mt-2">
-                  * ITS: intend to stay (조직 잔류 의향)
+                  * ITS: intend to stay (향후 1년)
                 </div>
               </div>
               {/* Refresh Off 사용률 - 기존과 동일 */}
