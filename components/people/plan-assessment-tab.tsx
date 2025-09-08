@@ -207,28 +207,25 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         console.error("코칭 예산 조회 오류:", budgetErr)
       }
       
-      // 2. v_coaching_time_quarterly에서 지출 내역 가져오기 (회계연도 기준: 2025-3Q ~ 2026-2Q)
+      // 2. v_coaching_time_quarterly에서 지출 내역 가져오기 (2025-Q2 이후 가장 최근)
       let costAmount = 0
       try {
-        // 회계연도 분기 목록
-        const fiscalYearQuarters = [
-          '2025-Q3', '2025-Q4', 
-          '2026-Q1', '2026-Q2'
-        ];
-        
-        console.log(`🗓️ Plan: Fetching coaching cost for fiscal year quarters:`, fiscalYearQuarters)
+        console.log(`🗓️ Plan: Fetching most recent coaching cost since 2025-Q2`)
         
         const { data, error } = await supabase
           .from('v_coaching_time_quarterly')
           .select('total_amt, year_quarter')
           .eq('EMPNO', currentUser.empno)
-          .in('year_quarter', fiscalYearQuarters)
+          .gte('year_quarter', '2025-Q2')
+          .order('year_quarter', { ascending: false })
+          .limit(1)
+          .maybeSingle()
         
         if (!error && data) {
-          costAmount = data.reduce((sum, row) => sum + Number(row.total_amt || 0), 0)
-          console.log(`💰 Plan: Coaching cost calculation:`, { 
+          costAmount = Number(data.total_amt || 0)
+          console.log(`💰 Plan: Latest coaching cost:`, { 
             empno: currentUser.empno, 
-            fiscalYearData: data, 
+            latestQuarter: data.year_quarter,
             totalCost: costAmount 
           })
         }
