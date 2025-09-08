@@ -93,14 +93,28 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
           const { ReviewerService } = await import("@/lib/reviewer-service")
           const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
           console.log(`🔍 Querying HR master with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
-          const { data: hrData, error: hrError } = await supabase
+          
+          // 정규화된 사번으로 먼저 시도
+          let { data: hrData, error: hrError } = await supabase
             .from("a_hr_master")
             .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
             .eq("EMPNO", normalizedEmpno)
             .maybeSingle()
           
+          // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+          if (hrError || !hrData) {
+            console.log("🔄 CollaborationPlanTab: Trying with original empno:", targetEmpno)
+            const result = await supabase
+              .from("a_hr_master")
+              .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
+              .eq("EMPNO", targetEmpno)
+              .maybeSingle()
+            hrData = result.data
+            hrError = result.error
+          }
+          
           if (hrError) {
-            console.error(`❌ HR 데이터 조회 에러 (${normalizedEmpno}):`, hrError)
+            console.error(`❌ HR 데이터 조회 에러:`, hrError)
           }
 
           if (hrData) {

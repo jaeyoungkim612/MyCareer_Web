@@ -308,13 +308,28 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
         console.log(`🔍 Plan: Querying people_goals with normalized empno: ${targetEmpno} → ${normalizedEmpno}`)
         
-        const { data, error } = await supabase
+        // 정규화된 사번으로 먼저 시도
+        let { data, error } = await supabase
           .from("people_goals")
           .select("*")
           .eq("employee_id", normalizedEmpno)
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
+        
+        // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+        if (error || !data) {
+          console.log("🔄 PlanAssessmentTab: Trying with original empno:", targetEmpno)
+          const result = await supabase
+            .from("people_goals")
+            .select("*")
+            .eq("employee_id", targetEmpno)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+          data = result.data
+          error = result.error
+        }
         
         if (data) {
           peopleGoalsData = data

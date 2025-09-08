@@ -68,11 +68,30 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   useEffect(() => {
     if (!currentEmployeeId) return
     const fetchBudget = async () => {
-      const { data, error } = await supabase
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
+      console.log(`🔧 BusinessMonitoringTab: Normalizing empno: ${currentEmployeeId} → ${normalizedEmpno}`)
+      
+      // 정규화된 사번으로 먼저 시도
+      let { data, error } = await supabase
         .from("hr_master_dashboard")
         .select("*")
-        .eq("EMPNO", currentEmployeeId)
+        .eq("EMPNO", normalizedEmpno)
         .single()
+      
+      // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+      if (error || !data) {
+        console.log("🔄 BusinessMonitoringTab: Trying with original empno:", currentEmployeeId)
+        const result = await supabase
+          .from("hr_master_dashboard")
+          .select("*")
+          .eq("EMPNO", currentEmployeeId)
+          .single()
+        data = result.data
+        error = result.error
+      }
+      
       setBudgetData(data)
       // Budget 관련 주요 값만 보기 좋게 출력
       if (data) {

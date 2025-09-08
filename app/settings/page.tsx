@@ -133,9 +133,22 @@ export default function SettingsPage() {
     
     setIsLoadingGSP(true)
     try {
+      // ReviewerService를 통한 사번 정규화
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(user.empno)
+      
       // 1. 먼저 기본 사용자 정보 로드 (a_hr_master + L_직무및활동)
-      console.log("🔍 Loading user info for empno:", user.empno)
-      const userMasterInfo = await UserInfoMapper.loadUserInfo(user.empno)
+      console.log("🔍 Loading user info for empno:", user.empno, "→", normalizedEmpno)
+      
+      // 정규화된 사번으로 먼저 시도
+      let userMasterInfo = await UserInfoMapper.loadUserInfo(normalizedEmpno)
+      
+      // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+      if (!userMasterInfo) {
+        console.log("🔄 Trying with original empno:", user.empno)
+        userMasterInfo = await UserInfoMapper.loadUserInfo(user.empno)
+      }
+      
       setUserInfo(userMasterInfo)
       
       // 2. GSP 테이블에서 수정/승인 대기 중인 데이터 로드

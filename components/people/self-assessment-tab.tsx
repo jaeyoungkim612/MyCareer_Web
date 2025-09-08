@@ -66,20 +66,50 @@ export function SelfAssessmentTab({ empno: propEmpno, readOnly = false }: SelfAs
       const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
       console.log(`🔧 PeopleSelfAssessment: Normalizing empno: ${empno} → ${normalizedEmpno}`)
       
-      const { data: mid, error: midError } = await supabase
+      // 정규화된 사번으로 먼저 시도
+      let { data: mid, error: midError } = await supabase
         .from("people_mid_assessments")
         .select("*")
         .eq("empno", normalizedEmpno)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      const { data: final, error: finalError } = await supabase
+      
+      let { data: final, error: finalError } = await supabase
         .from("people_final_assessments")
         .select("*")
         .eq("empno", normalizedEmpno)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      
+      // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+      if (midError || !mid) {
+        console.log("🔄 PeopleSelfAssessment: Trying mid assessment with original empno:", empno)
+        const result = await supabase
+          .from("people_mid_assessments")
+          .select("*")
+          .eq("empno", empno)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        mid = result.data
+        midError = result.error
+      }
+      
+      if (finalError || !final) {
+        console.log("🔄 PeopleSelfAssessment: Trying final assessment with original empno:", empno)
+        const result = await supabase
+          .from("people_final_assessments")
+          .select("*")
+          .eq("empno", empno)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        final = result.data
+        finalError = result.error
+      }
+      
       if (midError) console.error(midError)
       if (finalError) console.error(finalError)
       setMidAssessment(mid)

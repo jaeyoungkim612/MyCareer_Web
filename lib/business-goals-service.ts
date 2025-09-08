@@ -21,12 +21,27 @@ export class BusinessGoalsService {
     const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
     console.log(`🔧 BusinessGoalsService: Normalizing employee ID: ${employee_id} → ${normalizedEmployeeId}`)
     
-    const { data, error } = await supabase
+    // 정규화된 사번으로 먼저 시도
+    let { data, error } = await supabase
       .from("business_goals")
       .select("*")
       .eq("employee_id", normalizedEmployeeId)
       .order("created_at", { ascending: false })
       .limit(1)
+    
+    // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+    if (error || !data || data.length === 0) {
+      console.log("🔄 BusinessGoalsService: Trying with original empno:", employee_id)
+      const result = await supabase
+        .from("business_goals")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+      data = result.data
+      error = result.error
+    }
+    
     if (error || !data || data.length === 0) return null
     return data[0]
   }

@@ -18,11 +18,24 @@ export class QualityMonitoringService {
     const normalizedEmployeeId = ReviewerService.normalizeEmpno(employeeId)
     console.log(`🔧 QualityMonitoringService: Normalizing employee ID: ${employeeId} → ${normalizedEmployeeId}`)
     
-    const { data, error } = await supabase
+    // 정규화된 사번으로 먼저 시도
+    let { data, error } = await supabase
       .from('quality_monitoring')
       .select('*')
       .eq('employee_id', normalizedEmployeeId)
       .order('created_at', { ascending: false })
+    
+    // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+    if ((error || !data || data.length === 0) && normalizedEmployeeId !== employeeId) {
+      console.log("🔄 QualityMonitoringService: Trying with original empno:", employeeId)
+      const result = await supabase
+        .from('quality_monitoring')
+        .select('*')
+        .eq('employee_id', employeeId)
+        .order('created_at', { ascending: false })
+      data = result.data
+      error = result.error
+    }
     
     if (error) {
       console.error('Error fetching quality monitoring:', error)

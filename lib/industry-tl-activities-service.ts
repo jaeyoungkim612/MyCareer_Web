@@ -30,11 +30,25 @@ export class IndustryTLActivitiesService {
     const normalizedEmployeeId = ReviewerService.normalizeEmpno(employee_id)
     console.log(`🔧 IndustryTLActivitiesService: Normalizing employee ID: ${employee_id} → ${normalizedEmployeeId}`)
     
-    const { data, error } = await supabase
+    // 정규화된 사번으로 먼저 시도
+    let { data, error } = await supabase
       .from("industry_tl_activities")
       .select("*")
       .eq("employee_id", normalizedEmployeeId)
       .order("date", { ascending: false })
+    
+    // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+    if ((error || !data || data.length === 0) && normalizedEmployeeId !== employee_id) {
+      console.log("🔄 IndustryTLActivitiesService: Trying with original empno:", employee_id)
+      const result = await supabase
+        .from("industry_tl_activities")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .order("date", { ascending: false })
+      data = result.data
+      error = result.error
+    }
+    
     if (error) throw error
     return data || []
   }

@@ -74,12 +74,35 @@ export class UserInfoMapper {
     try {
       console.log("🔍 Loading user info for empno:", empno)
       
-      // 1. HR 마스터 정보 조회
-      const { data: hrData, error: hrError } = await supabase
+      // 사번 정규화 및 원본 사번 준비
+      const { ReviewerService } = await import("../lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      const originalEmpno = empno.replace(/^0+/, '') || empno // 앞의 0 제거한 원본
+      
+      console.log("🔧 Trying empno formats:", {
+        input: empno,
+        normalized: normalizedEmpno,
+        original: originalEmpno
+      })
+      
+      // 1. HR 마스터 정보 조회 (정규화된 사번으로 먼저 시도)
+      let { data: hrData, error: hrError } = await supabase
         .from("a_hr_master")
         .select("*")
-        .eq("EMPNO", empno)
+        .eq("EMPNO", normalizedEmpno)
         .single()
+
+      // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+      if (hrError || !hrData) {
+        console.log("🔄 Trying HR lookup with original empno:", originalEmpno)
+        const result = await supabase
+          .from("a_hr_master")
+          .select("*")
+          .eq("EMPNO", originalEmpno)
+          .single()
+        hrData = result.data
+        hrError = result.error
+      }
 
       if (hrError || !hrData) {
         console.error("❌ HR 마스터 정보 조회 실패:", hrError)
@@ -87,20 +110,43 @@ export class UserInfoMapper {
       }
       console.log("✅ HR 마스터 정보 조회 성공:", hrData.EMPNM)
 
-      // 2. 사진 정보는 employee_photos에서만 조회 (empno 소문자)
-      const { data: photoData } = await supabase
+      // 2. 사진 정보는 employee_photos에서만 조회 (정규화된 사번으로 먼저 시도)
+      let { data: photoData } = await supabase
         .from("employee_photos")
         .select("file_name, photo_url, uploaded_at")
-        .eq("empno", empno)
+        .eq("empno", normalizedEmpno)
         .single()
+      
+      // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+      if (!photoData) {
+        console.log("🔄 Trying photo lookup with original empno:", originalEmpno)
+        const result = await supabase
+          .from("employee_photos")
+          .select("file_name, photo_url, uploaded_at")
+          .eq("empno", originalEmpno)
+          .single()
+        photoData = result.data
+      }
       console.log("📷 Photo data:", photoData ? "found" : "not found")
 
-      // 3. L_직무및활동 테이블에서 산업전문화, Council/TF, GSP/Focus 30 정보 조회
-      const { data: jobActivityData, error: jobError } = await supabase
+      // 3. L_직무및활동 테이블에서 산업전문화, Council/TF, GSP/Focus 30 정보 조회 (정규화된 사번으로 먼저 시도)
+      let { data: jobActivityData, error: jobError } = await supabase
         .from("L_직무및활동")
         .select("산업전문화, \"Council/TF 등\", \"GSP/Focus 30\"")
-        .eq("사번", empno)
+        .eq("사번", normalizedEmpno)
         .single()
+      
+      // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+      if (jobError || !jobActivityData) {
+        console.log("🔄 Trying job activity lookup with original empno:", originalEmpno)
+        const result = await supabase
+          .from("L_직무및활동")
+          .select("산업전문화, \"Council/TF 등\", \"GSP/Focus 30\"")
+          .eq("사번", originalEmpno)
+          .single()
+        jobActivityData = result.data
+        jobError = result.error
+      }
       
       if (jobError) {
         console.warn("⚠️ L_직무및활동 정보 조회 실패:", jobError)
