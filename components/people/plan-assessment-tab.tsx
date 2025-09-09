@@ -212,21 +212,33 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       try {
         console.log(`🗓️ Plan: Fetching most recent coaching cost since 2025-Q2`)
         
-        const { data, error } = await supabase
+        // 사번 170068인 경우 특정 PRJTCD만 필터링
+        const isSpecialEmpno = currentUser.empno === '170068';
+        const targetPrjtcd = '00184-90-323';
+        
+        let costQuery = supabase
           .from('v_coaching_time_quarterly')
           .select('total_amt, year_quarter')
           .eq('EMPNO', currentUser.empno)
           .gte('year_quarter', '2025-Q2')
           .order('year_quarter', { ascending: false })
-          .limit(1)
-          .maybeSingle()
+        
+        if (isSpecialEmpno) {
+          // 170068인 경우 최근 분기의 특정 PRJTCD만 필터링
+          costQuery = costQuery.eq('PRJTCD', targetPrjtcd);
+          console.log(`🎯 Plan: Special filtering for empno ${currentUser.empno}: PRJTCD = ${targetPrjtcd}`);
+        }
+        
+        const { data, error } = await costQuery.limit(1).maybeSingle()
         
         if (!error && data) {
           costAmount = Number(data.total_amt || 0)
           console.log(`💰 Plan: Latest coaching cost:`, { 
             empno: currentUser.empno, 
             latestQuarter: data.year_quarter,
-            totalCost: costAmount 
+            totalCost: costAmount,
+            isSpecialFiltered: isSpecialEmpno,
+            ...(isSpecialEmpno && { targetPrjtcd })
           })
         }
       } catch (costErr) {

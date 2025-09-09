@@ -107,12 +107,22 @@ export class PeopleGoalsService {
   static async getCoachingTimeStats(empno: string, year: number, quarter: number): Promise<{ quarterHours: number, yearHours: number }> {
     const yearQuarter = `${year}-Q${quarter}`;
     
+    // 사번 170068인 경우 특정 PRJTCD만 필터링
+    const isSpecialEmpno = empno === '170068';
+    const targetPrjtcd = '00184-90-323';
+    
     // 이번 분기: 여러 row 합산
-    const { data: quarterRows, error: qErr } = await supabase
+    let quarterQuery = supabase
       .from('v_coaching_time_quarterly')
       .select('total_use_time')
       .eq('EMPNO', empno)
       .eq('year_quarter', yearQuarter);
+    
+    if (isSpecialEmpno) {
+      quarterQuery = quarterQuery.eq('PRJTCD', targetPrjtcd);
+    }
+    
+    const { data: quarterRows, error: qErr } = await quarterQuery;
     if (qErr && qErr.code !== 'PGRST116') throw qErr;
 
     // 회계연도 누적 (6월말 기준): 2025-3Q ~ 2026-2Q
@@ -122,12 +132,21 @@ export class PeopleGoalsService {
     ];
     
     console.log(`🗓️ Coaching: Fiscal year quarters for ${empno}:`, fiscalYearQuarters);
+    if (isSpecialEmpno) {
+      console.log(`🎯 Special filtering for empno ${empno}: PRJTCD = ${targetPrjtcd}`);
+    }
     
-    const { data: yearRows, error: yErr } = await supabase
+    let yearQuery = supabase
       .from('v_coaching_time_quarterly')
       .select('total_use_time, year_quarter')
       .eq('EMPNO', empno)
       .in('year_quarter', fiscalYearQuarters);
+    
+    if (isSpecialEmpno) {
+      yearQuery = yearQuery.eq('PRJTCD', targetPrjtcd);
+    }
+    
+    const { data: yearRows, error: yErr } = await yearQuery;
     if (yErr) throw yErr;
 
     const quarterHours = (quarterRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);
@@ -137,7 +156,8 @@ export class PeopleGoalsService {
       currentQuarter: yearQuarter,
       quarterHours,
       fiscalYearTotal: yearHours,
-      fiscalYearData: yearRows
+      fiscalYearData: yearRows,
+      isSpecialFiltered: isSpecialEmpno
     });
 
     return { quarterHours, yearHours };
@@ -152,12 +172,22 @@ export class PeopleGoalsService {
         '2026-Q1', '2026-Q2'
       ]
       
+      // 사번 170068인 경우 특정 PRJTCD만 필터링
+      const isSpecialEmpno = managerEmpno === '170068';
+      const targetPrjtcd = '00184-90-323';
+      
       // 2. 리뷰어의 PRJTCD들을 먼저 조회
-      const { data: managerProjects, error: projectError } = await supabase
+      let managerProjectQuery = supabase
         .from('v_coaching_time_quarterly')
         .select('PRJTCD')
         .eq('EMPNO', managerEmpno)
-        .in('year_quarter', fiscalYearQuarters)
+        .in('year_quarter', fiscalYearQuarters);
+      
+      if (isSpecialEmpno) {
+        managerProjectQuery = managerProjectQuery.eq('PRJTCD', targetPrjtcd);
+      }
+      
+      const { data: managerProjects, error: projectError } = await managerProjectQuery;
       
       if (projectError) {
         console.error("Error fetching manager projects:", projectError)
@@ -172,6 +202,9 @@ export class PeopleGoalsService {
       // 3. 리뷰어의 고유 PRJTCD 목록 추출
       const managerPRJTCDs = [...new Set(managerProjects.map(p => p.PRJTCD))]
       console.log(`📋 Manager ${managerEmpno} PRJTCD list:`, managerPRJTCDs)
+      if (isSpecialEmpno) {
+        console.log(`🎯 Special filtering for manager ${managerEmpno}: only PRJTCD = ${targetPrjtcd}`);
+      }
       
       // 4. 해당 PRJTCD들에서 리뷰어가 아닌 다른 EMPNO들의 코칭 시간 조회
       const { data: teamCoachingData, error: teamError } = await supabase
@@ -191,11 +224,19 @@ export class PeopleGoalsService {
         return []
       }
       
-      // 5. EMPNO별로 그룹화하여 누적 시간 계산
+      // 5. EMPNO별로 그룹화하여 누적 시간 계산 (각 팀원의 170068 필터링도 적용)
       const empnoMap = new Map<string, number>()
       teamCoachingData.forEach(row => {
         const empno = row.EMPNO
+        const prjtcd = row.PRJTCD
         const hours = Number(row.total_use_time || 0)
+        
+        // 팀원이 170068인 경우에도 특정 PRJTCD만 집계
+        if (empno === '170068' && prjtcd !== targetPrjtcd) {
+          console.log(`🎯 Filtering out non-target PRJTCD for team member ${empno}: ${prjtcd} (target: ${targetPrjtcd})`)
+          return // 해당 레코드는 무시
+        }
+        
         empnoMap.set(empno, (empnoMap.get(empno) || 0) + hours)
       })
       
@@ -224,6 +265,16 @@ export class PeopleGoalsService {
             ReviewerService.normalizeEmpno(r.사번) === normalizedEmpno
           )
           
+          // 팀원의 상세 코칭 데이터도 필터링 적용
+          const memberCoachingData = teamCoachingData.filter(row => {
+            if (row.EMPNO !== empno) return false
+            // 팀원이 170068인 경우 특정 PRJTCD만 포함
+            if (empno === '170068' && row.PRJTCD !== targetPrjtcd) {
+              return false
+            }
+            return true
+          })
+
           teamMembersData.push({
             empno: empno,
             empnm: hrData?.EMPNM || revieweeInfo?.성명 || empno,
@@ -231,12 +282,22 @@ export class PeopleGoalsService {
             job_info_nm: hrData?.JOB_INFO_NM || '',
             gradnm: hrData?.GRADNM || '',
             totalCoachingHours: totalHours,
-            coachingData: teamCoachingData.filter(row => row.EMPNO === empno)
+            coachingData: memberCoachingData
           })
           
         } catch (error) {
           console.error(`Error fetching HR data for EMPNO ${empno}:`, error)
-          // 에러가 있어도 기본 정보는 추가
+          
+          // 에러가 있어도 기본 정보는 추가 (필터링 적용)
+          const memberCoachingData = teamCoachingData.filter(row => {
+            if (row.EMPNO !== empno) return false
+            // 팀원이 170068인 경우 특정 PRJTCD만 포함
+            if (empno === '170068' && row.PRJTCD !== targetPrjtcd) {
+              return false
+            }
+            return true
+          })
+
           teamMembersData.push({
             empno: empno,
             empnm: empno,
@@ -244,7 +305,7 @@ export class PeopleGoalsService {
             job_info_nm: '',
             gradnm: '',
             totalCoachingHours: totalHours,
-            coachingData: teamCoachingData.filter(row => row.EMPNO === empno)
+            coachingData: memberCoachingData
           })
         }
       }
