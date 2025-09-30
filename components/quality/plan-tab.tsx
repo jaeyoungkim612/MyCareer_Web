@@ -384,14 +384,12 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
     setOriginalNonAuditText(nonAuditText)
     setIsEditing(true)
     
-    // 비감사 목표가 완전히 비어있거나 기본값만 있을 때만 기본값 설정
+    // 비감사 목표가 완전히 비어있을 때만 기본값 설정 (기존 데이터가 있으면 보존)
     const currentText = nonAuditText?.trim() || ''
-    const isEmptyOrDefaultOnly = !currentText || 
-      currentText === nonAuditDefault.trim() ||
-      currentText === 'Quality 향상\n\n효율화 계획\n\n신상품 개발'
+    const isCompletelyEmpty = !currentText
     
-    if (isEmptyOrDefaultOnly) {
-      console.log('📄 Setting default non-audit text')
+    if (isCompletelyEmpty) {
+      console.log('📄 Setting default non-audit text for empty content')
       setNonAuditText(nonAuditDefault)
     }
   }

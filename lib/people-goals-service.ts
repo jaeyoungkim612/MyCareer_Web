@@ -105,17 +105,22 @@ export class PeopleGoalsService {
 
   // 코칭 시간 통계 (이번 분기, 회계연도 누적: 6월말 기준 2025-3Q ~ 2026-2Q)
   static async getCoachingTimeStats(empno: string, year: number, quarter: number): Promise<{ quarterHours: number, yearHours: number }> {
+    // 사번 정규화 (95129 → 095129)
+    const { ReviewerService } = await import('./reviewer-service')
+    const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+    console.log(`🔧 getCoachingTimeStats: Normalizing empno: ${empno} → ${normalizedEmpno}`)
+    
     const yearQuarter = `${year}-Q${quarter}`;
     
-    // 사번 170068인 경우 특정 PRJTCD만 필터링
-    const isSpecialEmpno = empno === '170068';
+    // 사번 170068인 경우 특정 PRJTCD만 필터링 (정규화된 사번으로 비교)
+    const isSpecialEmpno = normalizedEmpno === '170068';
     const targetPrjtcd = '00184-90-323';
     
     // 이번 분기: 여러 row 합산
     let quarterQuery = supabase
       .from('v_coaching_time_quarterly')
       .select('total_use_time')
-      .eq('EMPNO', empno)
+      .eq('EMPNO', normalizedEmpno)
       .eq('year_quarter', yearQuarter);
     
     if (isSpecialEmpno) {
@@ -131,15 +136,15 @@ export class PeopleGoalsService {
       '2026-Q1', '2026-Q2'
     ];
     
-    console.log(`🗓️ Coaching: Fiscal year quarters for ${empno}:`, fiscalYearQuarters);
+    console.log(`🗓️ Coaching: Fiscal year quarters for ${normalizedEmpno}:`, fiscalYearQuarters);
     if (isSpecialEmpno) {
-      console.log(`🎯 Special filtering for empno ${empno}: PRJTCD = ${targetPrjtcd}`);
+      console.log(`🎯 Special filtering for empno ${normalizedEmpno}: PRJTCD = ${targetPrjtcd}`);
     }
     
     let yearQuery = supabase
       .from('v_coaching_time_quarterly')
       .select('total_use_time, year_quarter')
-      .eq('EMPNO', empno)
+      .eq('EMPNO', normalizedEmpno)
       .in('year_quarter', fiscalYearQuarters);
     
     if (isSpecialEmpno) {
@@ -152,7 +157,7 @@ export class PeopleGoalsService {
     const quarterHours = (quarterRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);
     const yearHours = (yearRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);
 
-    console.log(`📊 Coaching time stats for ${empno}:`, {
+    console.log(`📊 Coaching time stats for ${normalizedEmpno}:`, {
       currentQuarter: yearQuarter,
       quarterHours,
       fiscalYearTotal: yearHours,
@@ -166,21 +171,26 @@ export class PeopleGoalsService {
   // 팀원들의 코칭 시간 통계 (리뷰어의 PRJTCD 기준)
   static async getTeamCoachingTimeStats(managerEmpno: string): Promise<TeamMemberCoachingData[]> {
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import('./reviewer-service')
+      const normalizedManagerEmpno = ReviewerService.normalizeEmpno(managerEmpno)
+      console.log(`🔧 getTeamCoachingTimeStats: Normalizing manager empno: ${managerEmpno} → ${normalizedManagerEmpno}`)
+      
       // 1. 회계연도 분기 정의
       const fiscalYearQuarters = [
         '2025-Q3', '2025-Q4', 
         '2026-Q1', '2026-Q2'
       ]
       
-      // 사번 170068인 경우 특정 PRJTCD만 필터링
-      const isSpecialEmpno = managerEmpno === '170068';
+      // 사번 170068인 경우 특정 PRJTCD만 필터링 (정규화된 사번으로 비교)
+      const isSpecialEmpno = normalizedManagerEmpno === '170068';
       const targetPrjtcd = '00184-90-323';
       
       // 2. 리뷰어의 PRJTCD들을 먼저 조회
       let managerProjectQuery = supabase
         .from('v_coaching_time_quarterly')
         .select('PRJTCD')
-        .eq('EMPNO', managerEmpno)
+        .eq('EMPNO', normalizedManagerEmpno)
         .in('year_quarter', fiscalYearQuarters);
       
       if (isSpecialEmpno) {
@@ -195,15 +205,15 @@ export class PeopleGoalsService {
       }
       
       if (!managerProjects || managerProjects.length === 0) {
-        console.log("🔍 No coaching projects found for manager:", managerEmpno)
+        console.log("🔍 No coaching projects found for manager:", normalizedManagerEmpno)
         return []
       }
       
       // 3. 리뷰어의 고유 PRJTCD 목록 추출
       const managerPRJTCDs = [...new Set(managerProjects.map(p => p.PRJTCD))]
-      console.log(`📋 Manager ${managerEmpno} PRJTCD list:`, managerPRJTCDs)
+      console.log(`📋 Manager ${normalizedManagerEmpno} PRJTCD list:`, managerPRJTCDs)
       if (isSpecialEmpno) {
-        console.log(`🎯 Special filtering for manager ${managerEmpno}: only PRJTCD = ${targetPrjtcd}`);
+        console.log(`🎯 Special filtering for manager ${normalizedManagerEmpno}: only PRJTCD = ${targetPrjtcd}`);
       }
       
       // 4. 해당 PRJTCD들에서 리뷰어가 아닌 다른 EMPNO들의 코칭 시간 조회
@@ -211,7 +221,7 @@ export class PeopleGoalsService {
         .from('v_coaching_time_quarterly')
         .select('EMPNO, PRJTCD, total_use_time, year_quarter')
         .in('PRJTCD', managerPRJTCDs)
-        .neq('EMPNO', managerEmpno)  // 리뷰어 제외
+        .neq('EMPNO', normalizedManagerEmpno)  // 리뷰어 제외
         .in('year_quarter', fiscalYearQuarters)
       
       if (teamError) {
@@ -242,9 +252,8 @@ export class PeopleGoalsService {
       
       console.log(`📊 Team coaching hours by EMPNO:`, Object.fromEntries(empnoMap))
       
-      // 6. ReviewerService로 팀원 목록 가져와서 매칭
-      const { ReviewerService } = await import('./reviewer-service')
-      const userRole = await ReviewerService.getUserRole(managerEmpno)
+      // 6. ReviewerService로 팀원 목록 가져와서 매칭 (이미 import되어 있음)
+      const userRole = await ReviewerService.getUserRole(normalizedManagerEmpno)
       
       // 7. 팀원들의 HR 정보와 코칭 시간 매칭
       const teamMembersData: TeamMemberCoachingData[] = []
@@ -277,7 +286,7 @@ export class PeopleGoalsService {
 
           teamMembersData.push({
             empno: empno,
-            empnm: hrData?.EMPNM || revieweeInfo?.성명 || empno,
+            empnm: hrData?.EMPNM || revieweeInfo?.성명 || '퇴사자',
             org_nm: hrData?.ORG_NM || revieweeInfo?.['FY26 팀명'] || '',
             job_info_nm: hrData?.JOB_INFO_NM || '',
             gradnm: hrData?.GRADNM || '',
@@ -300,7 +309,7 @@ export class PeopleGoalsService {
 
           teamMembersData.push({
             empno: empno,
-            empnm: empno,
+            empnm: '퇴사자',
             org_nm: '',
             job_info_nm: '',
             gradnm: '',

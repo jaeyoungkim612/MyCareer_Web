@@ -575,24 +575,29 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       
       if (event.detail?.empno === normalizedEmpno) {
         console.log('✅ Monitoring: Plan data changed for current user, refreshing...')
-        refetchTargets()
+        // 편집 중이 아닐 때만 리프레시 (입력 중인 데이터 보호)
+        if (!isEditingNonAuditStatus) {
+          refetchTargets()
+        }
       }
     }
 
     // 이벤트 리스너 등록
     window.addEventListener('qualityPlanDataChanged', handlePlanDataChange as EventListener)
 
-    // 5초마다 Plan 데이터 확인 (자동 새로고침)
+    // 편집 중이 아닐 때만 자동 새로고침 (입력 중인 데이터 보호)
     const interval = setInterval(() => {
-      console.log('🔄 Monitoring: Polling Plan data for updates...')
-      refetchTargets()
-    }, 5000) // 5초마다 자동 새로고침
+      if (!isEditingNonAuditStatus) {
+        console.log('🔄 Monitoring: Polling Plan data for updates...')
+        refetchTargets()
+      }
+    }, 10000) // 10초로 늘리고 편집 중이 아닐 때만
 
     return () => {
       window.removeEventListener('qualityPlanDataChanged', handlePlanDataChange as EventListener)
       clearInterval(interval)
     }
-  }, [currentUser])
+  }, [currentUser, isEditingNonAuditStatus])
 
   return (
     <>

@@ -167,8 +167,13 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
     
     setIsLoading(true)
     try {
+      // 사번 정규화 (95129 → 095129)
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      console.log(`🔧 Industry Plan handleSave: Normalizing empno: ${currentUser.empno} → ${normalizedEmpno}`)
+      
       const saved = await IndustryTLPlanningService.upsertPlanning({
-        employee_id: currentUser.empno, // 항상 currentUser.empno 사용
+        employee_id: normalizedEmpno, // 정규화된 사번 사용
         goals: formData.goals,
         thought_leadership_activities: formData.thought_leadership_activities,
         tl_revenue_connection: formData.tl_revenue_connection,
