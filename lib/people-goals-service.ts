@@ -121,16 +121,16 @@ export class PeopleGoalsService {
       .from('v_coaching_time_quarterly')
       .select('total_use_time')
       .eq('EMPNO', normalizedEmpno)
-      .eq('year_quarter', yearQuarter);
+      .in('year_quarter', [yearQuarter]);
     
     if (isSpecialEmpno) {
       quarterQuery = quarterQuery.eq('PRJTCD', targetPrjtcd);
     }
     
-    const { data: quarterRows, error: qErr } = await quarterQuery;
+    const { data: quarterRows, error: qErr } = await quarterQuery.limit(100);
     if (qErr && qErr.code !== 'PGRST116') throw qErr;
 
-    // 회계연도 누적 (6월말 기준): 2025-3Q ~ 2026-2Q
+    // 회계연도 누적 (2025-3Q ~ 2026-2Q): 6월말 기준 회계연도
     const fiscalYearQuarters = [
       '2025-Q3', '2025-Q4', 
       '2026-Q1', '2026-Q2'
@@ -151,7 +151,7 @@ export class PeopleGoalsService {
       yearQuery = yearQuery.eq('PRJTCD', targetPrjtcd);
     }
     
-    const { data: yearRows, error: yErr } = await yearQuery;
+    const { data: yearRows, error: yErr } = await yearQuery.limit(200);
     if (yErr) throw yErr;
 
     const quarterHours = (quarterRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);
@@ -176,7 +176,7 @@ export class PeopleGoalsService {
       const normalizedManagerEmpno = ReviewerService.normalizeEmpno(managerEmpno)
       console.log(`🔧 getTeamCoachingTimeStats: Normalizing manager empno: ${managerEmpno} → ${normalizedManagerEmpno}`)
       
-      // 1. 회계연도 분기 정의
+      // 1. 회계연도 분기 정의 (2025-3Q ~ 2026-2Q): 6월말 기준 회계연도
       const fiscalYearQuarters = [
         '2025-Q3', '2025-Q4', 
         '2026-Q1', '2026-Q2'
@@ -197,7 +197,7 @@ export class PeopleGoalsService {
         managerProjectQuery = managerProjectQuery.eq('PRJTCD', targetPrjtcd);
       }
       
-      const { data: managerProjects, error: projectError } = await managerProjectQuery;
+      const { data: managerProjects, error: projectError } = await managerProjectQuery.limit(50);
       
       if (projectError) {
         console.error("Error fetching manager projects:", projectError)
@@ -223,6 +223,7 @@ export class PeopleGoalsService {
         .in('PRJTCD', managerPRJTCDs)
         .neq('EMPNO', normalizedManagerEmpno)  // 리뷰어 제외
         .in('year_quarter', fiscalYearQuarters)
+        .limit(500)
       
       if (teamError) {
         console.error("Error fetching team coaching data:", teamError)
