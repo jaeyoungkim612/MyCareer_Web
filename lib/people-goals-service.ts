@@ -128,7 +128,14 @@ export class PeopleGoalsService {
     }
     
     const { data: quarterRows, error: qErr } = await quarterQuery.limit(100);
-    if (qErr && qErr.code !== 'PGRST116') throw qErr;
+    if (qErr) {
+      // 404 에러는 뷰가 없거나 접근 권한이 없을 때 발생 - 빈 배열로 처리
+      if (qErr.code === 'PGRST116' || qErr.code === '42P01' || qErr.message?.includes('does not exist')) {
+        console.warn(`⚠️ v_coaching_time_quarterly 뷰를 찾을 수 없습니다. 빈 데이터로 처리합니다.`, qErr);
+        return { quarterHours: 0, yearHours: 0 };
+      }
+      throw qErr;
+    }
 
     // 회계연도 누적 (2025-3Q ~ 2026-2Q): 6월말 기준 회계연도
     const fiscalYearQuarters = [
@@ -152,7 +159,14 @@ export class PeopleGoalsService {
     }
     
     const { data: yearRows, error: yErr } = await yearQuery.limit(200);
-    if (yErr) throw yErr;
+    if (yErr) {
+      // 404 에러는 뷰가 없거나 접근 권한이 없을 때 발생 - 빈 배열로 처리
+      if (yErr.code === 'PGRST116' || yErr.code === '42P01' || yErr.message?.includes('does not exist')) {
+        console.warn(`⚠️ v_coaching_time_quarterly 뷰를 찾을 수 없습니다. 빈 데이터로 처리합니다.`, yErr);
+        return { quarterHours: 0, yearHours: 0 };
+      }
+      throw yErr;
+    }
 
     const quarterHours = (quarterRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);
     const yearHours = (yearRows ?? []).reduce((sum, row) => sum + Number(row.total_use_time || 0), 0);

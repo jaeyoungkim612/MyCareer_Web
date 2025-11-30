@@ -216,13 +216,85 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       
       if (filteredProjectCodes.length > 0) {
         // 2. 해당 프로젝트들의 모든 사람 시간 데이터 조회 (총시간 계산용)
-        const { data: allTimeData, error: allTimeError } = await supabase
+        // v_project_time 뷰: a_coaching_time 테이블 기반으로 2025년 데이터만 집계
+        let allTimeData: any[] = [];
+        let allTimeError: any = null;
+        
+        // 먼저 v_project_time 뷰에서 조회 시도
+        const viewResult = await supabase
           .from('v_project_time')
           .select('PRJTCD, EMPNO, EMPNM, total_use_time')
           .in('PRJTCD', filteredProjectCodes);
         
-        if (allTimeError) {
-          console.error('Error fetching all time data:', allTimeError);
+        allTimeData = viewResult.data || [];
+        allTimeError = viewResult.error;
+        
+        // 뷰가 비어있거나 에러가 발생하면 a_coaching_time 테이블에서 직접 조회 (fallback)
+        if (allTimeError || !allTimeData || allTimeData.length === 0) {
+          console.log('🔄 v_project_time 뷰에 데이터가 없거나 에러 발생. a_coaching_time 테이블에서 직접 조회 시도...');
+          
+          // a_coaching_time 테이블에서 직접 조회
+          const { data: coachingTimeData, error: coachingError } = await supabase
+            .from('a_coaching_time')
+            .select('EMPNO, PRJTCD, USE_TIME, INPUTDATE')
+            .in('PRJTCD', filteredProjectCodes)
+            .not('INPUTDATE', 'is', null)
+            .like('INPUTDATE', '2025%');
+          
+          if (!coachingError && coachingTimeData && coachingTimeData.length > 0) {
+            console.log(`✅ a_coaching_time에서 ${coachingTimeData.length}건의 데이터 조회 성공`);
+            
+            // 사원명을 가져오기 위해 a_hr_master 조회
+            const uniqueEmpnos = [...new Set(coachingTimeData.map(item => item.EMPNO))];
+            const { data: hrData } = await supabase
+              .from('a_hr_master')
+              .select('EMPNO, EMPNM')
+              .in('EMPNO', uniqueEmpnos);
+            
+            const hrMap = new Map((hrData || []).map(hr => [hr.EMPNO, hr.EMPNM]));
+            
+            // 데이터 집계 (PRJTCD, EMPNO별로 USE_TIME 합산)
+            const timeMap = new Map<string, { EMPNO: string; PRJTCD: string; EMPNM: string; total_use_time: number }>();
+            
+            coachingTimeData.forEach(item => {
+              const key = `${item.PRJTCD}_${item.EMPNO}`;
+              const useTime = parseFloat(item.USE_TIME || '0') || 0;
+              
+              if (timeMap.has(key)) {
+                timeMap.get(key)!.total_use_time += useTime;
+              } else {
+                timeMap.set(key, {
+                  EMPNO: item.EMPNO,
+                  PRJTCD: item.PRJTCD,
+                  EMPNM: hrMap.get(item.EMPNO) || 'N/A',
+                  total_use_time: useTime
+                });
+              }
+            });
+            
+            allTimeData = Array.from(timeMap.values());
+            console.log(`✅ 집계 완료: ${allTimeData.length}건의 프로젝트-사원 조합`);
+          } else if (coachingError) {
+            console.error('❌ a_coaching_time 직접 조회도 실패:', coachingError);
+          } else {
+            console.warn('⚠️ a_coaching_time에도 해당 조건의 데이터가 없습니다.');
+          }
+        }
+        
+        if (allTimeError && (!allTimeData || allTimeData.length === 0)) {
+          console.error('❌ Error fetching all time data:', allTimeError);
+          console.error('❌ Error details:', {
+            message: allTimeError.message,
+            details: allTimeError.details,
+            hint: allTimeError.hint,
+            code: allTimeError.code
+          });
+          
+          // 최종적으로 데이터가 없으면 빈 데이터로 처리
+          setActualElInputRatio(0);
+          setElTotalTime(0);
+          setElMyTime(0);
+          setElDetailData([]);
           return;
         }
         

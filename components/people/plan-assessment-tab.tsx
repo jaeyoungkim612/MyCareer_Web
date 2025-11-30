@@ -216,30 +216,47 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         const isSpecialEmpno = currentUser.empno === '170068';
         const targetPrjtcd = '00184-90-323';
         
+        // 사번 정규화
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+        
         let costQuery = supabase
           .from('v_coaching_time_quarterly')
           .select('total_amt, year_quarter')
-          .eq('EMPNO', currentUser.empno)
+          .eq('EMPNO', normalizedEmpno)
           .gte('year_quarter', '2025-Q2')
           .order('year_quarter', { ascending: false })
         
         if (isSpecialEmpno) {
           // 170068인 경우 최근 분기의 특정 PRJTCD만 필터링
           costQuery = costQuery.eq('PRJTCD', targetPrjtcd);
-          console.log(`🎯 Plan: Special filtering for empno ${currentUser.empno}: PRJTCD = ${targetPrjtcd}`);
+          console.log(`🎯 Plan: Special filtering for empno ${currentUser.empno} (${normalizedEmpno}): PRJTCD = ${targetPrjtcd}`);
         }
         
         const { data, error } = await costQuery.limit(1).maybeSingle()
         
+        if (error) {
+          console.error('❌ 코칭 비용 조회 에러:', error)
+          console.error('❌ 에러 상세:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+        }
+        
         if (!error && data) {
           costAmount = Number(data.total_amt || 0)
           console.log(`💰 Plan: Latest coaching cost:`, { 
-            empno: currentUser.empno, 
+            empno: currentUser.empno,
+            normalizedEmpno,
             latestQuarter: data.year_quarter,
             totalCost: costAmount,
             isSpecialFiltered: isSpecialEmpno,
             ...(isSpecialEmpno && { targetPrjtcd })
           })
+        } else {
+          console.log(`ℹ️ Plan: No coaching cost data found for empno ${currentUser.empno} (${normalizedEmpno})`)
         }
       } catch (costErr) {
         console.error("코칭 지출 조회 오류:", costErr)
@@ -259,10 +276,20 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       const authUser = AuthService.getCurrentUser()
       if (!authUser) throw new Error("로그인된 사용자가 없습니다. 다시 로그인해주세요.")
       
-      // readOnly 모드에서는 전달받은 empno 우선 사용, 일반 모드에서는 로그인 사용자
+      // readOnly 모드(리뷰어/마스터 리뷰어)에서는 반드시 전달받은 empno 사용
+      // 일반 모드에서는 empno가 있으면 그것을, 없으면 로그인 사용자 사용
       const targetEmpno = readOnly 
-        ? empno || authUser.empno // readOnly일 때는 전달받은 empno 우선
-        : empno || authUser.empno // 일반 모드일 때는 기존 로직
+        ? empno // readOnly일 때는 반드시 전달받은 empno 사용 (리뷰 대상자)
+        : (empno || authUser.empno) // 일반 모드일 때는 empno가 있으면 그것을, 없으면 로그인 사용자
+      
+      console.log(`🔍 PlanAssessmentTab: loadUserInfoAndInitialize - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
+      
+      if (!targetEmpno) {
+        if (readOnly) {
+          console.warn('⚠️ PlanAssessmentTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
+        }
+        throw new Error("사용자 정보를 찾을 수 없습니다.")
+      }
       
       setCurrentUser({ ...authUser, empno: targetEmpno })
       
@@ -372,7 +399,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           .maybeSingle()
         
         if (latestYearData && !yearError) {
-          const latestYear = (latestYearData as any)['연도']
+          const latestYear = String((latestYearData as any)['연도']) // 문자열로 변환 (results-tab.tsx와 동일)
           console.log(`📅 Latest GPS/PEI year: ${latestYear}`)
           
           // 여러 사번 형식으로 시도해보기
@@ -390,28 +417,72 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           let matchedEmpno = null
           
           // 각 사번 형식으로 순차 시도
+          // 에러 메시지에 따르면 "GPS(ItS)"로 되어 있음 - 대소문자 주의
           for (const empnoVariation of empnoVariations) {
-            const { data, error } = await supabase
+            // 먼저 에러 메시지에서 제안한 대로 "GPS(ItS)" 시도
+            let { data, error } = await supabase
               .from("L_GPS_PEI_Table")
-              .select('"GPS(PEI)", "GPS(ITS)"')
+              .select('"GPS(ItS)", "GPS(PEI)"')
               .eq('"EMPNO"', empnoVariation)
               .eq('"연도"', latestYear)
               .maybeSingle()
             
-            console.log(`🔍 Trying GPS/PEI empno "${empnoVariation}":`, { data, error })
+            // "GPS(ItS)"가 실패하면 "GPS(ITS)" 시도
+            if (error && error.message?.includes('does not exist')) {
+              console.log(`🔄 Trying "GPS(ITS)" instead of "GPS(ItS)"...`)
+              const result = await supabase
+                .from("L_GPS_PEI_Table")
+                .select('"GPS(ITS)", "GPS(PEI)"')
+                .eq('"EMPNO"', empnoVariation)
+                .eq('"연도"', latestYear)
+                .maybeSingle()
+              data = result.data as any
+              error = result.error
+            }
             
-            if (data && !error) {
-              gpsData = data
-              matchedEmpno = empnoVariation
-              console.log(`✅ Found GPS/PEI data with empno: ${empnoVariation}`)
-              break
+            // 여전히 실패하면 연도 필터 없이 시도
+            if (error) {
+              console.error(`❌ GPS/PEI 조회 에러 (empno: ${empnoVariation}, 연도: ${latestYear}):`, error)
+              console.error('❌ 에러 상세:', JSON.stringify({
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code
+              }, null, 2))
+              
+              // 연도 필터 없이 시도
+              console.log(`🔄 Trying without year filter...`)
+              const altResult = await supabase
+                .from("L_GPS_PEI_Table")
+                .select('"GPS(ItS)", "GPS(PEI)"')
+                .eq('"EMPNO"', empnoVariation)
+                .maybeSingle()
+              
+              if (!altResult.error && altResult.data) {
+                console.log(`✅ Found GPS/PEI data without year filter (empno: ${empnoVariation})`)
+                gpsData = altResult.data
+                matchedEmpno = empnoVariation
+                break
+              } else if (altResult.error) {
+                console.error(`❌ Alternative query also failed:`, altResult.error)
+              }
+            } else {
+              console.log(`🔍 Trying GPS/PEI empno "${empnoVariation}":`, { data, error })
+              
+              if (data && !error) {
+                gpsData = data
+                matchedEmpno = empnoVariation
+                console.log(`✅ Found GPS/PEI data with empno: ${empnoVariation}`)
+                break
+              }
             }
           }
           
           if (gpsData) {
             // 0.71 형태를 71%로 변환
-            const gpsPeiValue = (gpsData as any)['GPS(PEI)']
-            const gpsItsValue = (gpsData as any)['GPS(ITS)']
+            // 컬럼명이 "GPS(ItS)" 또는 "GPS(ITS)"일 수 있음 (대소문자 주의)
+            const gpsPeiValue = (gpsData as any)['GPS(PEI)'] || (gpsData as any)['GPS(Pei)'] || (gpsData as any).PEI
+            const gpsItsValue = (gpsData as any)['GPS(ItS)'] || (gpsData as any)['GPS(ITS)'] || (gpsData as any).GPS
             
             if (gpsPeiValue && gpsPeiValue !== '-') {
               initialPeiScore = Math.round(parseFloat(gpsPeiValue) * 100)

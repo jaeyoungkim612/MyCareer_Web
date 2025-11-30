@@ -96,7 +96,21 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
   useEffect(() => {
     const loadUserInfo = async () => {
       const user = AuthService.getCurrentUser()
-      const targetEmpno = readOnly ? empno : (empno || user?.empno)
+      // readOnly 모드(리뷰어/마스터 리뷰어)에서는 반드시 전달받은 empno 사용
+      // 일반 모드에서는 empno가 있으면 그것을, 없으면 로그인 사용자 사용
+      const targetEmpno = readOnly 
+        ? empno // readOnly일 때는 반드시 전달받은 empno 사용 (리뷰 대상자)
+        : (empno || user?.empno) // 일반 모드일 때는 empno가 있으면 그것을, 없으면 로그인 사용자
+      
+      console.log(`🔍 ResultsTab: loadUserInfo - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
+      
+      if (!targetEmpno) {
+        if (readOnly) {
+          console.warn('⚠️ ResultsTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
+        }
+        setLoading(false)
+        return
+      }
       
       if (!targetEmpno) {
         setLoading(false)
@@ -362,11 +376,70 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                 .in("EMPNO", teamEmpnos)
                 .order("BASE_YMD", { ascending: false }),
               
-              // 활용률 정보 조회
-              supabase
-                .from("v_employee_core")
-                .select("EMPNO, EMPNM, CM_NM, UTIL_A, UTIL_B, BASE_YMD")
-                .in("EMPNO", teamEmpnos),
+              // 활용률 정보 조회 - v_employee_core 뷰가 실패하면 a_utilization 테이블 직접 사용
+              (async () => {
+                // 먼저 v_employee_core 뷰 시도
+                const { data: coreData, error: coreError } = await supabase
+                  .from("v_employee_core")
+                  .select("EMPNO, EMPNM, CM_NM, UTIL_A, UTIL_B, BASE_YMD")
+                  .in("EMPNO", teamEmpnos)
+                
+                if (!coreError && coreData) {
+                  return { data: coreData, error: null }
+                }
+                
+                // v_employee_core가 실패하면 a_utilization 테이블 직접 사용
+                console.log('⚠️ v_employee_core 뷰 조회 실패, a_utilization 테이블 직접 조회 시도:', coreError)
+                
+                // 최신 UTIL_DATE 찾기
+                const { data: latestUtilDate } = await supabase
+                  .from("a_utilization")
+                  .select("UTIL_DATE")
+                  .in("EMPNO", teamEmpnos)
+                  .order("UTIL_DATE", { ascending: false })
+                  .limit(1)
+                  .maybeSingle()
+                
+                const latestDate = latestUtilDate?.UTIL_DATE
+                
+                // a_utilization에서 활용률 데이터 조회
+                const { data: utilData, error: utilError } = latestDate
+                  ? await supabase
+                      .from("a_utilization")
+                      .select("EMPNO, UTIL_A, UTIL_B, UTIL_DATE")
+                      .in("EMPNO", teamEmpnos)
+                      .eq("UTIL_DATE", latestDate)
+                  : { data: null, error: { message: '최신 UTIL_DATE를 찾을 수 없습니다.' } }
+                
+                if (utilError || !utilData) {
+                  return { data: null, error: utilError || { message: '활용률 데이터를 찾을 수 없습니다.' } }
+                }
+                
+                // a_hr_master에서 EMPNM, CM_NM 가져오기
+                const { data: hrData } = await supabase
+                  .from("a_hr_master")
+                  .select("EMPNO, EMPNM, CM_NM")
+                  .in("EMPNO", teamEmpnos)
+                
+                const hrMap = new Map()
+                if (hrData) {
+                  hrData.forEach(hr => {
+                    hrMap.set(hr.EMPNO, { EMPNM: hr.EMPNM, CM_NM: hr.CM_NM })
+                  })
+                }
+                
+                // 데이터 병합
+                const mergedData = utilData.map(util => ({
+                  EMPNO: util.EMPNO,
+                  EMPNM: hrMap.get(util.EMPNO)?.EMPNM || util.EMPNO,
+                  CM_NM: hrMap.get(util.EMPNO)?.CM_NM || '',
+                  UTIL_A: util.UTIL_A,
+                  UTIL_B: util.UTIL_B,
+                  BASE_YMD: util.UTIL_DATE
+                }))
+                
+                return { data: mergedData, error: null }
+              })(),
               
               // 최신 활용률 날짜 조회
               supabase
