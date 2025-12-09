@@ -227,6 +227,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     cardClassName,
     breakdown,
     subtitle,
+    currentEmployeeId,
+    auditType,
   }: {
     actual: number
     budget: number
@@ -241,9 +243,224 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       pipeline: number
     }
     subtitle?: string
+    currentEmployeeId?: string
+    auditType?: 'audit' | 'non-audit'
   }) => {
+    const [projectDetails, setProjectDetails] = useState<{
+      revenue: Array<{ name: string; amount: number }>
+      backlog: Array<{ name: string; amount: number }>
+      pipeline: Array<{ name: string; amount: number }>
+    }>({
+      revenue: [],
+      backlog: [],
+      pipeline: []
+    })
+    const [loadingDetails, setLoadingDetails] = useState(false)
+    const [dialogOpen, setDialogOpen] = useState(false)
+
     const percentage = (actual / budget) * 100
     const isExceeded = actual > budget
+
+    // 상세보기 Dialog 열릴 때 프로젝트 데이터 가져오기
+    const fetchProjectDetails = async () => {
+      if (!currentEmployeeId) {
+        console.warn('⚠️ fetchProjectDetails: currentEmployeeId가 없습니다.')
+        return
+      }
+
+      setLoadingDetails(true)
+      try {
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
+        console.log(`🔍 fetchProjectDetails (${auditType}): currentEmployeeId = ${currentEmployeeId}, normalizedEmpno = ${normalizedEmpno}`)
+        
+        // audityn 필터 값 설정
+        const auditYnFilter = auditType === 'audit' ? 'Y' : auditType === 'non-audit' ? 'N' : null
+
+        // 1. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
+        let revenueQuery = supabase
+          .from('a_performance_current')
+          .select('PRJTNM, CLIENTNM, REVENUE, AUDITYN')
+          .eq('EMPLNO', normalizedEmpno)
+          .not('REVENUE', 'is', null)
+          .order('ETL_DATE', { ascending: false })
+        
+        if (auditYnFilter) {
+          revenueQuery = revenueQuery.eq('AUDITYN', auditYnFilter)
+        }
+
+        const { data: revenueData, error: revenueError } = await revenueQuery
+        
+        if (revenueError) {
+          console.error('❌ Revenue 데이터 조회 에러:', revenueError)
+        }
+        console.log(`📊 Revenue 데이터 조회 결과 (${auditType}):`, { 
+          count: revenueData?.length || 0, 
+          error: revenueError?.message,
+          sample: revenueData?.slice(0, 2)
+        })
+
+        // 2. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG가 있는 프로젝트, 음수 포함)
+        let backlogQuery = supabase
+          .from('a_performance_current')
+          .select('PRJTNM, CLIENTNM, BACKLOG, AUDITYN')
+          .eq('EMPLNO', normalizedEmpno)
+          .not('BACKLOG', 'is', null)
+          .order('ETL_DATE', { ascending: false })
+        
+        if (auditYnFilter) {
+          backlogQuery = backlogQuery.eq('AUDITYN', auditYnFilter)
+        }
+
+        const { data: backlogData, error: backlogError } = await backlogQuery
+        
+        if (backlogError) {
+          console.error('❌ Backlog 데이터 조회 에러:', backlogError)
+        }
+        console.log(`📊 Backlog 데이터 조회 결과 (${auditType}):`, { 
+          count: backlogData?.length || 0, 
+          error: backlogError?.message,
+          sample: backlogData?.slice(0, 2)
+        })
+
+        // 3. Pipeline 프로젝트 조회 (a_pipeline_current_re에서 최신 CDM_REPORT_MONTH 사용)
+        const { data: latestMonthData, error: latestMonthError } = await supabase
+          .from('a_pipeline_current_re')
+          .select('CDM_REPORT_MONTH')
+          .not('CDM_REPORT_MONTH', 'is', null)
+          .order('CDM_REPORT_MONTH', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        const latestMonth = latestMonthData?.CDM_REPORT_MONTH
+        if (latestMonthError) {
+          console.error('❌ 최신 CDM_REPORT_MONTH 조회 에러:', latestMonthError)
+        }
+        console.log('📅 최신 CDM_REPORT_MONTH:', latestMonth)
+
+        // 최신 CDM_REPORT_MONTH의 Pipeline 데이터 조회 (음수 포함)
+        let pipelineQuery = latestMonth
+          ? supabase
+              .from('a_pipeline_current_re')
+              .select('PRJTNM, CLIENTNM, current_total, audityn')
+              .eq('EMPLNO', normalizedEmpno)
+              .eq('CDM_REPORT_MONTH', latestMonth)
+              .not('current_total', 'is', null)
+          : null
+
+        if (pipelineQuery && auditYnFilter) {
+          pipelineQuery = pipelineQuery.eq('audityn', auditYnFilter)
+        }
+
+        const { data: pipelineData, error: pipelineError } = pipelineQuery 
+          ? await pipelineQuery 
+          : { data: null, error: null }
+        
+        if (pipelineError) {
+          console.error('❌ Pipeline 데이터 조회 에러:', pipelineError)
+        }
+        
+        console.log(`📊 Pipeline 데이터 조회 결과 (${auditType}):`, { 
+          count: pipelineData?.length || 0, 
+          error: pipelineError?.message,
+          latestMonth,
+          sample: pipelineData?.slice(0, 2)
+        })
+
+        // 4. 프로젝트 데이터 정리
+        // Revenue 프로젝트 정리 (프로젝트명+고객명으로 그룹화)
+        const revenueMap = new Map<string, number>()
+        if (revenueData) {
+          revenueData.forEach(item => {
+            const key = `${item.PRJTNM || '프로젝트명 없음'}|${item.CLIENTNM || '고객명 없음'}`
+            const revenue = parseFloat(String(item.REVENUE || 0)) / 1_000_000 // 백만원 단위
+            if (revenueMap.has(key)) {
+              revenueMap.set(key, revenueMap.get(key)! + revenue)
+            } else {
+              revenueMap.set(key, revenue)
+            }
+          })
+        }
+
+        const revenueProjects = Array.from(revenueMap.entries()).map(([key, amount]) => {
+          const [name, client] = key.split('|')
+          return {
+            name: `${name} (${client})`,
+            amount: amount
+          }
+        }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
+
+        // Backlog 프로젝트 정리
+        const backlogMap = new Map<string, number>()
+        if (backlogData) {
+          backlogData.forEach(item => {
+            const key = `${item.PRJTNM || '프로젝트명 없음'}|${item.CLIENTNM || '고객명 없음'}`
+            const backlog = parseFloat(String(item.BACKLOG || 0)) / 1_000_000 // 백만원 단위
+            if (backlogMap.has(key)) {
+              backlogMap.set(key, backlogMap.get(key)! + backlog)
+            } else {
+              backlogMap.set(key, backlog)
+            }
+          })
+        }
+
+        const backlogProjects = Array.from(backlogMap.entries()).map(([key, amount]) => {
+          const [name, client] = key.split('|')
+          return {
+            name: `${name} (${client})`,
+            amount: amount
+          }
+        }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
+
+        // Pipeline 프로젝트 정리
+        const pipelineMap = new Map<string, number>()
+        if (pipelineData) {
+          pipelineData.forEach(item => {
+            const prjtnm = (item as any).PRJTNM || (item as any).prjtnm || '프로젝트명 없음'
+            const clientnm = (item as any).CLIENTNM || (item as any).clientnm || '고객명 없음'
+            const key = `${prjtnm}|${clientnm}`
+            const pipeline = parseFloat(String((item as any).current_total || (item as any).CURRENT_TOTAL || 0)) / 1_000_000 // 백만원 단위
+            if (pipelineMap.has(key)) {
+              pipelineMap.set(key, pipelineMap.get(key)! + pipeline)
+            } else {
+              pipelineMap.set(key, pipeline)
+            }
+          })
+        }
+
+        const pipelineProjects = Array.from(pipelineMap.entries()).map(([key, amount]) => {
+          const [name, client] = key.split('|')
+          return {
+            name: `${name} (${client})`,
+            amount: amount
+          }
+        }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
+
+        console.log(`✅ 최종 프로젝트 상세 데이터 (${auditType}):`, {
+          revenue: revenueProjects.length,
+          backlog: backlogProjects.length,
+          pipeline: pipelineProjects.length
+        })
+
+        setProjectDetails({
+          revenue: revenueProjects,
+          backlog: backlogProjects,
+          pipeline: pipelineProjects
+        })
+      } catch (error) {
+        console.error('❌ 프로젝트 상세 정보 가져오기 실패:', error)
+        setProjectDetails({ revenue: [], backlog: [], pipeline: [] })
+      } finally {
+        setLoadingDetails(false)
+      }
+    }
+
+    // Dialog가 열릴 때 데이터 가져오기
+    useEffect(() => {
+      if (dialogOpen && auditType) {
+        fetchProjectDetails()
+      }
+    }, [dialogOpen, currentEmployeeId, auditType])
 
     // BarChartComponent 내부 formatDisplayValue 함수에서 'amount' 타입일 때 value를 그대로 사용하고, 단위만 붙임. 추가적인 / 1_000_000 등 연산 제거.
     // 카드 하단, 툴팁 등에서도 변수값 그대로 사용하고, 단위만 붙임.
@@ -303,7 +520,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       <Card className={`h-full w-full ${cardClassName || ""}`}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-3">
               <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: color }} />
               <div>
                 <span className="text-lg font-semibold text-gray-900">{title}</span>
@@ -311,6 +528,150 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   <div className="text-xs text-gray-500 mt-1">{subtitle}</div>
                 )}
               </div>
+              {/* 상세보기 버튼 추가 (auditType이 있을 때만) */}
+              {auditType && (
+                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-xs h-6 px-2">
+                      <Eye className="h-3 w-3 mr-1" />
+                      상세보기
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                    <DialogHeader>
+                      <DialogTitle>{title} 상세 내역 ({auditType === 'audit' ? '감사' : '비감사'})</DialogTitle>
+                    </DialogHeader>
+                    {loadingDetails ? (
+                      <div className="p-8 text-center text-gray-500">로딩 중...</div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* 합계 정보 상단 표시 */}
+                        <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border">
+                          <div className="text-center">
+                            <div className="text-sm text-gray-600 mb-1">Revenue 합계</div>
+                            <div className="text-lg font-bold text-orange-600">
+                              {projectDetails.revenue.length > 0
+                                ? `${Math.ceil(projectDetails.revenue.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                : '0백만원'}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {projectDetails.revenue.length}개 프로젝트
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm text-gray-600 mb-1">Backlog 합계</div>
+                            <div className="text-lg font-bold text-emerald-600">
+                              {projectDetails.backlog.length > 0
+                                ? `${Math.ceil(projectDetails.backlog.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                : '0백만원'}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {projectDetails.backlog.length}개 프로젝트
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm text-gray-600 mb-1">Pipeline 합계</div>
+                            <div className="text-lg font-bold text-violet-600">
+                              {projectDetails.pipeline.length > 0
+                                ? `${Math.ceil(projectDetails.pipeline.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                : '0백만원'}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {projectDetails.pipeline.length}개 프로젝트
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <Tabs defaultValue="revenue" className="w-full">
+                          <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="revenue">Revenue ({projectDetails.revenue.length})</TabsTrigger>
+                            <TabsTrigger value="backlog">Backlog ({projectDetails.backlog.length})</TabsTrigger>
+                            <TabsTrigger value="pipeline">Pipeline ({projectDetails.pipeline.length})</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="revenue" className="mt-4">
+                            {projectDetails.revenue.length > 0 ? (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>프로젝트명</TableHead>
+                                    <TableHead className="text-right">금액 (백만원)</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {projectDetails.revenue.map((project, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="font-medium">{project.name}</TableCell>
+                                      <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                        {project.amount !== 0 
+                                          ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
+                                          : '-'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            ) : (
+                              <div className="p-8 text-center text-gray-500">데이터가 없습니다.</div>
+                            )}
+                          </TabsContent>
+                          <TabsContent value="backlog" className="mt-4">
+                            {projectDetails.backlog.length > 0 ? (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>프로젝트명</TableHead>
+                                    <TableHead className="text-right">금액 (백만원)</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {projectDetails.backlog.map((project, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="font-medium">{project.name}</TableCell>
+                                      <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                        {project.amount !== 0 
+                                          ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
+                                          : '-'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            ) : (
+                              <div className="p-8 text-center text-gray-500">데이터가 없습니다.</div>
+                            )}
+                          </TabsContent>
+                          <TabsContent value="pipeline" className="mt-4">
+                            {projectDetails.pipeline.length > 0 ? (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>프로젝트명</TableHead>
+                                    <TableHead className="text-right">금액 (백만원)</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {projectDetails.pipeline.map((project, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="font-medium">{project.name}</TableCell>
+                                      <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                        {project.amount !== 0 
+                                          ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
+                                          : '-'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            ) : (
+                              <div className="p-8 text-center text-gray-500">데이터가 없습니다.</div>
+                            )}
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
             <div className="flex items-center space-x-1">
               {getTrendIcon(trend)}
@@ -541,12 +902,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         // a_performance_current: EMPLNO, PRJTNM, CLIENTNM, REVENUE, BACKLOG, AUDITYN, ETL_DATE
         // a_pipeline_current: EMPLNO, PRJTNM, CLIENTNM, CURRENT_TOTAL, AUDITYN, ETL_DATE, CDM_REPORT_MONTH
 
-        // 1. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE > 0인 프로젝트)
+        // 1. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
         const { data: revenueData, error: revenueError } = await supabase
           .from('a_performance_current')
           .select('PRJTNM, CLIENTNM, REVENUE, AUDITYN')
           .eq('EMPLNO', normalizedEmpno)
-          .gt('REVENUE', 0)
+          .not('REVENUE', 'is', null)
           .order('ETL_DATE', { ascending: false })
         
         if (revenueError) {
@@ -564,12 +925,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           sample: revenueData?.slice(0, 2)
         })
 
-        // 2. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG > 0인 프로젝트)
+        // 2. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG가 있는 프로젝트, 음수 포함)
         const { data: backlogData, error: backlogError } = await supabase
           .from('a_performance_current')
           .select('PRJTNM, CLIENTNM, BACKLOG, AUDITYN')
           .eq('EMPLNO', normalizedEmpno)
-          .gt('BACKLOG', 0)
+          .not('BACKLOG', 'is', null)
           .order('ETL_DATE', { ascending: false })
         
         if (backlogError) {
@@ -604,7 +965,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         }
         console.log('📅 최신 CDM_REPORT_MONTH:', latestMonth)
 
-        // 최신 CDM_REPORT_MONTH의 Pipeline 데이터 조회
+        // 최신 CDM_REPORT_MONTH의 Pipeline 데이터 조회 (음수 포함)
         // SQL 뷰와 동일하게 a_pipeline_current_re 사용, current_total 합계
         const { data: pipelineData, error: pipelineError } = latestMonth
           ? await supabase
@@ -612,7 +973,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               .select('PRJTNM, CLIENTNM, current_total, audityn')
               .eq('EMPLNO', normalizedEmpno)
               .eq('CDM_REPORT_MONTH', latestMonth)
-              .gt('current_total', 0)
+              .not('current_total', 'is', null)
           : { data: null, error: null }
         
         if (pipelineError) {
@@ -857,8 +1218,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                               {projectDetails.revenue.map((project, index) => (
                                 <TableRow key={index}>
                                   <TableCell className="font-medium">{project.name}</TableCell>
-                                  <TableCell className="text-right">
-                                    {project.amount > 0 
+                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                    {project.amount !== 0 
                                       ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                       : '-'}
                                   </TableCell>
@@ -883,8 +1244,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                               {projectDetails.backlog.map((project, index) => (
                                 <TableRow key={index}>
                                   <TableCell className="font-medium">{project.name}</TableCell>
-                                  <TableCell className="text-right">
-                                    {project.amount > 0 
+                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                    {project.amount !== 0 
                                       ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                       : '-'}
                                   </TableCell>
@@ -909,8 +1270,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                               {projectDetails.pipeline.map((project, index) => (
                                 <TableRow key={index}>
                                   <TableCell className="font-medium">{project.name}</TableCell>
-                                  <TableCell className="text-right">
-                                    {project.amount > 0 
+                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                    {project.amount !== 0 
                                       ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                       : '-'}
                                   </TableCell>
@@ -1178,8 +1539,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <FileText className="mr-3 h-6 w-6 text-orange-600" />
-                              <span className="text-lg font-bold text-gray-900">감사 Budget</span>
-              <span className="text-sm text-gray-500 ml-3">- 9월 중 업데이트 예정</span>
+              <span className="text-lg font-bold text-gray-900">감사 Budget</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1197,6 +1557,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   backlog: myAuditBacklog,
                   pipeline: myAuditPipeline
                 }}
+                currentEmployeeId={currentEmployeeId}
+                auditType="audit"
               />
 
               {/* Team 감사 Budget Card */}
@@ -1223,8 +1585,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             {/* 헤더 */}
             <div className="flex items-center mb-6">
               <BarChart3 className="mr-3 h-6 w-6 text-blue-600" />
-                              <span className="text-lg font-bold text-gray-900">비감사서비스 Budget</span>
-              <span className="text-sm text-gray-500 ml-3">- 9월 중 업데이트 예정</span>
+              <span className="text-lg font-bold text-gray-900">비감사서비스 Budget</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1242,6 +1603,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   backlog: myNonAuditBacklog,
                   pipeline: myNonAuditPipeline
                 }}
+                currentEmployeeId={currentEmployeeId}
+                auditType="non-audit"
               />
 
               {/* Team 비감사서비스 Budget Card */}
