@@ -51,6 +51,17 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   const [goalData, setGoalData] = useState<BusinessGoal | null>(null)
   const [goalLoading, setGoalLoading] = useState(false)
   const [goalError, setGoalError] = useState<string | null>(null)
+  const [bdActualData, setBdActualData] = useState<{
+    myAuditAmount: number
+    myNonAuditAmount: number
+    myAuditCount: number
+    myNonAuditCount: number
+  }>({
+    myAuditAmount: 0,
+    myNonAuditAmount: 0,
+    myAuditCount: 0,
+    myNonAuditCount: 0
+  })
 
   // 컴포넌트 마운트 시 사용자 정보 로드
   useEffect(() => {
@@ -147,6 +158,89 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     fetchGoal()
   }, [currentEmployeeId])
 
+  // BD 실제 데이터 조회
+  useEffect(() => {
+    if (!currentEmployeeId) return
+    
+    const fetchBdActualData = async () => {
+      try {
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
+        
+        // 최신 Update기준월 조회
+        const { data: latestMonthData } = await supabase
+          .from('L_BD_Table_Detail')
+          .select('Update기준월')
+          .not('Update기준월', 'is', null)
+          .order('Update기준월', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        
+        const latestMonth = latestMonthData ? (latestMonthData as any)['Update기준월'] : null
+        
+        // 사번 변형 목록 생성
+        const empnoVariants = [normalizedEmpno]
+        if (normalizedEmpno.startsWith('0')) {
+          empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
+        } else {
+          empnoVariants.push(`0${normalizedEmpno}`)
+        }
+        
+        // BD 데이터 조회
+        let bdQuery = supabase
+          .from('L_BD_Table_Detail')
+          .select('*')
+          .in('사번', empnoVariants)
+        
+        if (latestMonth) {
+          bdQuery = bdQuery.eq('Update기준월', latestMonth)
+        }
+        
+        const { data: bdData } = await bdQuery
+        
+        if (bdData && bdData.length > 0) {
+          // 감사/비감사 금액 및 건수 집계
+          let myAuditAmount = 0
+          let myNonAuditAmount = 0
+          let myAuditCount = 0
+          let myNonAuditCount = 0
+          
+          bdData.forEach(item => {
+            const auditType = item['Audit/Non-Audit']
+            const amount = parseFloat(String(item['Amount'] || 0)) / 1_000 // 천원 단위를 백만원 단위로 변환
+            
+            if (auditType === '감사') {
+              myAuditAmount += amount
+              myAuditCount += 1
+            } else if (auditType === '비감사') {
+              myNonAuditAmount += amount
+              myNonAuditCount += 1
+            }
+          })
+          
+          console.log('📊 BD 실제 데이터 집계:', {
+            myAuditAmount,
+            myNonAuditAmount,
+            myAuditCount,
+            myNonAuditCount,
+            latestMonth
+          })
+          
+          setBdActualData({
+            myAuditAmount,
+            myNonAuditAmount,
+            myAuditCount,
+            myNonAuditCount
+          })
+        }
+      } catch (error) {
+        console.error('❌ BD 실제 데이터 조회 실패:', error)
+      }
+    }
+    
+    fetchBdActualData()
+  }, [currentEmployeeId])
+
   // Budget 실데이터 변수 선언 (매출 + BACKLOG + 파이프라인 합계)
   // My 개별 구성 요소들
   const myAuditRevenue = toMillion(budgetData?.current_audit_revenue ?? 0); // 매출
@@ -181,10 +275,13 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   const teamTotalBudget = teamAuditBudget + teamNonAuditBudget;
 
   // 신규 BD 금액, UI Revenue 계약금액 실제/예산값 변수 선언 (컴포넌트 상단)
-  const actualNewBdAmount = (budgetData?.audit_pjt_amount ?? 0) / 1_000_000; // 백만원 단위
+  // BD 테이블의 실제 집계 데이터 사용
+  const actualNewBdAmount = bdActualData.myAuditAmount; // 백만원 단위
   const budgetNewBdAmount = goalData?.new_audit_amount ?? 0; // 백만원 단위 그대로
-  const actualUiRevenueAmount = (budgetData?.non_audit_pjt_amount ?? 0) / 1_000_000; // 백만원 단위
+  const actualUiRevenueAmount = bdActualData.myNonAuditAmount; // 백만원 단위
   const budgetUiRevenueAmount = goalData?.ui_revenue_amount ?? 0; // 백만원 단위 그대로
+  const actualNewBdCount = bdActualData.myAuditCount; // 감사 건수
+  const actualUiRevenueCount = bdActualData.myNonAuditCount; // 비감사 건수
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW" }).format(value)
@@ -229,6 +326,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     subtitle,
     currentEmployeeId,
     auditType,
+    isDepartmentView = false,
+    isBdData = false,
   }: {
     actual: number
     budget: number
@@ -245,6 +344,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     subtitle?: string
     currentEmployeeId?: string
     auditType?: 'audit' | 'non-audit'
+    isDepartmentView?: boolean
+    isBdData?: boolean
   }) => {
     const [projectDetails, setProjectDetails] = useState<{
       revenue: Array<{ name: string; amount: number }>
@@ -255,6 +356,18 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       backlog: [],
       pipeline: []
     })
+    const [bdDetails, setBdDetails] = useState<Array<{
+      projectCode: string
+      projectName: string
+      client: string
+      amount: number
+      partnerName: string
+      cisMonth: string
+      chargeRatio: string
+      reportMonth: string
+      note: string
+    }>>([])
+    const [latestUpdateMonth, setLatestUpdateMonth] = useState<string>('')
     const [loadingDetails, setLoadingDetails] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -272,16 +385,184 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       try {
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
-        console.log(`🔍 fetchProjectDetails (${auditType}): currentEmployeeId = ${currentEmployeeId}, normalizedEmpno = ${normalizedEmpno}`)
+        console.log(`🔍 fetchProjectDetails (${auditType}): currentEmployeeId = ${currentEmployeeId}, normalizedEmpno = ${normalizedEmpno}, isDepartmentView = ${isDepartmentView}, isBdData = ${isBdData}`)
+        
+        // BD 데이터 조회인 경우
+        if (isBdData && auditType) {
+          // 본부 기준 조회일 경우 본부 구성원 목록 가져오기
+          let empnoList = [normalizedEmpno] // 기본값: 본인만
+          
+          if (isDepartmentView) {
+            // 1. 현재 사용자의 본부명(CM_NM) 조회
+            const { data: userData, error: userError } = await supabase
+              .from('a_hr_master')
+              .select('CM_NM')
+              .eq('EMPNO', normalizedEmpno)
+              .maybeSingle()
+            
+            if (userError) {
+              console.error('❌ 사용자 본부 정보 조회 에러:', userError)
+            }
+            
+            const userDeptName = userData?.CM_NM
+            console.log(`🏢 사용자 본부: ${userDeptName}`)
+            
+            // 2. 해당 본부의 모든 사원 EMPNO 조회
+            if (userDeptName) {
+              const { data: deptMembers, error: deptError } = await supabase
+                .from('a_hr_master')
+                .select('EMPNO')
+                .eq('CM_NM', userDeptName)
+              
+              if (deptError) {
+                console.error('❌ 본부 구성원 조회 에러:', deptError)
+              } else if (deptMembers && deptMembers.length > 0) {
+                empnoList = deptMembers.map(m => m.EMPNO).filter(Boolean)
+                console.log(`👥 본부 구성원 수: ${empnoList.length}명`)
+              }
+            }
+          }
+
+          console.log(`🔍 BD 조회 대상 사번 목록 (${isDepartmentView ? 'Team' : 'My'}):`, empnoList)
+
+          // 1. 최신 Update기준월 조회
+          const { data: latestMonthData, error: latestMonthError } = await supabase
+            .from('L_BD_Table_Detail')
+            .select('Update기준월')
+            .not('Update기준월', 'is', null)
+            .order('Update기준월', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (latestMonthError) {
+            console.error('❌ 최신 Update기준월 조회 에러:', latestMonthError)
+          }
+
+          const latestMonth = latestMonthData ? (latestMonthData as any)['Update기준월'] : null
+          setLatestUpdateMonth(latestMonth || '')
+          console.log('📅 최신 Update기준월:', latestMonth)
+
+          // 2. BD 데이터 조회 - 사번 목록과 Update기준월로 필터링
+          const auditFilter = auditType === 'audit' ? '감사' : '비감사'
+          
+          // 정규화되지 않은 사번도 시도 (원본 사번으로도 조회)
+          const allEmpnoVariants: string[] = []
+          empnoList.forEach(empno => {
+            allEmpnoVariants.push(empno)
+            // 이미 정규화된 사번이면 앞자리 0 제거한 버전도 추가
+            if (empno.startsWith('0')) {
+              allEmpnoVariants.push(empno.replace(/^0+/, ''))
+            } else {
+              // 정규화 안된 사번이면 0 붙인 버전도 추가
+              allEmpnoVariants.push(`0${empno}`)
+            }
+          })
+          
+          console.log(`🔍 조회할 사번 변형 목록:`, allEmpnoVariants.slice(0, 10)) // 처음 10개만 출력
+
+          let bdQuery = supabase
+            .from('L_BD_Table_Detail')
+            .select('*')
+            .in('사번', allEmpnoVariants)
+
+          if (latestMonth) {
+            bdQuery = bdQuery.eq('Update기준월', latestMonth)
+          }
+
+          const { data: bdData, error: bdError } = await bdQuery
+
+          if (bdError) {
+            console.error('❌ BD 데이터 조회 에러:', bdError)
+          }
+
+          console.log(`📊 BD 데이터 조회 결과 (${auditType}):`)
+          console.log(`  - 전체 조회 건수: ${bdData?.length || 0}`)
+          console.log(`  - 에러: ${bdError?.message || '없음'}`)
+          if (bdData && bdData.length > 0) {
+            console.log(`  - 샘플 데이터 (첫 번째):`, bdData[0])
+            console.log(`  - Audit/Non-Audit 값들:`, [...new Set(bdData.map(item => item['Audit/Non-Audit']))])
+          }
+
+          // 3. BD 데이터 정리 - Audit/Non-Audit 필터링 추가
+          const filteredData = (bdData || []).filter(item => {
+            const auditTypeValue = item['Audit/Non-Audit']
+            console.log(`  필터링: ${item['Project Name']} - Audit/Non-Audit="${auditTypeValue}", 찾는값="${auditFilter}", 일치=${auditTypeValue === auditFilter}`)
+            return auditTypeValue === auditFilter
+          })
+
+          console.log(`✅ 필터링 후 BD 데이터 (${auditFilter}):`)
+          console.log(`  - 필터링 후 건수: ${filteredData.length}`)
+          if (filteredData.length > 0) {
+            console.log(`  - 샘플 (첫 번째):`, filteredData[0])
+          }
+
+          const bdProjects = filteredData.map(item => {
+            const rawAmount = item['Amount']
+            const parsedAmount = parseFloat(String(rawAmount || 0))
+            const amountInMillion = parsedAmount / 1_000 // 천원 단위를 백만원 단위로 변환
+            
+            console.log(`💰 금액 변환: Project="${item['Project Name']}", Raw Amount="${rawAmount}", Parsed="${parsedAmount}", Million="${amountInMillion}"`)
+            
+            return {
+              projectCode: item['Project Code'] || '',
+              projectName: item['Project Name'] || '프로젝트명 없음',
+              client: item['Client'] || '고객명 없음',
+              amount: amountInMillion, // 백만원 단위
+              partnerName: item['파트너명'] || '',
+              cisMonth: item['CIS 등록월'] || '',
+              chargeRatio: item['수임비율'] || '',
+              reportMonth: item['집계연월'] || '',
+              note: item['비고'] || ''
+            }
+          }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
+
+          setBdDetails(bdProjects)
+          setLoadingDetails(false)
+          return
+        }
+
+        // 본부 기준 조회일 경우 본부 구성원 목록 가져오기
+        let empnoList = [normalizedEmpno] // 기본값: 본인만
+        
+        if (isDepartmentView) {
+          // 1. 현재 사용자의 본부명(CM_NM) 조회
+          const { data: userData, error: userError } = await supabase
+            .from('a_hr_master')
+            .select('CM_NM')
+            .eq('EMPNO', normalizedEmpno)
+            .maybeSingle()
+          
+          if (userError) {
+            console.error('❌ 사용자 본부 정보 조회 에러:', userError)
+          }
+          
+          const userDeptName = userData?.CM_NM
+          console.log(`🏢 사용자 본부: ${userDeptName}`)
+          
+          // 2. 해당 본부의 모든 사원 EMPNO 조회
+          if (userDeptName) {
+            const { data: deptMembers, error: deptError } = await supabase
+              .from('a_hr_master')
+              .select('EMPNO')
+              .eq('CM_NM', userDeptName)
+            
+            if (deptError) {
+              console.error('❌ 본부 구성원 조회 에러:', deptError)
+            } else if (deptMembers && deptMembers.length > 0) {
+              empnoList = deptMembers.map(m => m.EMPNO).filter(Boolean)
+              console.log(`👥 본부 구성원 수: ${empnoList.length}명`)
+            }
+          }
+        }
         
         // audityn 필터 값 설정
         const auditYnFilter = auditType === 'audit' ? 'Y' : auditType === 'non-audit' ? 'N' : null
 
-        // 1. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
+        // 3. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
         let revenueQuery = supabase
           .from('a_performance_current')
           .select('PRJTNM, CLIENTNM, REVENUE, AUDITYN')
-          .eq('EMPLNO', normalizedEmpno)
+          .in('EMPLNO', empnoList)
           .not('REVENUE', 'is', null)
           .order('ETL_DATE', { ascending: false })
         
@@ -300,11 +581,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           sample: revenueData?.slice(0, 2)
         })
 
-        // 2. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG가 있는 프로젝트, 음수 포함)
+        // 4. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG가 있는 프로젝트, 음수 포함)
         let backlogQuery = supabase
           .from('a_performance_current')
           .select('PRJTNM, CLIENTNM, BACKLOG, AUDITYN')
-          .eq('EMPLNO', normalizedEmpno)
+          .in('EMPLNO', empnoList)
           .not('BACKLOG', 'is', null)
           .order('ETL_DATE', { ascending: false })
         
@@ -323,7 +604,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           sample: backlogData?.slice(0, 2)
         })
 
-        // 3. Pipeline 프로젝트 조회 (a_pipeline_current_re에서 최신 CDM_REPORT_MONTH 사용)
+        // 5. Pipeline 프로젝트 조회 (a_pipeline_current_re에서 최신 CDM_REPORT_MONTH 사용)
         const { data: latestMonthData, error: latestMonthError } = await supabase
           .from('a_pipeline_current_re')
           .select('CDM_REPORT_MONTH')
@@ -343,7 +624,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           ? supabase
               .from('a_pipeline_current_re')
               .select('PRJTNM, CLIENTNM, current_total, audityn')
-              .eq('EMPLNO', normalizedEmpno)
+              .in('EMPLNO', empnoList)
               .eq('CDM_REPORT_MONTH', latestMonth)
               .not('current_total', 'is', null)
           : null
@@ -457,10 +738,10 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
 
     // Dialog가 열릴 때 데이터 가져오기
     useEffect(() => {
-      if (dialogOpen && auditType) {
+      if (dialogOpen && (auditType || isBdData)) {
         fetchProjectDetails()
       }
-    }, [dialogOpen, currentEmployeeId, auditType])
+    }, [dialogOpen, currentEmployeeId, auditType, isBdData])
 
     // BarChartComponent 내부 formatDisplayValue 함수에서 'amount' 타입일 때 value를 그대로 사용하고, 단위만 붙임. 추가적인 / 1_000_000 등 연산 제거.
     // 카드 하단, 툴팁 등에서도 변수값 그대로 사용하고, 단위만 붙임.
@@ -528,8 +809,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   <div className="text-xs text-gray-500 mt-1">{subtitle}</div>
                 )}
               </div>
-              {/* 상세보기 버튼 추가 (auditType이 있을 때만) */}
-              {auditType && (
+              {/* 상세보기 버튼 추가 (auditType이 있거나 isBdData일 때만) */}
+              {(auditType || isBdData) && (
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="ghost" size="sm" className="text-xs h-6 px-2">
@@ -539,11 +820,75 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   </DialogTrigger>
                   <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
                     <DialogHeader>
-                      <DialogTitle>{title} 상세 내역 ({auditType === 'audit' ? '감사' : '비감사'})</DialogTitle>
+                      <DialogTitle>
+                        {title} 상세 내역
+                        {isBdData && latestUpdateMonth && (
+                          <span className="text-sm text-gray-500 ml-2">(Update기준월: {latestUpdateMonth})</span>
+                        )}
+                        {auditType && !isBdData && ` (${auditType === 'audit' ? '감사' : '비감사'})`}
+                      </DialogTitle>
                     </DialogHeader>
                     {loadingDetails ? (
                       <div className="p-8 text-center text-gray-500">로딩 중...</div>
+                    ) : isBdData ? (
+                      /* BD 데이터 표시 */
+                      <div className="space-y-4">
+                        {/* 합계 정보 상단 표시 */}
+                        <div className="p-4 bg-gray-50 rounded-lg border">
+                          <div className="text-center">
+                            <div className="text-sm text-gray-600 mb-1">총 계약 금액</div>
+                            <div className="text-lg font-bold text-orange-600">
+                              {bdDetails.length > 0
+                                ? `${Math.ceil(bdDetails.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                : '0백만원'}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {bdDetails.length}개 프로젝트
+                            </div>
+                          </div>
+                        </div>
+
+                        {bdDetails.length > 0 ? (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>집계연월</TableHead>
+                                <TableHead>Project Code</TableHead>
+                                <TableHead>Project Name</TableHead>
+                                <TableHead>Client</TableHead>
+                                <TableHead>파트너명</TableHead>
+                                <TableHead>수임비율</TableHead>
+                                <TableHead>CIS 등록월</TableHead>
+                                <TableHead className="text-right">금액 (백만원)</TableHead>
+                                <TableHead>비고</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {bdDetails.map((project, index) => (
+                                <TableRow key={index}>
+                                  <TableCell className="font-medium">{project.reportMonth}</TableCell>
+                                  <TableCell>{project.projectCode}</TableCell>
+                                  <TableCell>{project.projectName}</TableCell>
+                                  <TableCell>{project.client}</TableCell>
+                                  <TableCell>{project.partnerName}</TableCell>
+                                  <TableCell>{project.chargeRatio}</TableCell>
+                                  <TableCell>{project.cisMonth}</TableCell>
+                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                    {project.amount !== 0 
+                                      ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
+                                      : '-'}
+                                  </TableCell>
+                                  <TableCell>{project.note}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        ) : (
+                          <div className="p-8 text-center text-gray-500">데이터가 없습니다.</div>
+                        )}
+                      </div>
                     ) : (
+                      /* 기존 TBA 데이터 표시 */
                       <div className="space-y-4">
                         {/* 합계 정보 상단 표시 */}
                         <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border">
@@ -850,6 +1195,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     totalBreakdown,
     subtitle,
     currentEmployeeId,
+    isDepartmentView = false,
   }: {
     auditActual: number
     nonAuditActual: number
@@ -867,6 +1213,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     }
     subtitle?: string
     currentEmployeeId?: string
+    isDepartmentView?: boolean
   }) => {
     const [projectDetails, setProjectDetails] = useState<{
       revenue: Array<{ name: string; amount: number; prjtcd?: string }>
@@ -896,17 +1243,51 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       try {
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
-        console.log(`🔍 fetchProjectDetails: currentEmployeeId = ${currentEmployeeId}, normalizedEmpno = ${normalizedEmpno}`)
+        console.log(`🔍 fetchProjectDetails: currentEmployeeId = ${currentEmployeeId}, normalizedEmpno = ${normalizedEmpno}, isDepartmentView = ${isDepartmentView}`)
+        
+        // 본부 기준 조회일 경우 본부 구성원 목록 가져오기
+        let empnoList = [normalizedEmpno] // 기본값: 본인만
+        
+        if (isDepartmentView) {
+          // 1. 현재 사용자의 본부명(CM_NM) 조회
+          const { data: userData, error: userError } = await supabase
+            .from('a_hr_master')
+            .select('CM_NM')
+            .eq('EMPNO', normalizedEmpno)
+            .maybeSingle()
+          
+          if (userError) {
+            console.error('❌ 사용자 본부 정보 조회 에러:', userError)
+          }
+          
+          const userDeptName = userData?.CM_NM
+          console.log(`🏢 사용자 본부: ${userDeptName}`)
+          
+          // 2. 해당 본부의 모든 사원 EMPNO 조회
+          if (userDeptName) {
+            const { data: deptMembers, error: deptError } = await supabase
+              .from('a_hr_master')
+              .select('EMPNO')
+              .eq('CM_NM', userDeptName)
+            
+            if (deptError) {
+              console.error('❌ 본부 구성원 조회 에러:', deptError)
+            } else if (deptMembers && deptMembers.length > 0) {
+              empnoList = deptMembers.map(m => m.EMPNO).filter(Boolean)
+              console.log(`👥 본부 구성원 수: ${empnoList.length}명`)
+            }
+          }
+        }
         
         // 실제 테이블 구조에 맞게 조회
         // a_performance_current: EMPLNO, PRJTNM, CLIENTNM, REVENUE, BACKLOG, AUDITYN, ETL_DATE
         // a_pipeline_current: EMPLNO, PRJTNM, CLIENTNM, CURRENT_TOTAL, AUDITYN, ETL_DATE, CDM_REPORT_MONTH
 
-        // 1. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
+        // 3. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
         const { data: revenueData, error: revenueError } = await supabase
           .from('a_performance_current')
           .select('PRJTNM, CLIENTNM, REVENUE, AUDITYN')
-          .eq('EMPLNO', normalizedEmpno)
+          .in('EMPLNO', empnoList)
           .not('REVENUE', 'is', null)
           .order('ETL_DATE', { ascending: false })
         
@@ -925,11 +1306,11 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           sample: revenueData?.slice(0, 2)
         })
 
-        // 2. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG가 있는 프로젝트, 음수 포함)
+        // 4. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG가 있는 프로젝트, 음수 포함)
         const { data: backlogData, error: backlogError } = await supabase
           .from('a_performance_current')
           .select('PRJTNM, CLIENTNM, BACKLOG, AUDITYN')
-          .eq('EMPLNO', normalizedEmpno)
+          .in('EMPLNO', empnoList)
           .not('BACKLOG', 'is', null)
           .order('ETL_DATE', { ascending: false })
         
@@ -948,7 +1329,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           sample: backlogData?.slice(0, 2)
         })
 
-        // 3. Pipeline 프로젝트 조회 (a_pipeline_current_re에서 최신 CDM_REPORT_MONTH 사용)
+        // 5. Pipeline 프로젝트 조회 (a_pipeline_current_re에서 최신 CDM_REPORT_MONTH 사용)
         // SQL 뷰와 동일하게 CDM_REPORT_MONTH로 최신 데이터 찾기
         // 먼저 최신 CDM_REPORT_MONTH 조회
         const { data: latestMonthData, error: latestMonthError } = await supabase
@@ -971,7 +1352,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           ? await supabase
               .from('a_pipeline_current_re')
               .select('PRJTNM, CLIENTNM, current_total, audityn')
-              .eq('EMPLNO', normalizedEmpno)
+              .in('EMPLNO', empnoList)
               .eq('CDM_REPORT_MONTH', latestMonth)
               .not('current_total', 'is', null)
           : { data: null, error: null }
@@ -1531,6 +1912,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 pipeline: teamAuditPipeline + teamNonAuditPipeline
               }}
               currentEmployeeId={currentEmployeeId}
+              isDepartmentView={true}
             />
           </div>
 
@@ -1576,6 +1958,9 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   backlog: teamAuditBacklog,
                   pipeline: teamAuditPipeline
                 }}
+                currentEmployeeId={currentEmployeeId}
+                auditType="audit"
+                isDepartmentView={true}
               />
             </div>
           </div>
@@ -1622,6 +2007,9 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                   backlog: teamNonAuditBacklog,
                   pipeline: teamNonAuditPipeline
                 }}
+                currentEmployeeId={currentEmployeeId}
+                auditType="non-audit"
+                isDepartmentView={true}
               />
             </div>
           </div>
@@ -1643,12 +2031,15 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <BarChartComponent
-                    actual={Math.round(budgetData?.audit_pjt_count ?? 0)}
+                    actual={actualNewBdCount}
                     budget={goalData?.new_audit_count ?? 0}
                     title="신규 감사 건수"
                     color="#f97316"
                     trend=""
                     displayType="count"
+                    currentEmployeeId={currentEmployeeId}
+                    auditType="audit"
+                    isBdData={true}
                   />
                   <BarChartComponent
                     actual={actualNewBdAmount}
@@ -1657,6 +2048,9 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                     color="#ea580c"
                     trend=""
                     displayType="amount"
+                    currentEmployeeId={currentEmployeeId}
+                    auditType="audit"
+                    isBdData={true}
                   />
                 </div>
               </div>
@@ -1668,12 +2062,15 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <BarChartComponent
-                    actual={Math.round(budgetData?.non_audit_pjt_count ?? 0)}
+                    actual={actualUiRevenueCount}
                     budget={goalData?.ui_revenue_count ?? 0}
                     title="신규 비감사서비스 건수"
                     color="#3b82f6"
                     trend=""
                     displayType="count"
+                    currentEmployeeId={currentEmployeeId}
+                    auditType="non-audit"
+                    isBdData={true}
                   />
                   <BarChartComponent
                     actual={actualUiRevenueAmount}
@@ -1682,6 +2079,9 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                     color="#60a5fa"
                     trend=""
                     displayType="amount"
+                    currentEmployeeId={currentEmployeeId}
+                    auditType="non-audit"
+                    isBdData={true}
                   />
                 </div>
               </div>
