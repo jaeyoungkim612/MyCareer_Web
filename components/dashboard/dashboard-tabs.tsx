@@ -97,14 +97,151 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
       try {
         if (!targetEmpno) throw new Error("사용자 정보가 없습니다.")
         
-        // Get both goal and actual data
-        const [goal, budgetResult] = await Promise.all([
+        // Get goal and basic HR data
+        const [goal, hrResult] = await Promise.all([
           BusinessGoalsService.getByEmployeeId(targetEmpno),
           supabase.from("hr_master_dashboard").select("*").eq("EMPNO", targetEmpno).single()
         ])
         
         setBusinessGoal(goal)
-        if (budgetResult.data) setBudgetData(budgetResult.data)
+        
+        // BPR_fact 테이블에서 Team Budget 데이터 가져오기
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        
+        // 1. 사용자의 본부(CM_NM) 조회
+        const { data: userData } = await supabase
+          .from("a_hr_master")
+          .select("CM_NM")
+          .eq("EMPNO", normalizedEmpno)
+          .single()
+        
+        if (!userData?.CM_NM) {
+          console.log("❌ 사용자 본부 정보 없음")
+          if (hrResult.data) setBudgetData(hrResult.data)
+          return
+        }
+        
+        console.log("🏢 사용자 본부:", userData.CM_NM)
+        
+        // 2. BPR_fact에서 최신 날짜 찾기
+        const { data: latestDateData } = await supabase
+          .from("BPR_fact")
+          .select("CDM_REPORT_DATE")
+          .not("CDM_REPORT_DATE", "is", null)
+          .order("CDM_REPORT_DATE", { ascending: false })
+          .limit(1)
+          .single()
+        
+        if (!latestDateData?.CDM_REPORT_DATE) {
+          console.log("❌ 최신 CDM_REPORT_DATE 없음")
+          if (hrResult.data) setBudgetData(hrResult.data)
+          return
+        }
+        
+        const latestDate = latestDateData.CDM_REPORT_DATE
+        console.log("📅 최신 날짜:", latestDate)
+        
+        // 3. 페이지네이션으로 전체 BPR 데이터 가져오기
+        let allBprData: any[] = []
+        let offset = 0
+        const pageSize = 1000
+        
+        while (true) {
+          const { data: bprPage, count } = await supabase
+            .from("BPR_fact")
+            .select("*", { count: "exact" })
+            .eq("PRJT_CMOFNM", userData.CM_NM)
+            .eq("CDM_REPORT_DATE", latestDate)
+            .range(offset, offset + pageSize - 1)
+          
+          if (!bprPage || bprPage.length === 0) break
+          
+          allBprData = allBprData.concat(bprPage)
+          
+          if (bprPage.length < pageSize) break
+          offset += pageSize
+        }
+        
+        console.log(`📦 BPR 데이터 ${allBprData.length}건 로드됨`)
+        
+        // 4. 중복 제거
+        const uniqueData = new Map()
+        allBprData.forEach(item => {
+          const key = `${item.CDM_PROJECT_CODE}_${item.CDM_PERSON_ID}_${item.CDM_SOURCE}_${item.CDM_STAGE}`
+          if (!uniqueData.has(key)) {
+            uniqueData.set(key, item)
+          }
+        })
+        
+        const deduplicatedData = Array.from(uniqueData.values())
+        console.log(`🔍 중복 제거 후 ${deduplicatedData.length}건`)
+        
+        // 5. 집계
+        let teamAuditRevenue = 0, teamAuditBacklog = 0, teamAuditPipeline = 0
+        let teamNonAuditRevenue = 0, teamNonAuditBacklog = 0, teamNonAuditPipeline = 0
+        
+        deduplicatedData.forEach(item => {
+          const auditTypeRaw = String(item['감사 구분'] || '').trim()
+          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
+          const cdmSource = String(item.CDM_SOURCE || '').trim()
+          const cdmStage = String(item.CDM_STAGE || '').trim()
+          
+          // F-link Revenue
+          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
+            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+            if (isAudit) {
+              teamAuditRevenue += amount
+            } else {
+              teamNonAuditRevenue += amount
+            }
+          }
+          
+          // F-link Backlog
+          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
+            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+            if (isAudit) {
+              teamAuditBacklog += amount
+            } else {
+              teamNonAuditBacklog += amount
+            }
+          }
+          
+          // Salesforce Pipeline
+          if (cdmSource === 'Salesforce') {
+            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+            const amount = (q1 + q2 + q3 + q4) / 1_000_000
+            
+            if (isAudit) {
+              teamAuditPipeline += amount
+            } else {
+              teamNonAuditPipeline += amount
+            }
+          }
+        })
+        
+        console.log("📊 Team Budget 집계 완료:", {
+          audit: { rev: teamAuditRevenue, bl: teamAuditBacklog, pl: teamAuditPipeline },
+          nonAudit: { rev: teamNonAuditRevenue, bl: teamNonAuditBacklog, pl: teamNonAuditPipeline }
+        })
+        
+        // 6. budgetData 구성 (기존 데이터 + BPR 데이터)
+        const combinedBudgetData = {
+          ...(hrResult.data || {}),
+          // Team Budget 실적 (BPR_fact에서)
+          dept_revenue_audit: Math.round(teamAuditRevenue * 1_000_000),
+          dept_backlog_audit: Math.round(teamAuditBacklog * 1_000_000),
+          dept_pipeline_audit_current_total: Math.round(teamAuditPipeline * 1_000_000),
+          dept_revenue_non_audit: Math.round(teamNonAuditRevenue * 1_000_000),
+          dept_backlog_non_audit: Math.round(teamNonAuditBacklog * 1_000_000),
+          dept_pipeline_non_audit_current_total: Math.round(teamNonAuditPipeline * 1_000_000),
+        }
+        
+        setBudgetData(combinedBudgetData)
+        
       } catch (e: any) {
         setGoalError(e.message || String(e))
       } finally {

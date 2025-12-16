@@ -966,10 +966,10 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     {/* 개인 코칭 시간 */}
                     <div className="text-center border-b border-orange-200 dark:border-orange-700 pb-4">
                       <div className="text-5xl font-bold text-orange-900 dark:text-orange-100">
-                        {coachingYear}
+                        {coachingQuarter}
                       </div>
                       <div className="text-lg text-orange-700 dark:text-orange-300">
-                        2606기 누적 시간
+                        {coachingQuarterLabel.year}-Q{coachingQuarterLabel.quarter} 분기 누적 시간
                       </div>
                     </div>
 
@@ -1030,7 +1030,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                         </div>
                       )}
                       <div className="flex justify-between text-sm">
-                        <span className="text-orange-700 dark:text-orange-300">실제: {coachingYear}시간</span>
+                        <span className="text-orange-700 dark:text-orange-300">실제: {coachingQuarter}시간</span>
                         <span className="font-medium text-orange-900 dark:text-orange-100">
                           목표: {assessmentData.coachingTime}시간
                         </span>
@@ -1039,20 +1039,20 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                         <div
                           className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full transition-all duration-300"
                           style={{
-                            width: `${Math.min((coachingYear / assessmentData.coachingTime) * 100, 100)}%`,
+                            width: `${Math.min((coachingQuarter / assessmentData.coachingTime) * 100, 100)}%`,
                           }}
                         ></div>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-orange-600 dark:text-orange-400">0시간</span>
                         <div className="flex items-center gap-1">
-                          {coachingYear >= assessmentData.coachingTime ? (
+                          {coachingQuarter >= assessmentData.coachingTime ? (
                             <CheckCircle className="h-3 w-3 text-green-600" />
                           ) : (
                             <TrendingUp className="h-3 w-3 text-orange-600" />
                           )}
                           <span className="text-xs font-bold text-orange-700 dark:text-orange-300">
-                            {Math.round((coachingYear / assessmentData.coachingTime) * 100)}%
+                            {Math.round((coachingQuarter / assessmentData.coachingTime) * 100)}%
                           </span>
                         </div>
                       </div>

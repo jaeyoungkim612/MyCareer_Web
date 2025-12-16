@@ -62,6 +62,21 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     myAuditCount: 0,
     myNonAuditCount: 0
   })
+  const [teamBprData, setTeamBprData] = useState<{
+    auditRevenue: number
+    nonAuditRevenue: number
+    auditBacklog: number
+    nonAuditBacklog: number
+    auditPipeline: number
+    nonAuditPipeline: number
+  }>({
+    auditRevenue: 0,
+    nonAuditRevenue: 0,
+    auditBacklog: 0,
+    nonAuditBacklog: 0,
+    auditPipeline: 0,
+    nonAuditPipeline: 0
+  })
 
   // 컴포넌트 마운트 시 사용자 정보 로드
   useEffect(() => {
@@ -241,6 +256,287 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     fetchBdActualData()
   }, [currentEmployeeId])
 
+  // Team BPR 데이터 조회 (BPR_fact 테이블)
+  useEffect(() => {
+    if (!currentEmployeeId) return
+    
+    const fetchTeamBprData = async () => {
+      try {
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
+        
+        // 사번 변형 목록 생성 (정규화된 사번 + 원본 사번)
+        const empnoVariants = [normalizedEmpno]
+        if (normalizedEmpno.startsWith('0')) {
+          empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
+        } else {
+          empnoVariants.push(`0${normalizedEmpno}`)
+        }
+        
+        console.log(`🔍 BPR 조회용 사번 변형:`, empnoVariants)
+        
+        // 1. a_hr_master에서 현재 사용자의 본부(CM_NM) 조회
+        const { data: userHrData, error: userHrError } = await supabase
+          .from('a_hr_master')
+          .select('CM_NM')
+          .in('EMPNO', empnoVariants)
+          .limit(1)
+          .maybeSingle()
+        
+        if (userHrError || !userHrData) {
+          console.error('❌ 사용자 본부 정보 조회 에러 (a_hr_master):', userHrError)
+          return
+        }
+        
+        const userDeptName = userHrData.CM_NM
+        console.log(`🏢 사용자 본부 (a_hr_master): ${userDeptName}`)
+        
+        if (!userDeptName) {
+          console.warn('⚠️ 사용자의 본부 정보가 없습니다.')
+          return
+        }
+        
+        // 2. 최신 CDM_REPORT_DATE 조회 (원본 테이블 사용)
+        const { data: latestDateData, error: dateError } = await supabase
+          .from('BPR_fact')
+          .select('CDM_REPORT_DATE')
+          .not('CDM_REPORT_DATE', 'is', null)
+          .order('CDM_REPORT_DATE', { ascending: false })
+          .limit(1)
+          .single()
+        
+        if (dateError) {
+          console.error('❌ 최신 CDM_REPORT_DATE 조회 에러:', dateError)
+        }
+        
+        const latestDate = latestDateData?.CDM_REPORT_DATE
+        console.log('📅 최신 CDM_REPORT_DATE:', latestDate)
+        
+        if (!latestDate) {
+          console.warn('⚠️ CDM_REPORT_DATE가 없습니다.')
+          return
+        }
+        
+        // 3. BPR 원본 테이블에서 프로젝트 본부(PRJT_CMOFNM)가 사용자 본부와 같은 데이터 조회
+        // Supabase 기본 limit(1000)을 피하기 위해 pagination으로 모든 데이터 가져오기
+        let allBprData: any[] = []
+        let page = 0
+        const pageSize = 1000
+        let totalCount = 0
+        
+        while (true) {
+          const { data, error, count } = await supabase
+            .from('BPR_fact')
+            .select('*', { count: 'exact' })
+            .eq('PRJT_CMOFNM', userDeptName)
+            .eq('CDM_REPORT_DATE', latestDate)
+            .not('CDM_SOURCE', 'is', null)
+            .range(page * pageSize, (page + 1) * pageSize - 1)
+          
+          if (error) {
+            console.error(`❌ BPR 데이터 조회 에러 (page ${page}):`, error)
+            break
+          }
+          
+          if (page === 0 && count) {
+            totalCount = count
+          }
+          
+          if (!data || data.length === 0) break
+          
+          allBprData = allBprData.concat(data)
+          
+          if (data.length < pageSize) break
+          page++
+          
+          // 안전장치: 최대 20 페이지 (20,000건)
+          if (page >= 20) {
+            console.warn('⚠️ 최대 페이지 수 도달 (20페이지)')
+            break
+          }
+        }
+        
+        // 중복 제거 (고유 ID 기준)
+        const uniqueBprData = Array.from(
+          new Map(allBprData.map(item => [item.ID || JSON.stringify(item), item])).values()
+        )
+        
+        if (uniqueBprData.length !== allBprData.length) {
+          console.warn(`⚠️ 중복 데이터 발견! ${allBprData.length}건 → ${uniqueBprData.length}건 (${allBprData.length - uniqueBprData.length}건 중복 제거)`)
+        }
+        
+        const bprData = uniqueBprData
+        const bprError = null
+        const count = totalCount
+        
+        if (bprError) {
+          console.error('❌ BPR 데이터 조회 에러:', bprError)
+          return
+        }
+        
+        // 조회 조건 확인
+        console.log(`🔍 조회 조건 확인:`)
+        console.log(`  - PRJT_CMOFNM: "${userDeptName}"`)
+        console.log(`  - CDM_REPORT_DATE: "${latestDate}"`)
+        
+        // 날짜 분포 확인
+        const dateDistribution = new Map<string, number>()
+        bprData?.forEach(d => {
+          const date = String(d.CDM_REPORT_DATE || 'null')
+          dateDistribution.set(date, (dateDistribution.get(date) || 0) + 1)
+        })
+        console.log(`📅 조회된 데이터의 날짜 분포:`, Object.fromEntries(dateDistribution))
+        
+        // 기본 통계
+        console.log(`📊 BPR 데이터 조회: ${bprData?.length || 0}건 | F-link: ${bprData?.filter(d => String(d.CDM_SOURCE || '').trim() === 'F-link').length || 0}개 | Salesforce: ${bprData?.filter(d => String(d.CDM_SOURCE || '').trim() === 'Salesforce').length || 0}개`)
+        
+        if (!bprData || bprData.length === 0) {
+          console.warn('⚠️ BPR 데이터가 없습니다.')
+          return
+        }
+        
+        // 샘플 데이터 상세 출력 (금액 있는 것만 5개씩)
+        if (bprData.length > 0) {
+          // Salesforce: 금액 있는 것만 5개
+          const salesforceWithAmount = bprData.filter(d => {
+            const source = String(d.CDM_SOURCE || '').trim()
+            if (source !== 'Salesforce') return false
+            const q1 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q1 || 0))
+            const q2 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q2 || 0))
+            const q3 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q3 || 0))
+            const q4 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q4 || 0))
+            return (q1 + q2 + q3 + q4) > 0
+          }).slice(0, 5)
+          
+          if (salesforceWithAmount.length > 0) {
+            console.log('📊 Salesforce 샘플 (금액 있는 것 5개):')
+            salesforceWithAmount.forEach((item, idx) => {
+              const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+              const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+              const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+              const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+              console.log(`  [${idx + 1}] ${item.CDM_PROJECT_NAME} - Stage: ${item.CDM_STAGE}, Q합계: ${((q1+q2+q3+q4)/1_000_000).toFixed(2)}백만`)
+            })
+          }
+          
+          // F-link: 슬래시 없고 금액 있는 것만 5개
+          const flinkWithAmount = bprData.filter(d => {
+            const source = String(d.CDM_SOURCE || '').trim()
+            const stage = String(d.CDM_STAGE || '').trim()
+            if (source !== 'F-link') return false
+            if (stage.includes('/')) return false  // 슬래시 제외
+            const amount = parseFloat(String(d.CDM_REVENUE_TOTAL || 0))
+            return amount > 0
+          }).slice(0, 5)
+          
+          if (flinkWithAmount.length > 0) {
+            console.log('🔗 F-link 샘플 (슬래시 없고 금액 있는 것 5개):')
+            flinkWithAmount.forEach((item, idx) => {
+              const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+              console.log(`  [${idx + 1}] ${item.CDM_PROJECT_NAME} - Stage: ${item.CDM_STAGE}, 금액: ${amount.toFixed(2)}백만`)
+            })
+          } else {
+            console.log('🔗 F-link (슬래시 없고 금액 있는 것): 없음')
+          }
+        }
+        
+        // 4. 데이터 집계
+        let auditRevenue = 0
+        let nonAuditRevenue = 0
+        let auditBacklog = 0
+        let nonAuditBacklog = 0
+        let auditPipeline = 0
+        let nonAuditPipeline = 0
+        
+        // 디버깅용: CDM_SOURCE와 CDM_STAGE 값 확인
+        const sourceStageMap = new Map<string, number>()
+        
+        bprData.forEach(item => {
+          const auditTypeRaw = String(item['감사 구분'] || '')
+          // '감사' 글자 있으면 감사, 나머지는 모두 비감사
+          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
+          
+          const cdmSource = String(item.CDM_SOURCE || '').trim()
+          const cdmStage = String(item.CDM_STAGE || '').trim()
+          
+          // 디버깅: Source와 Stage 조합 카운트
+          const key = `${cdmSource}|${cdmStage}`
+          sourceStageMap.set(key, (sourceStageMap.get(key) || 0) + 1)
+          
+          // Revenue: CDM_SOURCE = 'F-link', CDM_STAGE = 'Realized' (슬래시 없는 것만!)
+          // F-link는 CDM_REVENUE_TOTAL 사용!
+          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
+            const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0))
+            const amount = revenueTotal / 1_000_000 // 원단위 → 백만원
+            if (isAudit) {
+              auditRevenue += amount
+            } else {
+              nonAuditRevenue += amount
+            }
+          }
+          
+          // Backlog: CDM_SOURCE = 'F-link', CDM_STAGE = 'Backlog' (슬래시 없는 것만!)
+          // F-link는 CDM_REVENUE_TOTAL 사용!
+          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
+            const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0))
+            const amount = revenueTotal / 1_000_000 // 원단위 → 백만원
+            if (isAudit) {
+              auditBacklog += amount
+            } else {
+              nonAuditBacklog += amount
+            }
+          }
+          
+          // Pipeline: CDM_SOURCE = 'Salesforce', Q1+Q2+Q3+Q4 합계
+          if (cdmSource === 'Salesforce') {
+            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+            const amount = (q1 + q2 + q3 + q4) / 1_000_000 // 원단위 → 백만원
+            
+            if (isAudit) {
+              auditPipeline += amount
+            } else {
+              nonAuditPipeline += amount
+            }
+          }
+        })
+        
+        // F-link 통계 (간소화)
+        const flinkData = bprData?.filter(d => String(d.CDM_SOURCE).trim() === 'F-link') || []
+        const flinkBacklogNoSlash = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Backlog' && !String(d.CDM_STAGE || '').includes('/')).length
+        const flinkRealizedNoSlash = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Realized' && !String(d.CDM_STAGE || '').includes('/')).length
+        const flinkBacklogWithAmount = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Backlog' && !String(d.CDM_STAGE || '').includes('/') && parseFloat(String(d.CDM_REVENUE_TOTAL || 0)) > 0).length
+        const flinkRealizedWithAmount = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Realized' && !String(d.CDM_STAGE || '').includes('/') && parseFloat(String(d.CDM_REVENUE_TOTAL || 0)) > 0).length
+        
+        console.log(`🔗 F-link 통계: Backlog ${flinkBacklogNoSlash}개 (금액↑ ${flinkBacklogWithAmount}) | Realized ${flinkRealizedNoSlash}개 (금액↑ ${flinkRealizedWithAmount})`)
+        
+        console.log('📊 Team BPR 데이터 집계 결과:')
+        console.log(`  ✅ 감사 Revenue: ${auditRevenue.toFixed(2)} 백만원`)
+        console.log(`  ✅ 비감사 Revenue: ${nonAuditRevenue.toFixed(2)} 백만원`)
+        console.log(`  ✅ 감사 Backlog: ${auditBacklog.toFixed(2)} 백만원`)
+        console.log(`  ✅ 비감사 Backlog: ${nonAuditBacklog.toFixed(2)} 백만원`)
+        console.log(`  ✅ 감사 Pipeline: ${auditPipeline.toFixed(2)} 백만원`)
+        console.log(`  ✅ 비감사 Pipeline: ${nonAuditPipeline.toFixed(2)} 백만원`)
+        console.log(`  📅 최신 날짜: ${latestDate}`)
+        
+        setTeamBprData({
+          auditRevenue,
+          nonAuditRevenue,
+          auditBacklog,
+          nonAuditBacklog,
+          auditPipeline,
+          nonAuditPipeline
+        })
+      } catch (error) {
+        console.error('❌ Team BPR 데이터 조회 실패:', error)
+      }
+    }
+    
+    fetchTeamBprData()
+  }, [currentEmployeeId])
+
   // Budget 실데이터 변수 선언 (매출 + BACKLOG + 파이프라인 합계)
   // My 개별 구성 요소들
   const myAuditRevenue = toMillion(budgetData?.current_audit_revenue ?? 0); // 매출
@@ -258,13 +554,13 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
   const myTotalActual = myAuditActual + myNonAuditActual;
   const myTotalBudget = myAuditBudget + myNonAuditBudget;
 
-  // Team 개별 구성 요소들
-  const teamAuditRevenue = toMillion(budgetData?.dept_revenue_audit ?? 0); // 매출
-  const teamAuditBacklog = toMillion(budgetData?.dept_backlog_audit ?? 0); // BACKLOG
-  const teamNonAuditRevenue = toMillion(budgetData?.dept_revenue_non_audit ?? 0); // 매출
-  const teamNonAuditBacklog = toMillion(budgetData?.dept_backlog_non_audit ?? 0); // BACKLOG
-  const teamAuditPipeline = toMillion(budgetData?.dept_pipeline_audit_current_total ?? 0); // 감사 파이프라인
-  const teamNonAuditPipeline = toMillion(budgetData?.dept_pipeline_non_audit_current_total ?? 0); // 비감사 파이프라인
+  // Team 개별 구성 요소들 - BPR_fact 테이블에서 조회한 데이터 사용
+  const teamAuditRevenue = teamBprData.auditRevenue; // 매출 (BPR)
+  const teamAuditBacklog = teamBprData.auditBacklog; // BACKLOG (BPR)
+  const teamNonAuditRevenue = teamBprData.nonAuditRevenue; // 매출 (BPR)
+  const teamNonAuditBacklog = teamBprData.nonAuditBacklog; // BACKLOG (BPR)
+  const teamAuditPipeline = teamBprData.auditPipeline; // 감사 파이프라인 (BPR)
+  const teamNonAuditPipeline = teamBprData.nonAuditPipeline; // 비감사 파이프라인 (BPR)
   
   // Team 감사/비감사 실제 합계 (매출 + BACKLOG + 파이프라인)
   const teamAuditActual = teamAuditRevenue + teamAuditBacklog + teamAuditPipeline; // 각각의 파이프라인 사용
@@ -348,9 +644,9 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     isBdData?: boolean
   }) => {
     const [projectDetails, setProjectDetails] = useState<{
-      revenue: Array<{ name: string; amount: number }>
-      backlog: Array<{ name: string; amount: number }>
-      pipeline: Array<{ name: string; amount: number }>
+      revenue: Array<{ name: string; amount: number; teamName?: string; personName?: string }>
+      backlog: Array<{ name: string; amount: number; teamName?: string; personName?: string }>
+      pipeline: Array<{ name: string; amount: number; teamName?: string; personName?: string }>
     }>({
       revenue: [],
       backlog: [],
@@ -521,7 +817,327 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           return
         }
 
-        // 본부 기준 조회일 경우 본부 구성원 목록 가져오기
+        // Team Budget 상세보기 (BPR_fact 사용)
+        if (isDepartmentView && !isBdData && auditType) {
+          // 사번 변형 목록
+          const empnoVariants = [normalizedEmpno]
+          if (normalizedEmpno.startsWith('0')) {
+            empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
+          } else {
+            empnoVariants.push(`0${normalizedEmpno}`)
+          }
+          
+          // 1. a_hr_master에서 현재 사용자의 본부(CM_NM) 조회
+          const { data: userHrData, error: userHrError } = await supabase
+            .from('a_hr_master')
+            .select('CM_NM')
+            .in('EMPNO', empnoVariants)
+            .limit(1)
+            .maybeSingle()
+          
+          if (userHrError || !userHrData) {
+            console.error('❌ Team 상세보기: 사용자 본부 조회 에러 (a_hr_master):', userHrError)
+            setLoadingDetails(false)
+            return
+          }
+          
+          const userDeptName = userHrData.CM_NM
+          console.log(`🏢 Team 상세보기 본부 (a_hr_master): ${userDeptName}`)
+          
+          // 2. 최신 CDM_REPORT_DATE 조회 (원본 테이블)
+          const { data: latestDateData, error: dateError } = await supabase
+            .from('BPR_fact')
+            .select('CDM_REPORT_DATE')
+            .not('CDM_REPORT_DATE', 'is', null)
+            .order('CDM_REPORT_DATE', { ascending: false })
+            .limit(1)
+            .single()
+          
+          const latestDate = latestDateData?.CDM_REPORT_DATE
+          
+          if (!latestDate) {
+            console.warn('⚠️ CDM_REPORT_DATE가 없습니다.')
+            setLoadingDetails(false)
+            return
+          }
+          
+          // 3. BPR 데이터 조회 (원본 테이블, Pagination)
+          let allDetailData: any[] = []
+          let detailPage = 0
+          const detailPageSize = 1000
+          
+          while (true) {
+            const { data, error } = await supabase
+              .from('BPR_fact')
+              .select('*')
+              .eq('PRJT_CMOFNM', userDeptName)
+              .eq('CDM_REPORT_DATE', latestDate)
+              .not('CDM_SOURCE', 'is', null)
+              .range(detailPage * detailPageSize, (detailPage + 1) * detailPageSize - 1)
+            
+            if (error || !data || data.length === 0) break
+            allDetailData = allDetailData.concat(data)
+            if (data.length < detailPageSize) break
+            detailPage++
+            if (detailPage >= 20) break
+          }
+          
+          // 중복 제거
+          const uniqueDetailData = Array.from(
+            new Map(allDetailData.map(item => [item.ID || JSON.stringify(item), item])).values()
+          )
+          
+          const bprData = uniqueDetailData
+          const bprError = null
+          
+          if (bprError) {
+            console.error('❌ Team 상세보기 BPR 데이터 조회 에러:', bprError)
+            setLoadingDetails(false)
+            return
+          }
+          
+          console.log(`📊 Team 상세보기 BPR 데이터: ${bprData?.length || 0}건`)
+          
+          // 4. 감사/비감사 필터링 및 데이터 정리
+          const auditFilter = auditType === 'audit' ? '감사' : '비감사'
+          
+          // Revenue, Backlog, Pipeline 각각 분류 (Team 정보 포함)
+          const revenueMap = new Map<string, { amount: number; teamName: string; personName: string }>()
+          const backlogMap = new Map<string, { amount: number; teamName: string; personName: string }>()
+          const pipelineMap = new Map<string, { amount: number; teamName: string; personName: string }>()
+          
+          if (bprData) {
+            bprData.forEach(item => {
+              const auditTypeRaw = String(item['감사 구분'] || '')
+              const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
+              
+              // 감사/비감사 필터
+              const matchesFilter = (auditFilter === '감사' && isAudit) || (auditFilter === '비감사' && !isAudit)
+              if (!matchesFilter) return
+              
+              const clientName = item.CDM_CLIENT_NAME || '고객명 없음'
+              const projectName = item.CDM_PROJECT_NAME || '프로젝트명 없음'
+              const teamName = item.TEAMNM || '-'
+              const personName = item.CDM_PERSON_NAME || '-'
+              const key = `${projectName}|${clientName}|${teamName}|${personName}`
+              
+              const cdmSource = item.CDM_SOURCE
+              const cdmStage = item.CDM_STAGE
+              const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000 // 백만원
+              
+              // Revenue: F-link + Realized
+              if (cdmSource === 'F-link' && cdmStage === 'Realized') {
+                const existing = revenueMap.get(key)
+                if (existing) {
+                  existing.amount += revenueTotal
+                } else {
+                  revenueMap.set(key, { amount: revenueTotal, teamName, personName })
+                }
+              }
+              
+              // Backlog: F-link + Backlog
+              if (cdmSource === 'F-link' && cdmStage === 'Backlog') {
+                const existing = backlogMap.get(key)
+                if (existing) {
+                  existing.amount += revenueTotal
+                } else {
+                  backlogMap.set(key, { amount: revenueTotal, teamName, personName })
+                }
+              }
+              
+              // Pipeline: Salesforce + Q1~Q4 합계
+              if (cdmSource === 'Salesforce') {
+                const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+                const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+                const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+                const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+                const amount = (q1 + q2 + q3 + q4) / 1_000_000 // 백만원
+                const existing = pipelineMap.get(key)
+                if (existing) {
+                  existing.amount += amount
+                } else {
+                  pipelineMap.set(key, { amount, teamName, personName })
+                }
+              }
+            })
+          }
+          
+          // Map을 배열로 변환 (팀명, 담당자명 포함)
+          const revenueProjects = Array.from(revenueMap.entries()).map(([key, data]) => {
+            const [projectName, client, teamName, personName] = key.split('|')
+            return { 
+              name: `${projectName} (${client})`, 
+              amount: data.amount,
+              teamName: data.teamName,
+              personName: data.personName
+            }
+          }).sort((a, b) => b.amount - a.amount)
+          
+          const backlogProjects = Array.from(backlogMap.entries()).map(([key, data]) => {
+            const [projectName, client, teamName, personName] = key.split('|')
+            return { 
+              name: `${projectName} (${client})`, 
+              amount: data.amount,
+              teamName: data.teamName,
+              personName: data.personName
+            }
+          }).sort((a, b) => b.amount - a.amount)
+          
+          const pipelineProjects = Array.from(pipelineMap.entries()).map(([key, data]) => {
+            const [projectName, client, teamName, personName] = key.split('|')
+            return { 
+              name: `${projectName} (${client})`, 
+              amount: data.amount,
+              teamName: data.teamName,
+              personName: data.personName
+            }
+          }).sort((a, b) => b.amount - a.amount)
+          
+          console.log(`✅ Team 상세보기 프로젝트 데이터 (${auditFilter}):`, {
+            revenue: revenueProjects.length,
+            backlog: backlogProjects.length,
+            pipeline: pipelineProjects.length
+          })
+          
+          setProjectDetails({
+            revenue: revenueProjects,
+            backlog: backlogProjects,
+            pipeline: pipelineProjects
+          })
+          setLoadingDetails(false)
+          return
+        }
+        
+        // My Budget 상세보기 (원본 테이블 사용)
+        if (!isDepartmentView && auditType) {
+          // 사번 변형 목록
+          const empnoVariants = [normalizedEmpno]
+          if (normalizedEmpno.startsWith('0')) {
+            empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
+          } else {
+            empnoVariants.push(`0${normalizedEmpno}`)
+          }
+          
+          // 최신 날짜 조회
+          const { data: latestDateData } = await supabase
+            .from('BPR_fact')
+            .select('CDM_REPORT_DATE')
+            .not('CDM_REPORT_DATE', 'is', null)
+            .order('CDM_REPORT_DATE', { ascending: false })
+            .limit(1)
+            .single()
+          
+          const latestDate = latestDateData?.CDM_REPORT_DATE
+          
+          if (!latestDate) {
+            setLoadingDetails(false)
+            return
+          }
+          
+          // BPR 데이터 조회 (Pagination)
+          let allMyData: any[] = []
+          let myPage = 0
+          const myPageSize = 1000
+          
+          while (true) {
+            const { data, error } = await supabase
+              .from('BPR_fact')
+              .select('*')
+              .in('CDM_PERSON_ID', empnoVariants)
+              .eq('CDM_REPORT_DATE', latestDate)
+              .not('CDM_SOURCE', 'is', null)
+              .range(myPage * myPageSize, (myPage + 1) * myPageSize - 1)
+            
+            if (error || !data || data.length === 0) break
+            allMyData = allMyData.concat(data)
+            if (data.length < myPageSize) break
+            myPage++
+            if (myPage >= 20) break
+          }
+          
+          // 중복 제거
+          const uniqueMyData = Array.from(
+            new Map(allMyData.map(item => [item.ID || JSON.stringify(item), item])).values()
+          )
+          
+          const bprData = uniqueMyData
+          
+          // 감사/비감사 필터링
+          const auditFilter = auditType === 'audit' ? '감사' : '비감사'
+          
+          const revenueMap = new Map<string, number>()
+          const backlogMap = new Map<string, number>()
+          const pipelineMap = new Map<string, number>()
+          
+          if (bprData) {
+            bprData.forEach(item => {
+              const auditTypeRaw = String(item['감사 구분'] || '')
+              const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
+              
+              const matchesFilter = (auditFilter === '감사' && isAudit) || (auditFilter === '비감사' && !isAudit)
+              if (!matchesFilter) return
+              
+              const clientName = item.CDM_CLIENT_NAME || '고객명 없음'
+              const projectName = item.CDM_PROJECT_NAME || '프로젝트명 없음'
+              const key = `${projectName}|${clientName}`
+              
+              const cdmSource = String(item.CDM_SOURCE || '').trim()
+              const cdmStage = String(item.CDM_STAGE || '').trim()
+              const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+              
+              // Revenue
+              if (cdmSource === 'F-link' && cdmStage === 'Realized') {
+                revenueMap.set(key, (revenueMap.get(key) || 0) + revenueTotal)
+              }
+              
+              // Backlog
+              if (cdmSource === 'F-link' && cdmStage === 'Backlog') {
+                backlogMap.set(key, (backlogMap.get(key) || 0) + revenueTotal)
+              }
+              
+              // Pipeline
+              if (cdmSource === 'Salesforce') {
+                const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+                const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+                const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+                const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+                const amount = (q1 + q2 + q3 + q4) / 1_000_000
+                pipelineMap.set(key, (pipelineMap.get(key) || 0) + amount)
+              }
+            })
+          }
+          
+          const revenueProjects = Array.from(revenueMap.entries()).map(([key, amount]) => {
+            const [name, client] = key.split('|')
+            return { name: `${name} (${client})`, amount }
+          }).sort((a, b) => b.amount - a.amount)
+          
+          const backlogProjects = Array.from(backlogMap.entries()).map(([key, amount]) => {
+            const [name, client] = key.split('|')
+            return { name: `${name} (${client})`, amount }
+          }).sort((a, b) => b.amount - a.amount)
+          
+          const pipelineProjects = Array.from(pipelineMap.entries()).map(([key, amount]) => {
+            const [name, client] = key.split('|')
+            return { name: `${name} (${client})`, amount }
+          }).sort((a, b) => b.amount - a.amount)
+          
+          console.log(`✅ My 상세보기 프로젝트 데이터 (${auditFilter}):`, {
+            revenue: revenueProjects.length,
+            backlog: backlogProjects.length,
+            pipeline: pipelineProjects.length
+          })
+          
+          setProjectDetails({
+            revenue: revenueProjects,
+            backlog: backlogProjects,
+            pipeline: pipelineProjects
+          })
+          setLoadingDetails(false)
+          return
+        }
+        
+        // 본부 기준 조회일 경우 본부 구성원 목록 가져오기 (기존 로직 - 사용 안함, 호환성 유지)
         let empnoList = [normalizedEmpno] // 기본값: 본인만
         
         if (isDepartmentView) {
@@ -558,7 +1174,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         // audityn 필터 값 설정
         const auditYnFilter = auditType === 'audit' ? 'Y' : auditType === 'non-audit' ? 'N' : null
 
-        // 3. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
+        // 3. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함) - Fallback 로직
         let revenueQuery = supabase
           .from('a_performance_current')
           .select('PRJTNM, CLIENTNM, REVENUE, AUDITYN')
@@ -818,7 +1434,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                       상세보기
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                  <DialogContent className="max-w-6xl max-h-[80vh] overflow-auto">
                     <DialogHeader>
                       <DialogTitle>
                         {title} 상세 내역
@@ -852,33 +1468,31 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>집계연월</TableHead>
-                                <TableHead>Project Code</TableHead>
-                                <TableHead>Project Name</TableHead>
-                                <TableHead>Client</TableHead>
-                                <TableHead>파트너명</TableHead>
-                                <TableHead>수임비율</TableHead>
-                                <TableHead>CIS 등록월</TableHead>
-                                <TableHead className="text-right">금액 (백만원)</TableHead>
-                                <TableHead>비고</TableHead>
+                                <TableHead className="w-24">집계연월</TableHead>
+                                <TableHead className="w-32">Project Code</TableHead>
+                                <TableHead className="max-w-xs">Project Name</TableHead>
+                                <TableHead className="w-40">Client</TableHead>
+                                <TableHead className="w-36">파트너명</TableHead>
+                                <TableHead className="w-28">CIS 등록월</TableHead>
+                                <TableHead className="text-right w-40">금액 (백만원)</TableHead>
+                                <TableHead className="w-32">비고</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {bdDetails.map((project, index) => (
                                 <TableRow key={index}>
-                                  <TableCell className="font-medium">{project.reportMonth}</TableCell>
-                                  <TableCell>{project.projectCode}</TableCell>
-                                  <TableCell>{project.projectName}</TableCell>
-                                  <TableCell>{project.client}</TableCell>
-                                  <TableCell>{project.partnerName}</TableCell>
-                                  <TableCell>{project.chargeRatio}</TableCell>
-                                  <TableCell>{project.cisMonth}</TableCell>
-                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                  <TableCell className="font-medium w-24">{project.reportMonth}</TableCell>
+                                  <TableCell className="w-32">{project.projectCode}</TableCell>
+                                  <TableCell className="max-w-xs truncate" title={project.projectName}>{project.projectName}</TableCell>
+                                  <TableCell className="w-40">{project.client}</TableCell>
+                                  <TableCell className="w-36">{project.partnerName}</TableCell>
+                                  <TableCell className="w-28">{project.cisMonth}</TableCell>
+                                  <TableCell className={`text-right w-40 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
                                     {project.amount !== 0 
                                       ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                       : '-'}
                                   </TableCell>
-                                  <TableCell>{project.note}</TableCell>
+                                  <TableCell className="w-32">{project.note}</TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -938,15 +1552,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead>프로젝트명</TableHead>
-                                    <TableHead className="text-right">금액 (백만원)</TableHead>
+                                    <TableHead className="max-w-xs">프로젝트명</TableHead>
+                                    {isDepartmentView && !isBdData && (
+                                      <>
+                                        <TableHead className="w-28">팀명</TableHead>
+                                        <TableHead className="w-32">담당자</TableHead>
+                                      </>
+                                    )}
+                                    <TableHead className="text-right w-36">금액 (백만원)</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {projectDetails.revenue.map((project, index) => (
                                     <TableRow key={index}>
-                                      <TableCell className="font-medium">{project.name}</TableCell>
-                                      <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                      <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
+                                      {isDepartmentView && !isBdData && (
+                                        <>
+                                          <TableCell className="w-28">{project.teamName || '-'}</TableCell>
+                                          <TableCell className="w-32">{project.personName || '-'}</TableCell>
+                                        </>
+                                      )}
+                                      <TableCell className={`text-right w-36 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
                                         {project.amount !== 0 
                                           ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                           : '-'}
@@ -964,15 +1590,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead>프로젝트명</TableHead>
-                                    <TableHead className="text-right">금액 (백만원)</TableHead>
+                                    <TableHead className="max-w-xs">프로젝트명</TableHead>
+                                    {isDepartmentView && !isBdData && (
+                                      <>
+                                        <TableHead className="w-28">팀명</TableHead>
+                                        <TableHead className="w-32">담당자</TableHead>
+                                      </>
+                                    )}
+                                    <TableHead className="text-right w-36">금액 (백만원)</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {projectDetails.backlog.map((project, index) => (
                                     <TableRow key={index}>
-                                      <TableCell className="font-medium">{project.name}</TableCell>
-                                      <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                      <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
+                                      {isDepartmentView && !isBdData && (
+                                        <>
+                                          <TableCell className="w-28">{project.teamName || '-'}</TableCell>
+                                          <TableCell className="w-32">{project.personName || '-'}</TableCell>
+                                        </>
+                                      )}
+                                      <TableCell className={`text-right w-36 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
                                         {project.amount !== 0 
                                           ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                           : '-'}
@@ -990,15 +1628,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead>프로젝트명</TableHead>
-                                    <TableHead className="text-right">금액 (백만원)</TableHead>
+                                    <TableHead className="max-w-xs">프로젝트명</TableHead>
+                                    {isDepartmentView && !isBdData && (
+                                      <>
+                                        <TableHead className="w-28">팀명</TableHead>
+                                        <TableHead className="w-32">담당자</TableHead>
+                                      </>
+                                    )}
+                                    <TableHead className="text-right w-36">금액 (백만원)</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {projectDetails.pipeline.map((project, index) => (
                                     <TableRow key={index}>
-                                      <TableCell className="font-medium">{project.name}</TableCell>
-                                      <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                      <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
+                                      {isDepartmentView && !isBdData && (
+                                        <>
+                                          <TableCell className="w-28">{project.teamName || '-'}</TableCell>
+                                          <TableCell className="w-32">{project.personName || '-'}</TableCell>
+                                        </>
+                                      )}
+                                      <TableCell className={`text-right w-36 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
                                         {project.amount !== 0 
                                           ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                           : '-'}
@@ -1216,9 +1866,9 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     isDepartmentView?: boolean
   }) => {
     const [projectDetails, setProjectDetails] = useState<{
-      revenue: Array<{ name: string; amount: number; prjtcd?: string }>
-      backlog: Array<{ name: string; amount: number; prjtcd?: string }>
-      pipeline: Array<{ name: string; amount: number; prjtcd?: string }>
+      revenue: Array<{ name: string; amount: number; teamName?: string; personName?: string }>
+      backlog: Array<{ name: string; amount: number; teamName?: string; personName?: string }>
+      pipeline: Array<{ name: string; amount: number; teamName?: string; personName?: string }>
     }>({
       revenue: [],
       backlog: [],
@@ -1245,209 +1895,171 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
         console.log(`🔍 fetchProjectDetails: currentEmployeeId = ${currentEmployeeId}, normalizedEmpno = ${normalizedEmpno}, isDepartmentView = ${isDepartmentView}`)
         
-        // 본부 기준 조회일 경우 본부 구성원 목록 가져오기
-        let empnoList = [normalizedEmpno] // 기본값: 본인만
+        // BPR_fact 테이블에서 조회 (Team/My Budget Total 상세보기)
+        // 최신 날짜 조회
+        const { data: latestDateData } = await supabase
+          .from('BPR_fact')
+          .select('CDM_REPORT_DATE')
+          .not('CDM_REPORT_DATE', 'is', null)
+          .order('CDM_REPORT_DATE', { ascending: false })
+          .limit(1)
+          .single()
+        
+        const latestDate = latestDateData?.CDM_REPORT_DATE
+        
+        if (!latestDate) {
+          setLoadingDetails(false)
+          return
+        }
+        
+        // BPR 데이터 조회 (Team이면 PRJT_CMOFNM, My면 CDM_PERSON_ID)
+        let allData: any[] = []
+        let page = 0
+        const pageSize = 1000
         
         if (isDepartmentView) {
-          // 1. 현재 사용자의 본부명(CM_NM) 조회
-          const { data: userData, error: userError } = await supabase
+          // Team: 본부 기준 조회
+          const { data: userData } = await supabase
             .from('a_hr_master')
             .select('CM_NM')
             .eq('EMPNO', normalizedEmpno)
             .maybeSingle()
           
-          if (userError) {
-            console.error('❌ 사용자 본부 정보 조회 에러:', userError)
-          }
-          
           const userDeptName = userData?.CM_NM
-          console.log(`🏢 사용자 본부: ${userDeptName}`)
           
-          // 2. 해당 본부의 모든 사원 EMPNO 조회
-          if (userDeptName) {
-            const { data: deptMembers, error: deptError } = await supabase
-              .from('a_hr_master')
-              .select('EMPNO')
-              .eq('CM_NM', userDeptName)
+          if (!userDeptName) {
+            setLoadingDetails(false)
+            return
+          }
+          
+          while (true) {
+            const { data } = await supabase
+              .from('BPR_fact')
+              .select('*')
+              .eq('PRJT_CMOFNM', userDeptName)
+              .eq('CDM_REPORT_DATE', latestDate)
+              .not('CDM_SOURCE', 'is', null)
+              .range(page * pageSize, (page + 1) * pageSize - 1)
             
-            if (deptError) {
-              console.error('❌ 본부 구성원 조회 에러:', deptError)
-            } else if (deptMembers && deptMembers.length > 0) {
-              empnoList = deptMembers.map(m => m.EMPNO).filter(Boolean)
-              console.log(`👥 본부 구성원 수: ${empnoList.length}명`)
-            }
+            if (!data || data.length === 0) break
+            allData = allData.concat(data)
+            if (data.length < pageSize) break
+            page++
+            if (page >= 20) break
+          }
+        } else {
+          // My: 사번 기준 조회
+          const empnoVariants = [normalizedEmpno]
+          if (normalizedEmpno.startsWith('0')) {
+            empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
+          } else {
+            empnoVariants.push(`0${normalizedEmpno}`)
+          }
+          
+          while (true) {
+            const { data } = await supabase
+              .from('BPR_fact')
+              .select('*')
+              .in('CDM_PERSON_ID', empnoVariants)
+              .eq('CDM_REPORT_DATE', latestDate)
+              .not('CDM_SOURCE', 'is', null)
+              .range(page * pageSize, (page + 1) * pageSize - 1)
+            
+            if (!data || data.length === 0) break
+            allData = allData.concat(data)
+            if (data.length < pageSize) break
+            page++
+            if (page >= 20) break
           }
         }
         
-        // 실제 테이블 구조에 맞게 조회
-        // a_performance_current: EMPLNO, PRJTNM, CLIENTNM, REVENUE, BACKLOG, AUDITYN, ETL_DATE
-        // a_pipeline_current: EMPLNO, PRJTNM, CLIENTNM, CURRENT_TOTAL, AUDITYN, ETL_DATE, CDM_REPORT_MONTH
-
-        // 3. Revenue 프로젝트 조회 (a_performance_current에서 REVENUE가 있는 프로젝트, 음수 포함)
-        const { data: revenueData, error: revenueError } = await supabase
-          .from('a_performance_current')
-          .select('PRJTNM, CLIENTNM, REVENUE, AUDITYN')
-          .in('EMPLNO', empnoList)
-          .not('REVENUE', 'is', null)
-          .order('ETL_DATE', { ascending: false })
+        // 중복 제거
+        const uniqueData = Array.from(
+          new Map(allData.map(item => [item.ID || JSON.stringify(item), item])).values()
+        )
         
-        if (revenueError) {
-          console.error('❌ Revenue 데이터 조회 에러:', revenueError)
-          console.error('❌ Revenue 에러 상세:', {
-            message: revenueError.message,
-            details: revenueError.details,
-            hint: revenueError.hint,
-            code: revenueError.code
-          })
-        }
-        console.log('📊 Revenue 데이터 조회 결과:', { 
-          count: revenueData?.length || 0, 
-          error: revenueError?.message,
-          sample: revenueData?.slice(0, 2)
-        })
-
-        // 4. Backlog 프로젝트 조회 (a_performance_current에서 BACKLOG가 있는 프로젝트, 음수 포함)
-        const { data: backlogData, error: backlogError } = await supabase
-          .from('a_performance_current')
-          .select('PRJTNM, CLIENTNM, BACKLOG, AUDITYN')
-          .in('EMPLNO', empnoList)
-          .not('BACKLOG', 'is', null)
-          .order('ETL_DATE', { ascending: false })
+        // Revenue, Backlog, Pipeline 분류 (Team 정보 포함)
+        const revenueMap = new Map<string, { amount: number; teamName: string; personName: string }>()
+        const backlogMap = new Map<string, { amount: number; teamName: string; personName: string }>()
+        const pipelineMap = new Map<string, { amount: number; teamName: string; personName: string }>()
         
-        if (backlogError) {
-          console.error('❌ Backlog 데이터 조회 에러:', backlogError)
-          console.error('❌ Backlog 에러 상세:', {
-            message: backlogError.message,
-            details: backlogError.details,
-            hint: backlogError.hint,
-            code: backlogError.code
-          })
-        }
-        console.log('📊 Backlog 데이터 조회 결과:', { 
-          count: backlogData?.length || 0, 
-          error: backlogError?.message,
-          sample: backlogData?.slice(0, 2)
-        })
-
-        // 5. Pipeline 프로젝트 조회 (a_pipeline_current_re에서 최신 CDM_REPORT_MONTH 사용)
-        // SQL 뷰와 동일하게 CDM_REPORT_MONTH로 최신 데이터 찾기
-        // 먼저 최신 CDM_REPORT_MONTH 조회
-        const { data: latestMonthData, error: latestMonthError } = await supabase
-          .from('a_pipeline_current_re')
-          .select('CDM_REPORT_MONTH')
-          .not('CDM_REPORT_MONTH', 'is', null)
-          .order('CDM_REPORT_MONTH', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        const latestMonth = latestMonthData?.CDM_REPORT_MONTH
-        if (latestMonthError) {
-          console.error('❌ 최신 CDM_REPORT_MONTH 조회 에러:', latestMonthError)
-        }
-        console.log('📅 최신 CDM_REPORT_MONTH:', latestMonth)
-
-        // 최신 CDM_REPORT_MONTH의 Pipeline 데이터 조회 (음수 포함)
-        // SQL 뷰와 동일하게 a_pipeline_current_re 사용, current_total 합계
-        const { data: pipelineData, error: pipelineError } = latestMonth
-          ? await supabase
-              .from('a_pipeline_current_re')
-              .select('PRJTNM, CLIENTNM, current_total, audityn')
-              .in('EMPLNO', empnoList)
-              .eq('CDM_REPORT_MONTH', latestMonth)
-              .not('current_total', 'is', null)
-          : { data: null, error: null }
-        
-        if (pipelineError) {
-          console.error('❌ Pipeline 데이터 조회 에러:', pipelineError)
-          console.error('❌ Pipeline 에러 상세:', {
-            message: pipelineError.message,
-            details: pipelineError.details,
-            hint: pipelineError.hint,
-            code: pipelineError.code
-          })
-        }
-        
-        console.log('📊 Pipeline 데이터 조회 결과:', { 
-          count: pipelineData?.length || 0, 
-          error: pipelineError?.message,
-          latestMonth,
-          sample: pipelineData?.slice(0, 2)
-        })
-
-        // 4. 프로젝트 데이터 정리 (PRJTNM, CLIENTNM이 이미 있으므로 직접 사용)
-        // Revenue 프로젝트 정리 (프로젝트명+고객명으로 그룹화)
-        const revenueMap = new Map<string, number>()
-        if (revenueData) {
-          revenueData.forEach(item => {
-            const key = `${item.PRJTNM || '프로젝트명 없음'}|${item.CLIENTNM || '고객명 없음'}`
-            const revenue = parseFloat(String(item.REVENUE || 0)) / 1_000_000 // 백만원 단위
-            if (revenueMap.has(key)) {
-              revenueMap.set(key, revenueMap.get(key)! + revenue)
+        uniqueData.forEach(item => {
+          const clientName = item.CDM_CLIENT_NAME || '고객명 없음'
+          const projectName = item.CDM_PROJECT_NAME || '프로젝트명 없음'
+          const teamName = item.TEAMNM || '-'
+          const personName = item.CDM_PERSON_NAME || '-'
+          const key = `${projectName}|${clientName}|${teamName}|${personName}`
+          
+          const cdmSource = String(item.CDM_SOURCE || '').trim()
+          const cdmStage = String(item.CDM_STAGE || '').trim()
+          
+          // Revenue: F-link + Realized (슬래시 제외)
+          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
+            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+            const existing = revenueMap.get(key)
+            if (existing) {
+              existing.amount += amount
             } else {
-              revenueMap.set(key, revenue)
+              revenueMap.set(key, { amount, teamName, personName })
             }
-          })
-        }
-
-        const revenueProjects = Array.from(revenueMap.entries()).map(([key, amount]) => {
-          const [name, client] = key.split('|')
-          return {
-            name: `${name} (${client})`,
-            amount: amount
           }
-        }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
-
-        // Backlog 프로젝트 정리
-        const backlogMap = new Map<string, number>()
-        if (backlogData) {
-          backlogData.forEach(item => {
-            const key = `${item.PRJTNM || '프로젝트명 없음'}|${item.CLIENTNM || '고객명 없음'}`
-            const backlog = parseFloat(String(item.BACKLOG || 0)) / 1_000_000 // 백만원 단위
-            if (backlogMap.has(key)) {
-              backlogMap.set(key, backlogMap.get(key)! + backlog)
+          
+          // Backlog: F-link + Backlog (슬래시 제외)
+          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
+            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+            const existing = backlogMap.get(key)
+            if (existing) {
+              existing.amount += amount
             } else {
-              backlogMap.set(key, backlog)
+              backlogMap.set(key, { amount, teamName, personName })
             }
-          })
-        }
-
-        const backlogProjects = Array.from(backlogMap.entries()).map(([key, amount]) => {
-          const [name, client] = key.split('|')
-          return {
-            name: `${name} (${client})`,
-            amount: amount
           }
-        }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
-
-        // Pipeline 프로젝트 정리
-        const pipelineMap = new Map<string, number>()
-        if (pipelineData) {
-          pipelineData.forEach(item => {
-            const prjtnm = (item as any).PRJTNM || (item as any).prjtnm || '프로젝트명 없음'
-            const clientnm = (item as any).CLIENTNM || (item as any).clientnm || '고객명 없음'
-            const key = `${prjtnm}|${clientnm}`
-            const pipeline = parseFloat(String((item as any).current_total || (item as any).CURRENT_TOTAL || 0)) / 1_000_000 // 백만원 단위
-            if (pipelineMap.has(key)) {
-              pipelineMap.set(key, pipelineMap.get(key)! + pipeline)
+          
+          // Pipeline: Salesforce (전체)
+          if (cdmSource === 'Salesforce') {
+            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+            const amount = (q1 + q2 + q3 + q4) / 1_000_000
+            const existing = pipelineMap.get(key)
+            if (existing) {
+              existing.amount += amount
             } else {
-              pipelineMap.set(key, pipeline)
+              pipelineMap.set(key, { amount, teamName, personName })
             }
-          })
-        }
-
-        const pipelineProjects = Array.from(pipelineMap.entries()).map(([key, amount]) => {
-          const [name, client] = key.split('|')
-          return {
-            name: `${name} (${client})`,
-            amount: amount
           }
-        }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
-
-        console.log('✅ 최종 프로젝트 상세 데이터:', {
-          revenue: revenueProjects.length,
-          backlog: backlogProjects.length,
-          pipeline: pipelineProjects.length
         })
+        
+        const revenueProjects = Array.from(revenueMap.entries()).map(([key, data]) => {
+          const [projectName, client, teamName, personName] = key.split('|')
+          return { 
+            name: `${projectName} (${client})`, 
+            amount: data.amount,
+            teamName: data.teamName,
+            personName: data.personName
+          }
+        }).sort((a, b) => b.amount - a.amount)
+        
+        const backlogProjects = Array.from(backlogMap.entries()).map(([key, data]) => {
+          const [projectName, client, teamName, personName] = key.split('|')
+          return { 
+            name: `${projectName} (${client})`, 
+            amount: data.amount,
+            teamName: data.teamName,
+            personName: data.personName
+          }
+        }).sort((a, b) => b.amount - a.amount)
+        
+        const pipelineProjects = Array.from(pipelineMap.entries()).map(([key, data]) => {
+          const [projectName, client, teamName, personName] = key.split('|')
+          return { 
+            name: `${projectName} (${client})`, 
+            amount: data.amount,
+            teamName: data.teamName,
+            personName: data.personName
+          }
+        }).sort((a, b) => b.amount - a.amount)
 
         setProjectDetails({
           revenue: revenueProjects,
@@ -1591,15 +2203,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>프로젝트명</TableHead>
-                                <TableHead className="text-right">금액 (백만원)</TableHead>
+                                <TableHead className="max-w-xs">프로젝트명</TableHead>
+                                {isDepartmentView && (
+                                  <>
+                                    <TableHead className="w-28">팀명</TableHead>
+                                    <TableHead className="w-32">담당자</TableHead>
+                                  </>
+                                )}
+                                <TableHead className="text-right w-36">금액 (백만원)</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {projectDetails.revenue.map((project, index) => (
                                 <TableRow key={index}>
-                                  <TableCell className="font-medium">{project.name}</TableCell>
-                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                  <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
+                                  {isDepartmentView && (
+                                    <>
+                                      <TableCell className="w-28">{project.teamName || '-'}</TableCell>
+                                      <TableCell className="w-32">{project.personName || '-'}</TableCell>
+                                    </>
+                                  )}
+                                  <TableCell className={`text-right w-36 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
                                     {project.amount !== 0 
                                       ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                       : '-'}
@@ -1617,15 +2241,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>프로젝트명</TableHead>
-                                <TableHead className="text-right">금액 (백만원)</TableHead>
+                                <TableHead className="max-w-xs">프로젝트명</TableHead>
+                                {isDepartmentView && (
+                                  <>
+                                    <TableHead className="w-28">팀명</TableHead>
+                                    <TableHead className="w-32">담당자</TableHead>
+                                  </>
+                                )}
+                                <TableHead className="text-right w-36">금액 (백만원)</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {projectDetails.backlog.map((project, index) => (
                                 <TableRow key={index}>
-                                  <TableCell className="font-medium">{project.name}</TableCell>
-                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                  <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
+                                  {isDepartmentView && (
+                                    <>
+                                      <TableCell className="w-28">{project.teamName || '-'}</TableCell>
+                                      <TableCell className="w-32">{project.personName || '-'}</TableCell>
+                                    </>
+                                  )}
+                                  <TableCell className={`text-right w-36 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
                                     {project.amount !== 0 
                                       ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                       : '-'}
@@ -1643,15 +2279,27 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>프로젝트명</TableHead>
-                                <TableHead className="text-right">금액 (백만원)</TableHead>
+                                <TableHead className="max-w-xs">프로젝트명</TableHead>
+                                {isDepartmentView && (
+                                  <>
+                                    <TableHead className="w-28">팀명</TableHead>
+                                    <TableHead className="w-32">담당자</TableHead>
+                                  </>
+                                )}
+                                <TableHead className="text-right w-36">금액 (백만원)</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {projectDetails.pipeline.map((project, index) => (
                                 <TableRow key={index}>
-                                  <TableCell className="font-medium">{project.name}</TableCell>
-                                  <TableCell className={`text-right ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                  <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
+                                  {isDepartmentView && (
+                                    <>
+                                      <TableCell className="w-28">{project.teamName || '-'}</TableCell>
+                                      <TableCell className="w-32">{project.personName || '-'}</TableCell>
+                                    </>
+                                  )}
+                                  <TableCell className={`text-right w-36 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
                                     {project.amount !== 0 
                                       ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
                                       : '-'}
@@ -1900,7 +2548,6 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               nonAuditActual={teamNonAuditActual}
               totalBudget={teamTotalBudget}
               title="Team Budget"
-              subtitle="- 9월 중 업데이트 예정"
               trend={`-${Math.round((1 - (teamTotalActual / (teamTotalBudget || 1))) * 100)}%`}
               cardClassName="shadow-sm border-l-4 border-l-gray-300"
               isTeam={true}
@@ -1948,7 +2595,6 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 actual={teamAuditActual}
                 budget={teamAuditBudget}
                 title="Team 감사 Budget"
-                subtitle="- 9월 중 업데이트 예정"
                 color="#ea580c"
                 trend={`-${Math.round((1 - (teamAuditActual / (teamAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
@@ -1997,7 +2643,6 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 actual={teamNonAuditActual}
                 budget={teamNonAuditBudget}
                 title="Team 비감사서비스 Budget"
-                subtitle="- 9월 중 업데이트 예정"
                 color="#059669"
                 trend={`-${Math.round((1 - (teamNonAuditActual / (teamNonAuditBudget || 1))) * 100)}%`}
                 displayType="amount"
