@@ -77,6 +77,21 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     auditPipeline: 0,
     nonAuditPipeline: 0
   })
+  const [myBprData, setMyBprData] = useState<{
+    auditRevenue: number
+    nonAuditRevenue: number
+    auditBacklog: number
+    nonAuditBacklog: number
+    auditPipeline: number
+    nonAuditPipeline: number
+  }>({
+    auditRevenue: 0,
+    nonAuditRevenue: 0,
+    auditBacklog: 0,
+    nonAuditBacklog: 0,
+    auditPipeline: 0,
+    nonAuditPipeline: 0
+  })
 
   // 컴포넌트 마운트 시 사용자 정보 로드
   useEffect(() => {
@@ -548,14 +563,177 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     fetchTeamBprData()
   }, [currentEmployeeId])
 
+  // My BPR 데이터 조회 (BPR_fact 테이블)
+  useEffect(() => {
+    if (!currentEmployeeId) return
+    
+    const fetchMyBprData = async () => {
+      try {
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
+        
+        // 사번 변형 목록 생성
+        const empnoVariants = [normalizedEmpno]
+        if (normalizedEmpno.startsWith('0')) {
+          empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
+        } else {
+          empnoVariants.push(`0${normalizedEmpno}`)
+        }
+        
+        console.log(`🔍 My BPR 조회용 사번 변형:`, empnoVariants)
+        
+        // 최신 CDM_REPORT_DATE 조회
+        const { data: latestDateData } = await supabase
+          .from('BPR_fact')
+          .select('CDM_REPORT_DATE')
+          .not('CDM_REPORT_DATE', 'is', null)
+          .order('CDM_REPORT_DATE', { ascending: false })
+          .limit(1)
+          .single()
+        
+        const latestDate = latestDateData?.CDM_REPORT_DATE
+        console.log('📅 My BPR 최신 CDM_REPORT_DATE:', latestDate)
+        
+        if (!latestDate) {
+          console.warn('⚠️ My BPR CDM_REPORT_DATE가 없습니다.')
+          return
+        }
+        
+        // BPR 데이터 조회 (Pagination)
+        let allMyBprData: any[] = []
+        let page = 0
+        const pageSize = 1000
+        
+        while (true) {
+          const { data, error } = await supabase
+            .from('BPR_fact')
+            .select('*')
+            .in('CDM_PERSON_ID', empnoVariants)
+            .eq('CDM_REPORT_DATE', latestDate)
+            .not('CDM_SOURCE', 'is', null)
+            .range(page * pageSize, (page + 1) * pageSize - 1)
+          
+          if (error) {
+            console.error(`❌ My BPR 데이터 조회 에러 (page ${page}):`, error)
+            break
+          }
+          
+          if (!data || data.length === 0) break
+          
+          allMyBprData = allMyBprData.concat(data)
+          
+          if (data.length < pageSize) break
+          page++
+          
+          if (page >= 20) {
+            console.warn('⚠️ My BPR 최대 페이지 수 도달 (20페이지)')
+            break
+          }
+        }
+        
+        // 중복 제거
+        const uniqueMyBprData = Array.from(
+          new Map(allMyBprData.map(item => [item.ID || JSON.stringify(item), item])).values()
+        )
+        
+        console.log(`📊 My BPR 데이터 조회: ${uniqueMyBprData.length}건`)
+        
+        // 데이터 집계
+        let myAuditRevenue = 0
+        let myNonAuditRevenue = 0
+        let myAuditBacklog = 0
+        let myNonAuditBacklog = 0
+        let myAuditPipeline = 0
+        let myNonAuditPipeline = 0
+        
+        uniqueMyBprData.forEach(item => {
+          const auditTypeRaw = String(item['감사 구분'] || '')
+          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
+          
+          const cdmSource = String(item.CDM_SOURCE || '').trim()
+          const cdmStage = String(item.CDM_STAGE || '').trim()
+          
+          // Revenue: F-link + Realized (슬래시 제외)
+          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
+            const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0))
+            const amount = revenueTotal / 1_000_000
+            if (isAudit) {
+              myAuditRevenue += amount
+            } else {
+              myNonAuditRevenue += amount
+            }
+          }
+          
+          // Backlog: F-link + Backlog (슬래시 제외, 분기별 월 데이터 합산)
+          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
+            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
+            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
+            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
+            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
+            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
+            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
+            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
+            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
+            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
+            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
+            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
+            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
+            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
+            if (isAudit) {
+              myAuditBacklog += amount
+            } else {
+              myNonAuditBacklog += amount
+            }
+          }
+          
+          // Pipeline: Salesforce + Q1~Q4 합계
+          if (cdmSource === 'Salesforce') {
+            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+            const amount = (q1 + q2 + q3 + q4) / 1_000_000
+            
+            if (isAudit) {
+              myAuditPipeline += amount
+            } else {
+              myNonAuditPipeline += amount
+            }
+          }
+        })
+        
+        console.log('📊 My BPR 데이터 집계 결과:')
+        console.log(`  ✅ 감사 Revenue: ${myAuditRevenue.toFixed(2)} 백만원`)
+        console.log(`  ✅ 비감사 Revenue: ${myNonAuditRevenue.toFixed(2)} 백만원`)
+        console.log(`  ✅ 감사 Backlog: ${myAuditBacklog.toFixed(2)} 백만원`)
+        console.log(`  ✅ 비감사 Backlog: ${myNonAuditBacklog.toFixed(2)} 백만원`)
+        console.log(`  ✅ 감사 Pipeline: ${myAuditPipeline.toFixed(2)} 백만원`)
+        console.log(`  ✅ 비감사 Pipeline: ${myNonAuditPipeline.toFixed(2)} 백만원`)
+        
+        setMyBprData({
+          auditRevenue: myAuditRevenue,
+          nonAuditRevenue: myNonAuditRevenue,
+          auditBacklog: myAuditBacklog,
+          nonAuditBacklog: myNonAuditBacklog,
+          auditPipeline: myAuditPipeline,
+          nonAuditPipeline: myNonAuditPipeline
+        })
+      } catch (error) {
+        console.error('❌ My BPR 데이터 조회 실패:', error)
+      }
+    }
+    
+    fetchMyBprData()
+  }, [currentEmployeeId])
+
   // Budget 실데이터 변수 선언 (매출 + BACKLOG + 파이프라인 합계)
-  // My 개별 구성 요소들
-  const myAuditRevenue = toMillion(budgetData?.current_audit_revenue ?? 0); // 매출
-  const myAuditBacklog = toMillion(budgetData?.current_audit_backlog ?? 0); // BACKLOG
-  const myNonAuditRevenue = toMillion(budgetData?.current_non_audit_revenue ?? 0); // 매출
-  const myNonAuditBacklog = toMillion(budgetData?.current_non_audit_backlog ?? 0); // BACKLOG
-  const myAuditPipeline = toMillion(budgetData?.pipeline_audit_current_total ?? 0); // 감사 파이프라인
-  const myNonAuditPipeline = toMillion(budgetData?.pipeline_non_audit_current_total ?? 0); // 비감사 파이프라인
+  // My 개별 구성 요소들 - BPR_fact 테이블에서 조회한 데이터 사용
+  const myAuditRevenue = myBprData.auditRevenue; // 매출 (BPR)
+  const myAuditBacklog = myBprData.auditBacklog; // BACKLOG (BPR)
+  const myNonAuditRevenue = myBprData.nonAuditRevenue; // 매출 (BPR)
+  const myNonAuditBacklog = myBprData.nonAuditBacklog; // BACKLOG (BPR)
+  const myAuditPipeline = myBprData.auditPipeline; // 감사 파이프라인 (BPR)
+  const myNonAuditPipeline = myBprData.nonAuditPipeline; // 비감사 파이프라인 (BPR)
   
   // My 감사/비감사 실제 합계 (매출 + BACKLOG + 파이프라인)
   const myAuditActual = myAuditRevenue + myAuditBacklog + myAuditPipeline; // 각각의 파이프라인 사용
