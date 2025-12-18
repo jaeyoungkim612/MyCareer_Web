@@ -476,10 +476,21 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           }
           
           // Backlog: CDM_SOURCE = 'F-link', CDM_STAGE = 'Backlog' (슬래시 없는 것만!)
-          // F-link는 CDM_REVENUE_TOTAL 사용!
+          // 분기별 월 데이터 합산 (M1~M12 → Q1~Q4)
           if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
-            const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0))
-            const amount = revenueTotal / 1_000_000 // 원단위 → 백만원
+            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
+            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
+            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
+            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
+            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
+            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
+            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
+            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
+            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
+            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
+            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
+            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
+            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000 // 원단위 → 백만원
             if (isAudit) {
               auditBacklog += amount
             } else {
@@ -685,7 +696,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         
         // BD 데이터 조회인 경우
         if (isBdData && auditType) {
-          // 본부 기준 조회일 경우 본부 구성원 목록 가져오기
+        // 본부 기준 조회일 경우 본부 구성원 목록 가져오기
           let empnoList = [normalizedEmpno] // 기본값: 본인만
           
           if (isDepartmentView) {
@@ -935,13 +946,26 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 }
               }
               
-              // Backlog: F-link + Backlog
+              // Backlog: F-link + Backlog (분기별 월 데이터 합산)
               if (cdmSource === 'F-link' && cdmStage === 'Backlog') {
+                const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
+                const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
+                const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
+                const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
+                const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
+                const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
+                const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
+                const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
+                const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
+                const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
+                const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
+                const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
+                const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
                 const existing = backlogMap.get(key)
                 if (existing) {
-                  existing.amount += revenueTotal
+                  existing.amount += amount
                 } else {
-                  backlogMap.set(key, { amount: revenueTotal, teamName, personName })
+                  backlogMap.set(key, { amount, teamName, personName })
                 }
               }
               
@@ -1090,9 +1114,22 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                 revenueMap.set(key, (revenueMap.get(key) || 0) + revenueTotal)
               }
               
-              // Backlog
+              // Backlog (분기별 월 데이터 합산)
               if (cdmSource === 'F-link' && cdmStage === 'Backlog') {
-                backlogMap.set(key, (backlogMap.get(key) || 0) + revenueTotal)
+                const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
+                const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
+                const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
+                const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
+                const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
+                const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
+                const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
+                const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
+                const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
+                const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
+                const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
+                const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
+                const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
+                backlogMap.set(key, (backlogMap.get(key) || 0) + amount)
               }
               
               // Pipeline
@@ -1964,7 +2001,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               .eq('CDM_REPORT_DATE', latestDate)
               .not('CDM_SOURCE', 'is', null)
               .range(page * pageSize, (page + 1) * pageSize - 1)
-            
+        
             if (!data || data.length === 0) break
             allData = allData.concat(data)
             if (data.length < pageSize) break
@@ -1977,7 +2014,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         const uniqueData = Array.from(
           new Map(allData.map(item => [item.ID || JSON.stringify(item), item])).values()
         )
-        
+
         // Revenue, Backlog, Pipeline 분류 (Team 정보 포함)
         const revenueMap = new Map<string, { amount: number; teamName: string; personName: string }>()
         const backlogMap = new Map<string, { amount: number; teamName: string; personName: string }>()
@@ -2004,9 +2041,21 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             }
           }
           
-          // Backlog: F-link + Backlog (슬래시 제외)
+          // Backlog: F-link + Backlog (슬래시 제외, 분기별 월 데이터 합산)
           if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
-            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
+            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
+            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
+            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
+            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
+            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
+            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
+            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
+            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
+            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
+            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
+            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
+            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
             const existing = backlogMap.get(key)
             if (existing) {
               existing.amount += amount
@@ -2028,12 +2077,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             } else {
               pipelineMap.set(key, { amount, teamName, personName })
             }
-          }
+        }
         })
-        
+
         const revenueProjects = Array.from(revenueMap.entries()).map(([key, data]) => {
           const [projectName, client, teamName, personName] = key.split('|')
-          return { 
+          return {
             name: `${projectName} (${client})`, 
             amount: data.amount,
             teamName: data.teamName,
@@ -2050,10 +2099,10 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             personName: data.personName
           }
         }).sort((a, b) => b.amount - a.amount)
-        
+
         const pipelineProjects = Array.from(pipelineMap.entries()).map(([key, data]) => {
           const [projectName, client, teamName, personName] = key.split('|')
-          return { 
+          return {
             name: `${projectName} (${client})`, 
             amount: data.amount,
             teamName: data.teamName,
