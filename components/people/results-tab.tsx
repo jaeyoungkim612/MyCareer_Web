@@ -92,6 +92,17 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
     baseDate: null
   })
 
+  // 팀원 코칭 시간 관련 state 추가
+  const [teamCoachingData, setTeamCoachingData] = useState<Array<{
+    empno: string
+    empnm: string
+    org_nm: string
+    gradnm: string
+    totalCoachingHours: number
+  }>>([])
+  const [isTeamDetailDialogOpen, setIsTeamDetailDialogOpen] = useState(false)
+  const [isLoadingTeamData, setIsLoadingTeamData] = useState(false)
+
   // HR 정보 로드
   useEffect(() => {
     const loadUserInfo = async () => {
@@ -331,6 +342,18 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           console.log("✅ Coaching time data loaded:", { quarterHours, yearHours, year, quarter })
         } catch (coachingError) {
           console.log("❌ 코칭타임 데이터 조회 에러:", coachingError)
+        }
+        
+        // 팀원 코칭 시간 데이터 조회
+        setIsLoadingTeamData(true)
+        try {
+          const teamData = await PeopleGoalsService.getTeamCoachingTimeStats(normalizedEmpno)
+          setTeamCoachingData(teamData)
+          console.log("📊 Results: Team coaching data loaded:", teamData)
+        } catch (error) {
+          console.error("❌ Results: Error loading team coaching data:", error)
+        } finally {
+          setIsLoadingTeamData(false)
         }
         
         // 성과평가 데이터 설정
@@ -684,6 +707,64 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
   const refreshOffAchievement = getRefreshOffAchievement()
   const coachingTimeAchievement = getCoachingTimeAchievement()
 
+  // 팀 전체 코칭 시간 계산
+  const totalTeamCoachingHours = teamCoachingData.reduce((sum, member) => sum + member.totalCoachingHours, 0)
+
+  // 팀원 상세 정보 다이얼로그 컴포넌트
+  const TeamCoachingDetailDialog = () => (
+    <Dialog open={isTeamDetailDialogOpen} onOpenChange={setIsTeamDetailDialogOpen}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-orange-600" />
+            팀원 코칭 시간 상세 (PRJTCD 기준)
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg">
+            <div className="text-sm text-orange-800 dark:text-orange-200">
+              <strong>총 {teamCoachingData.length}명</strong>의 팀원 • 
+              <strong> 누적 {totalTeamCoachingHours}시간</strong> • 
+              평균 {teamCoachingData.length > 0 ? Math.round(totalTeamCoachingHours / teamCoachingData.length) : 0}시간/인
+            </div>
+          </div>
+          
+          <TableComponent>
+            <TableHeader>
+              <TableRow>
+                <TableHead>사번</TableHead>
+                <TableHead>성명</TableHead>
+                <TableHead>조직</TableHead>
+                <TableHead>직급</TableHead>
+                <TableHead className="text-right">누적 시간</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {teamCoachingData.map((member) => (
+                <TableRow key={member.empno}>
+                  <TableCell className="font-mono text-sm">{member.empno}</TableCell>
+                  <TableCell className="font-medium">{member.empnm}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{member.org_nm}</TableCell>
+                  <TableCell className="text-sm">{member.gradnm}</TableCell>
+                  <TableCell className="text-right font-bold text-orange-600">
+                    {member.totalCoachingHours}시간
+                  </TableCell>
+                </TableRow>
+              ))}
+              {teamCoachingData.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    팀원 데이터가 없습니다.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </TableComponent>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+
   return (
     <TooltipProvider>
       <div className="relative">
@@ -693,6 +774,9 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         <div className="flex justify-between items-center">
           <h2 className="text-sm font-medium">결과</h2>
         </div>
+
+        {/* 팀원 코칭 시간 상세 다이얼로그 */}
+        <TeamCoachingDetailDialog />
 
         {/* 1행: Util A, B */}
         <div className="grid gap-4 md:grid-cols-2">
@@ -1003,6 +1087,34 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               </div>
             </div>
 
+            {/* 팀원 코칭 시간 상세보기 추가 */}
+            {teamCoachingData.length > 0 && (
+              <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">팀 전체 누적</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-orange-600">
+                      {isLoadingTeamData ? "..." : `${totalTeamCoachingHours}시간`}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsTeamDetailDialogOpen(true)}
+                      className="h-6 px-2 text-xs border-orange-300 hover:bg-orange-100"
+                      disabled={isLoadingTeamData}
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      상세
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="text-xs text-orange-600 dark:text-orange-400">
+                  팀원 {teamCoachingData.length}명 • 
+                  평균 {teamCoachingData.length > 0 ? Math.round(totalTeamCoachingHours / teamCoachingData.length) : 0}시간/인
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         </div>
