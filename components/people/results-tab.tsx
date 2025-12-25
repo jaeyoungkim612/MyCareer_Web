@@ -103,6 +103,33 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
   const [isTeamDetailDialogOpen, setIsTeamDetailDialogOpen] = useState(false)
   const [isLoadingTeamData, setIsLoadingTeamData] = useState(false)
 
+  // DoAE Interim 다면평가결과 state 추가
+  const [evaluationData, setEvaluationData] = useState<{
+    teamData: any | null
+    partnerData: any | null
+    allTeamData: any[] | null
+    loading: boolean
+  }>({
+    teamData: null,
+    partnerData: null,
+    allTeamData: null,
+    loading: true
+  })
+  const [isAllTeamDialogOpen, setIsAllTeamDialogOpen] = useState(false)
+  const [isTeamPartnersDialogOpen, setIsTeamPartnersDialogOpen] = useState(false)
+  const [isAllPartnersDialogOpen, setIsAllPartnersDialogOpen] = useState(false)
+  const [teamPartners, setTeamPartners] = useState<any[]>([])
+  const [allPartners, setAllPartners] = useState<any[]>([])
+  
+  // 권한 확인
+  const [userRole, setUserRole] = useState<{
+    isSecondaryReviewer: boolean
+    isMaster: boolean
+  }>({
+    isSecondaryReviewer: false,
+    isMaster: false
+  })
+
   // HR 정보 로드
   useEffect(() => {
     const loadUserInfo = async () => {
@@ -140,7 +167,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         const [hrResult, goalResult, performanceResult, refreshOffResult] = await Promise.all([
           supabase
             .from("a_hr_master")
-            .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM")
+            .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM, CM_NM")
             .eq("EMPNO", normalizedEmpno)
             .maybeSingle(),
           supabase
@@ -238,13 +265,14 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
 
         // HR 정보 설정
         if (hrData) {
-          setUserInfo({
-            empno: hrData.EMPNO,
-            empnm: hrData.EMPNM,
-            org_nm: hrData.ORG_NM,
-            job_info_nm: hrData.JOB_INFO_NM,
-            gradnm: hrData.GRADNM,
-          })
+            setUserInfo({
+              empno: hrData.EMPNO,
+              empnm: hrData.EMPNM,
+              org_nm: hrData.ORG_NM,
+              job_info_nm: hrData.JOB_INFO_NM,
+              gradnm: hrData.GRADNM,
+              cm_nm: hrData.CM_NM,
+            })
           console.log("✅ HR data loaded for Results Tab:", hrData.EMPNM, hrData.ORG_NM)
         } else {
           console.log("ℹ️ No HR data found, using target empno")
@@ -609,6 +637,148 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           }
         } else {
           console.log("❌ No team members found for TL")
+        }
+
+        // DoAE Interim 다면평가결과 데이터 조회
+        try {
+          console.log("🔍 DoAE Interim 다면평가결과 조회 시작:", { targetEmpno, normalizedEmpno, fiveDigitEmpno })
+          
+          let teamData = null
+          let partnerData = null
+          
+          // 권한 확인
+          const user = AuthService.getCurrentUser()
+          const { ReviewerService } = await import("@/lib/reviewer-service")
+          const userRoleInfo = await ReviewerService.getUserRole(user?.empno || '')
+          
+          setUserRole({
+            isSecondaryReviewer: userRoleInfo.isReviewer,
+            isMaster: userRoleInfo.isMaster
+          })
+          
+          console.log(`🔐 사용자 권한:`, { isReviewer: userRoleInfo.isReviewer, isMaster: userRoleInfo.isMaster })
+          
+          // 1. 팀 평가결과 조회
+          let allTeamData = null
+          
+          // 전체 팀 데이터 조회
+          const { data: allTeams, error: allTeamError } = await supabase
+            .from("evaluation_team")
+            .select("*")
+            .order("평균", { ascending: false })
+          
+          if (!allTeamError && allTeams) {
+            allTeamData = allTeams
+            console.log(`✅ 전체 팀 데이터 로드 (${allTeams.length}개)`)
+          }
+          
+          // 현재 사용자 팀 데이터 조회
+          if (hrData && (hrData as any).CM_NM) {
+            const cmNm = (hrData as any).CM_NM
+            console.log(`🔍 팀 평가결과 조회 - 팀(CM_NM): ${cmNm}`)
+            
+            const { data, error: teamError } = await supabase
+              .from("evaluation_team")
+              .select("*")
+              .eq("구분", cmNm)
+              .maybeSingle()
+            
+            console.log(`  팀 평가결과 조회 결과:`, { data, error: teamError })
+            
+            if (!teamError && data) {
+              teamData = data
+              console.log(`✅ 팀 평가결과 데이터 발견 (팀: ${cmNm}):`, teamData)
+            } else {
+              console.log(`ℹ️ 팀 평가결과 데이터 없음 (팀: ${cmNm})`)
+            }
+          } else {
+            console.log("⚠️ HR 데이터에 팀(CM_NM) 정보가 없습니다")
+          }
+          
+          // 2. 파트너 평가결과 조회 - 사번으로 조회 (정수형 변환 포함)
+          
+          // 먼저 DB에 어떤 사번들이 있는지 샘플 조회 (406 에러 방지를 위해 간단한 컬럼만)
+          const { data: samplePartners, error: sampleError } = await supabase
+            .from("evaluation_partner")
+            .select("사번, 성명")
+            .limit(10)
+          
+          if (sampleError) {
+            console.error(`❌ 샘플 파트너 조회 에러:`, sampleError)
+          } else {
+            console.log(`📋 evaluation_partner 테이블 샘플 사번들:`, samplePartners?.map((p: any) => `${p.사번} (${p.성명})`))
+          }
+          
+          const empnoVariations = [
+            parseInt(targetEmpno),        // 정수 변환 (95129)
+            parseInt(normalizedEmpno),    // 정수 변환 (98095)
+            parseInt(fiveDigitEmpno),     // 정수 변환 (98095)
+            targetEmpno,                  // 문자열 원본
+            normalizedEmpno,              // 문자열 정규화
+            fiveDigitEmpno,               // 문자열 5자리
+          ]
+          
+          console.log(`🔍 파트너 평가결과 조회 - 시도할 사번들:`, empnoVariations)
+          
+          for (const empnoVar of empnoVariations) {
+            console.log(`🔍 파트너 평가결과 조회 시도 - 사번: ${empnoVar} (타입: ${typeof empnoVar})`)
+            
+            // 406 에러 방지: 필요한 컬럼만 명시적으로 선택
+            const { data, error } = await supabase
+              .from("evaluation_partner")
+              .select(`
+                사번,
+                성명,
+                평가자,
+                응답수,
+                회신률,
+                소속,
+                직위,
+                "1",
+                "2",
+                "3",
+                "4",
+                합계,
+                평균,
+                등급,
+                "Comment 1",
+                "Comment 2"
+              `)
+              .eq("사번", empnoVar)
+            
+            console.log(`  파트너 평가결과 조회 결과:`, { 
+              data: data, 
+              error: error,
+              count: data?.length 
+            })
+            
+            if (!error && data && data.length > 0) {
+              partnerData = data[0]
+              console.log(`✅ 파트너 평가결과 데이터 발견 (사번: ${empnoVar}):`, partnerData)
+              break
+            }
+          }
+          
+          if (!partnerData) {
+            console.log(`ℹ️ 파트너 평가결과 데이터 없음 - 조회한 사번:`, empnoVariations)
+          }
+          
+          setEvaluationData({
+            teamData,
+            partnerData,
+            allTeamData,
+            loading: false
+          })
+          
+          console.log("✅ DoAE Interim 다면평가결과 로드 완료:", { teamData, partnerData, allTeamCount: allTeamData?.length })
+        } catch (evalError) {
+          console.error("❌ DoAE Interim 다면평가결과 조회 에러:", evalError)
+          setEvaluationData({
+            teamData: null,
+            partnerData: null,
+            allTeamData: null,
+            loading: false
+          })
         }
 
       } catch (error) {
@@ -1277,6 +1447,512 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             </div>
           </CardContent>
         </Card>
+        </div>
+
+        {/* DoAE Interim 다면평가결과 섹션 */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold">DoAE Interim 다면평가결과</h2>
+          
+          {/* 팀 평가결과 Card - Full Width */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold">팀 평가결과 ({(userInfo as any)?.cm_nm || userInfo?.org_nm || '팀'})</CardTitle>
+              {evaluationData.allTeamData && evaluationData.allTeamData.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAllTeamDialogOpen(true)}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  전 팀 점수 조회
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {evaluationData.loading ? (
+                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <div className="text-sm text-muted-foreground">로딩 중...</div>
+                </div>
+              ) : evaluationData.teamData ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                      <div className="text-sm text-blue-700 dark:text-blue-300 mb-1">팀 평균</div>
+                      <div className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                        {evaluationData.teamData.평균}
+                      </div>
+                    </div>
+                    {evaluationData.allTeamData && evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length > 0 && (
+                      <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                        <div className="text-sm text-green-700 dark:text-green-300 mb-1">전체 평균</div>
+                        <div className="text-3xl font-bold text-green-900 dark:text-green-100">
+                          {(evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').reduce((sum: number, team: any) => sum + (parseFloat(team.평균) || 0), 0) / evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length).toFixed(1)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        팀 Comment
+                      </div>
+                      <div className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                        {evaluationData.teamData.주요_Comment || evaluationData.teamData['주요 Comment'] || '코멘트가 없습니다'}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
+                      <div className="text-sm font-semibold text-orange-700 dark:text-orange-300 mb-2">
+                        공통 Comment
+                      </div>
+                      <div className="text-sm text-orange-900 dark:text-orange-100 whitespace-pre-wrap">
+                        다양한 사례 제공 요청, DoAE 확산을 위한 communication 필요성, AI/Digital 관련 실용적인 Tool 확산/교육 필요
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <div className="text-sm text-muted-foreground">
+                    팀 평가결과 데이터가 없습니다
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 전 팀 점수 조회 Dialog */}
+          <Dialog open={isAllTeamDialogOpen} onOpenChange={setIsAllTeamDialogOpen}>
+            <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>전 팀 평가결과</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {evaluationData.allTeamData && evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length > 0 && (
+                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {(evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').reduce((sum: number, team: any) => sum + (parseFloat(team.평균) || 0), 0) / evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length).toFixed(1)}
+                    </div>
+                    <div className="text-sm text-blue-600 dark:text-blue-400">전체 평균 점수</div>
+                  </div>
+                )}
+                
+                <TableComponent>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>팀</TableHead>
+                      <TableHead className="text-right">평균</TableHead>
+                      <TableHead>주요 Comment</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {evaluationData.allTeamData?.filter((t: any) => t.구분 !== '공통').map((team: any, index: number) => (
+                      <TableRow key={index} className={team.구분 === (userInfo as any)?.cm_nm ? 'bg-blue-50 dark:bg-blue-950' : ''}>
+                        <TableCell className="font-medium">
+                          {team.구분}
+                          {team.구분 === (userInfo as any)?.cm_nm && (
+                            <Badge variant="default" className="ml-2">내 팀</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-lg">
+                          {team.평균}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-pre-wrap max-w-md">
+                          {team.주요_Comment || team['주요 Comment'] || '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </TableComponent>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* 파트너 평가결과 Card - Full Width, Table */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold">파트너 평가결과</CardTitle>
+              <div className="flex gap-2">
+                {userRole.isSecondaryReviewer && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const { data } = await supabase
+                        .from("evaluation_partner")
+                        .select(`
+                          사번,
+                          성명,
+                          평가자,
+                          응답수,
+                          회신률,
+                          소속,
+                          직위,
+                          "1",
+                          "2",
+                          "3",
+                          "4",
+                          합계,
+                          평균,
+                          등급,
+                          "Comment 1",
+                          "Comment 2"
+                        `)
+                        .eq("소속", (userInfo as any)?.cm_nm || '')
+                        .order("평균", { ascending: false })
+                      setTeamPartners(data || [])
+                      setIsTeamPartnersDialogOpen(true)
+                    }}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    팀 파트너
+                  </Button>
+                )}
+                {userRole.isMaster && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const { data } = await supabase
+                        .from("evaluation_partner")
+                        .select(`
+                          사번,
+                          성명,
+                          평가자,
+                          응답수,
+                          회신률,
+                          소속,
+                          직위,
+                          "1",
+                          "2",
+                          "3",
+                          "4",
+                          합계,
+                          평균,
+                          등급,
+                          "Comment 1",
+                          "Comment 2"
+                        `)
+                        .order("평균", { ascending: false })
+                      setAllPartners(data || [])
+                      setIsAllPartnersDialogOpen(true)
+                    }}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    전체 파트너
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {evaluationData.loading ? (
+                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <div className="text-sm text-muted-foreground">로딩 중...</div>
+                </div>
+              ) : evaluationData.partnerData ? (
+                <div className="overflow-x-auto">
+                  <TableComponent>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>사번</TableHead>
+                        <TableHead>성명</TableHead>
+                        <TableHead className="text-right">평가자</TableHead>
+                        <TableHead className="text-right">응답수</TableHead>
+                        <TableHead className="text-right">회신률</TableHead>
+                        <TableHead>소속</TableHead>
+                        <TableHead>직위</TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger>Q1 <Info className="inline h-3 w-3" /></TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              1. 파트너는 Audit Enhancement 관련 목표와 방향을 명확히 공유했나요? (5점 만점)
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger>Q2 <Info className="inline h-3 w-3" /></TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              2. 파트너 주도하에 시간과 자원을 제배분하여 핵심위험과 고객 Value에 집중하는 변화를 가져왔나요? (5점 만점)
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger>Q3 <Info className="inline h-3 w-3" /></TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              3. 파트너는 Audit Enhancement 활동에 적극적으로 참여하여 업무 효율성 향상에 기여했다고 생각하나요? (5점 만점)
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger>Q4 <Info className="inline h-3 w-3" /></TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              4. 파트너는 AI/Digital Tool 활용을 강조하고 주도하였나요? (5점 만점)
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-right">합계</TableHead>
+                        <TableHead className="text-right">평균</TableHead>
+                        <TableHead>등급</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="font-mono text-sm">{evaluationData.partnerData.사번}</TableCell>
+                        <TableCell className="font-medium">{evaluationData.partnerData.성명}</TableCell>
+                        <TableCell className="text-right">{evaluationData.partnerData.평가자}</TableCell>
+                        <TableCell className="text-right">{evaluationData.partnerData.응답수}</TableCell>
+                        <TableCell className="text-right">{evaluationData.partnerData.회신률}</TableCell>
+                        <TableCell className="text-sm">{evaluationData.partnerData.소속}</TableCell>
+                        <TableCell>{evaluationData.partnerData.직위}</TableCell>
+                        <TableCell className="text-right font-medium">{evaluationData.partnerData['1']}</TableCell>
+                        <TableCell className="text-right font-medium">{evaluationData.partnerData['2']}</TableCell>
+                        <TableCell className="text-right font-medium">{evaluationData.partnerData['3']}</TableCell>
+                        <TableCell className="text-right font-medium">{evaluationData.partnerData['4']}</TableCell>
+                        <TableCell className="text-right font-bold">{evaluationData.partnerData.합계}</TableCell>
+                        <TableCell className="text-right font-bold">{evaluationData.partnerData.평균}</TableCell>
+                        <TableCell>
+                          <Badge variant={evaluationData.partnerData.등급 === 'EP' ? 'default' : 'secondary'}>
+                            {evaluationData.partnerData.등급}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </TableComponent>
+                  
+                  {/* 질문 상세 안내 */}
+                  <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg text-xs space-y-1">
+                    <div><strong>Q1:</strong> 파트너는 Audit Enhancement 관련 목표와 방향을 명확히 공유했나요? <span className="text-muted-foreground">(5점 만점)</span></div>
+                    <div><strong>Q2:</strong> 파트너 주도하에 시간과 자원을 제배분하여 핵심위험과 고객 Value에 집중하는 변화를 가져왔나요? <span className="text-muted-foreground">(5점 만점)</span></div>
+                    <div><strong>Q3:</strong> 파트너는 Audit Enhancement 활동에 적극적으로 참여하여 업무 효율성 향상에 기여했다고 생각하나요? <span className="text-muted-foreground">(5점 만점)</span></div>
+                    <div><strong>Q4:</strong> 파트너는 AI/Digital Tool 활용을 강조하고 주도하였나요? <span className="text-muted-foreground">(5점 만점)</span></div>
+                  </div>
+                  
+                  {/* 코멘트 섹션 */}
+                  {(evaluationData.partnerData['Comment 1'] || evaluationData.partnerData['Comment 2']) && (
+                    <div className="mt-4 space-y-3">
+                      {evaluationData.partnerData['Comment 1'] && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                            앞으로 6개월 동안 Audit Enhancement 를 위하여 앞으로 파트너가 가장 집중해야 할 영역은 무엇이라고 생각하나요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
+                          </div>
+                          <div className="text-sm text-blue-900 dark:text-blue-100">
+                            {evaluationData.partnerData['Comment 1']}
+                          </div>
+                        </div>
+                      )}
+                      {evaluationData.partnerData['Comment 2'] && (
+                        <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                          <div className="text-xs font-semibold text-green-700 dark:text-green-300 mb-1">
+                            Audit Enhancement 성공을 위해 파트너 및 DoAE로부터 추가로 필요한 지원은 무엇인가요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
+                          </div>
+                          <div className="text-sm text-green-900 dark:text-green-100">
+                            {evaluationData.partnerData['Comment 2']}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <div className="text-sm text-muted-foreground">
+                    파트너 평가결과 데이터가 없습니다
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          {/* 팀 파트너 평가결과 Dialog */}
+          <Dialog open={isTeamPartnersDialogOpen} onOpenChange={setIsTeamPartnersDialogOpen}>
+            <DialogContent className="max-w-7xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>팀 파트너 평가결과 ({(userInfo as any)?.cm_nm || ''})</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6">
+                {teamPartners.length > 0 ? (
+                  <>
+                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {(teamPartners.reduce((sum, p) => sum + (parseFloat(p.평균) || 0), 0) / teamPartners.length).toFixed(1)}
+                      </div>
+                      <div className="text-sm text-blue-600 dark:text-blue-400">팀 평균 점수 ({teamPartners.length}명)</div>
+                    </div>
+                    
+                    {teamPartners.map((partner, index) => (
+                      <Card key={index}>
+                        <CardHeader>
+                          <CardTitle className="text-base flex items-center justify-between">
+                            <span>{partner.성명} ({partner.사번}) - {partner.직위}</span>
+                            <Badge variant={partner.등급 === 'EP' ? 'default' : 'secondary'} className="text-base px-3 py-1">
+                              {partner.등급}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {/* 점수 테이블 */}
+                          <TableComponent>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-right">평가자</TableHead>
+                                <TableHead className="text-right">응답수</TableHead>
+                                <TableHead className="text-right">회신률</TableHead>
+                                <TableHead className="text-right">Q1</TableHead>
+                                <TableHead className="text-right">Q2</TableHead>
+                                <TableHead className="text-right">Q3</TableHead>
+                                <TableHead className="text-right">Q4</TableHead>
+                                <TableHead className="text-right">합계</TableHead>
+                                <TableHead className="text-right">평균</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              <TableRow>
+                                <TableCell className="text-right">{partner.평가자}</TableCell>
+                                <TableCell className="text-right">{partner.응답수}</TableCell>
+                                <TableCell className="text-right">{partner.회신률}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['1']}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['2']}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['3']}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['4']}</TableCell>
+                                <TableCell className="text-right font-bold">{partner.합계}</TableCell>
+                                <TableCell className="text-right font-bold text-lg">{partner.평균}</TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </TableComponent>
+                          
+                          {/* 코멘트 섹션 */}
+                          {(partner['Comment 1'] || partner['Comment 2']) && (
+                            <div className="space-y-3">
+                              {partner['Comment 1'] && (
+                                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                                  <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                                    앞으로 6개월 동안 Audit Enhancement 를 위하여 앞으로 파트너가 가장 집중해야 할 영역은 무엇이라고 생각하나요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
+                                  </div>
+                                  <div className="text-sm text-blue-900 dark:text-blue-100">
+                                    {partner['Comment 1']}
+                                  </div>
+                                </div>
+                              )}
+                              {partner['Comment 2'] && (
+                                <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                                  <div className="text-xs font-semibold text-green-700 dark:text-green-300 mb-1">
+                                    Audit Enhancement 성공을 위해 파트너 및 DoAE로부터 추가로 필요한 지원은 무엇인가요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
+                                  </div>
+                                  <div className="text-sm text-green-900 dark:text-green-100">
+                                    {partner['Comment 2']}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    팀의 파트너 데이터가 없습니다
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* 전체 파트너 평가결과 Dialog */}
+          <Dialog open={isAllPartnersDialogOpen} onOpenChange={setIsAllPartnersDialogOpen}>
+            <DialogContent className="max-w-7xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>전체 파트너 평가결과</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6">
+                {allPartners.length > 0 ? (
+                  <>
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        {(allPartners.reduce((sum, p) => sum + (parseFloat(p.평균) || 0), 0) / allPartners.length).toFixed(1)}
+                      </div>
+                      <div className="text-sm text-green-600 dark:text-green-400">전체 평균 점수 ({allPartners.length}명)</div>
+                    </div>
+                    
+                    {allPartners.map((partner, index) => (
+                      <Card key={index}>
+                        <CardHeader>
+                          <CardTitle className="text-base flex items-center justify-between">
+                            <span>{partner.성명} ({partner.사번}) - {partner.소속} / {partner.직위}</span>
+                            <Badge variant={partner.등급 === 'EP' ? 'default' : 'secondary'} className="text-base px-3 py-1">
+                              {partner.등급}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {/* 점수 테이블 */}
+                          <TableComponent>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-right">평가자</TableHead>
+                                <TableHead className="text-right">응답수</TableHead>
+                                <TableHead className="text-right">회신률</TableHead>
+                                <TableHead className="text-right">Q1</TableHead>
+                                <TableHead className="text-right">Q2</TableHead>
+                                <TableHead className="text-right">Q3</TableHead>
+                                <TableHead className="text-right">Q4</TableHead>
+                                <TableHead className="text-right">합계</TableHead>
+                                <TableHead className="text-right">평균</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              <TableRow>
+                                <TableCell className="text-right">{partner.평가자}</TableCell>
+                                <TableCell className="text-right">{partner.응답수}</TableCell>
+                                <TableCell className="text-right">{partner.회신률}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['1']}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['2']}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['3']}</TableCell>
+                                <TableCell className="text-right font-medium">{partner['4']}</TableCell>
+                                <TableCell className="text-right font-bold">{partner.합계}</TableCell>
+                                <TableCell className="text-right font-bold text-lg">{partner.평균}</TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </TableComponent>
+                          
+                          {/* 코멘트 섹션 */}
+                          {(partner['Comment 1'] || partner['Comment 2']) && (
+                            <div className="space-y-3">
+                              {partner['Comment 1'] && (
+                                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                                  <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                                    앞으로 6개월 동안 Audit Enhancement 를 위하여 앞으로 파트너가 가장 집중해야 할 영역은 무엇이라고 생각하나요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
+                                  </div>
+                                  <div className="text-sm text-blue-900 dark:text-blue-100">
+                                    {partner['Comment 1']}
+                                  </div>
+                                </div>
+                              )}
+                              {partner['Comment 2'] && (
+                                <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                                  <div className="text-xs font-semibold text-green-700 dark:text-green-300 mb-1">
+                                    Audit Enhancement 성공을 위해 파트너 및 DoAE로부터 추가로 필요한 지원은 무엇인가요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
+                                  </div>
+                                  <div className="text-sm text-green-900 dark:text-green-100">
+                                    {partner['Comment 2']}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    파트너 데이터가 없습니다
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
       </div>
