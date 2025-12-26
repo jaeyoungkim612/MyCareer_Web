@@ -540,19 +540,19 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             
             if (leaveError) {
               // 타임아웃 에러인 경우 경고 로그만 출력하고 계속 진행 (빈 데이터로 처리)
-              if (leaveError.code === '57014' || leaveError.message?.includes('statement timeout')) {
+              if ('code' in leaveError && (leaveError.code === '57014' || leaveError.message?.includes('statement timeout'))) {
                 console.warn("⚠️ 팀원 휴가 데이터 조회 타임아웃 - 빈 데이터로 처리합니다:", leaveError.message)
               } else {
                 console.log("❌ 팀원 휴가 데이터 조회 에러:", leaveError)
               }
               // 타임아웃 에러는 빈 데이터로 계속 진행, 다른 에러는 조기 리턴
-              if (leaveError.code !== '57014' && !leaveError.message?.includes('statement timeout')) {
+              if (!('code' in leaveError && leaveError.code === '57014') && !leaveError?.message?.includes('statement timeout')) {
                 return
               }
             }
             
             if (utilError) {
-              if (utilError.code === '57014' || utilError.message?.includes('statement timeout')) {
+              if ('code' in utilError && (utilError.code === '57014' || utilError.message?.includes('statement timeout'))) {
                 console.warn("⚠️ 팀원 활용률 데이터 조회 타임아웃 - 빈 데이터로 처리합니다:", utilError.message)
               } else {
                 console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
@@ -857,6 +857,53 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
       default:
         return "bg-slate-500"
     }
+  }
+
+  // 코멘트 텍스트 포맷팅: 번호가 있는 항목들의 마침표를 쉼표로 변경 (마지막 항목 제외)
+  const formatComment = (comment: string | null | undefined): string => {
+    if (!comment) return ''
+    
+    // 1), 2), 3) 등의 패턴이 있는지 확인
+    const hasNumberedItems = /\d+\)/g.test(comment)
+    
+    if (!hasNumberedItems) {
+      return comment
+    }
+    
+    // 1) ... 2) ... 3) ... 형태를 찾아서 처리
+    // 각 번호 항목을 찾아서, 다음 번호 항목 전까지의 텍스트에서 마지막 마침표를 쉼표로 변경
+    let result = comment
+    
+    // 모든 번호 패턴의 위치를 찾기
+    const numberPattern = /(\d+\))/g
+    const matches = [...comment.matchAll(numberPattern)]
+    
+    if (matches.length > 1) {
+      // 여러 항목이 있는 경우
+      for (let i = 0; i < matches.length - 1; i++) {
+        const currentMatch = matches[i]
+        const nextMatch = matches[i + 1]
+        
+        if (currentMatch.index !== undefined && nextMatch.index !== undefined) {
+          // 현재 번호와 다음 번호 사이의 텍스트
+          const startIdx = currentMatch.index
+          const endIdx = nextMatch.index
+          const segment = comment.substring(startIdx, endIdx)
+          
+          // 이 세그먼트의 마지막 마침표를 쉼표로 변경
+          const lastPeriodIdx = segment.lastIndexOf('.')
+          if (lastPeriodIdx !== -1) {
+            const beforePeriod = segment.substring(0, lastPeriodIdx)
+            const afterPeriod = segment.substring(lastPeriodIdx + 1)
+            const newSegment = beforePeriod + ',' + afterPeriod
+            
+            result = result.substring(0, startIdx) + newSegment + result.substring(endIdx)
+          }
+        }
+      }
+    }
+    
+    return result
   }
 
   // GPS 달성률 계산
@@ -1501,120 +1548,6 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         <div className="space-y-4">
           <h2 className="text-lg font-bold">DoAE Interim 다면평가결과</h2>
           
-          {/* 팀 평가결과 Card - Full Width */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">팀 평가결과 ({(userInfo as any)?.cm_nm || userInfo?.org_nm || '팀'})</CardTitle>
-              {evaluationData.allTeamData && evaluationData.allTeamData.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsAllTeamDialogOpen(true)}
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  전 팀 점수 조회
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {evaluationData.loading ? (
-                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <div className="text-sm text-muted-foreground">로딩 중...</div>
-                </div>
-              ) : evaluationData.teamData ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                      <div className="text-sm text-blue-700 dark:text-blue-300 mb-1">팀 평균</div>
-                      <div className="text-3xl font-bold text-blue-900 dark:text-blue-100">
-                        {evaluationData.teamData.평균}
-                      </div>
-                    </div>
-                    {evaluationData.allTeamData && evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length > 0 && (
-                      <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                        <div className="text-sm text-green-700 dark:text-green-300 mb-1">전체 평균</div>
-                        <div className="text-3xl font-bold text-green-900 dark:text-green-100">
-                          {(evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').reduce((sum: number, team: any) => sum + (parseFloat(team.평균) || 0), 0) / evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length).toFixed(1)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        팀 Comment
-                      </div>
-                      <div className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
-                        {evaluationData.teamData.주요_Comment || evaluationData.teamData['주요 Comment'] || '코멘트가 없습니다'}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
-                      <div className="text-sm font-semibold text-orange-700 dark:text-orange-300 mb-2">
-                        공통 Comment
-                      </div>
-                      <div className="text-sm text-orange-900 dark:text-orange-100 whitespace-pre-wrap">
-                        다양한 사례 제공 요청, DoAE 확산을 위한 communication 필요성, AI/Digital 관련 실용적인 Tool 확산/교육 필요
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <div className="text-sm text-muted-foreground">
-                    팀 평가결과 데이터가 없습니다
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* 전 팀 점수 조회 Dialog */}
-          <Dialog open={isAllTeamDialogOpen} onOpenChange={setIsAllTeamDialogOpen}>
-            <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>전 팀 평가결과</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                {evaluationData.allTeamData && evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length > 0 && (
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {(evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').reduce((sum: number, team: any) => sum + (parseFloat(team.평균) || 0), 0) / evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length).toFixed(1)}
-                    </div>
-                    <div className="text-sm text-blue-600 dark:text-blue-400">전체 평균 점수</div>
-                  </div>
-                )}
-                
-                <TableComponent>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>팀</TableHead>
-                      <TableHead className="text-right">평균</TableHead>
-                      <TableHead>주요 Comment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {evaluationData.allTeamData?.filter((t: any) => t.구분 !== '공통').map((team: any, index: number) => (
-                      <TableRow key={index} className={team.구분 === (userInfo as any)?.cm_nm ? 'bg-blue-50 dark:bg-blue-950' : ''}>
-                        <TableCell className="font-medium">
-                          {team.구분}
-                          {team.구분 === (userInfo as any)?.cm_nm && (
-                            <Badge variant="default" className="ml-2">내 팀</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-lg">
-                          {team.평균}
-                        </TableCell>
-                        <TableCell className="text-sm whitespace-pre-wrap max-w-md">
-                          {team.주요_Comment || team['주요 Comment'] || '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </TableComponent>
-              </div>
-            </DialogContent>
-          </Dialog>
-
           {/* 파트너 평가결과 Card - Full Width, Table */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1877,7 +1810,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                             앞으로 6개월 동안 Audit Enhancement 를 위하여 앞으로 파트너가 가장 집중해야 할 영역은 무엇이라고 생각하나요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
                           </div>
                           <div className="text-sm text-blue-900 dark:text-blue-100">
-                            {evaluationData.partnerData['Comment 1']}
+                            {formatComment(evaluationData.partnerData['Comment 1'])}
                           </div>
                         </div>
                       )}
@@ -1887,7 +1820,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                             Audit Enhancement 성공을 위해 파트너 및 DoAE로부터 추가로 필요한 지원은 무엇인가요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
                           </div>
                           <div className="text-sm text-green-900 dark:text-green-100">
-                            {evaluationData.partnerData['Comment 2']}
+                            {formatComment(evaluationData.partnerData['Comment 2'])}
                           </div>
                         </div>
                       )}
@@ -1903,6 +1836,107 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               )}
             </CardContent>
           </Card>
+
+          {/* 팀 평가결과 Card - Full Width */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold">팀 평가결과 ({(userInfo as any)?.cm_nm || userInfo?.org_nm || '팀'})</CardTitle>
+              {evaluationData.allTeamData && evaluationData.allTeamData.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAllTeamDialogOpen(true)}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  전 팀 조회
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {evaluationData.loading ? (
+                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <div className="text-sm text-muted-foreground">로딩 중...</div>
+                </div>
+              ) : evaluationData.teamData ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                      <div className="text-sm text-blue-700 dark:text-blue-300 mb-1">팀 평균</div>
+                      <div className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                        {evaluationData.teamData.평균}
+                      </div>
+                    </div>
+                    {evaluationData.allTeamData && evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length > 0 && (
+                      <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                        <div className="text-sm text-green-700 dark:text-green-300 mb-1">전체 평균</div>
+                        <div className="text-3xl font-bold text-green-900 dark:text-green-100">
+                          {(evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').reduce((sum: number, team: any) => sum + (parseFloat(team.평균) || 0), 0) / evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length).toFixed(1)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        팀 Comment
+                      </div>
+                      <div className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                        {evaluationData.teamData.주요_Comment || evaluationData.teamData['주요 Comment'] || '코멘트가 없습니다'}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
+                      <div className="text-sm font-semibold text-orange-700 dark:text-orange-300 mb-2">
+                        공통 Comment
+                      </div>
+                      <div className="text-sm text-orange-900 dark:text-orange-100 whitespace-pre-wrap">
+                        다양한 사례 제공 요청, DoAE 확산을 위한 communication 필요성, AI/Digital 관련 실용적인 Tool 확산/교육 필요
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-32 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <div className="text-sm text-muted-foreground">
+                    팀 평가결과 데이터가 없습니다
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 전 팀 조회 Dialog */}
+          <Dialog open={isAllTeamDialogOpen} onOpenChange={setIsAllTeamDialogOpen}>
+            <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>전 팀 평가결과</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <TableComponent>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>팀</TableHead>
+                      <TableHead>주요 Comment</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {evaluationData.allTeamData?.filter((t: any) => t.구분 !== '공통').map((team: any, index: number) => (
+                      <TableRow key={index} className={team.구분 === (userInfo as any)?.cm_nm ? 'bg-blue-50 dark:bg-blue-950' : ''}>
+                        <TableCell className="font-medium">
+                          {team.구분}
+                          {team.구분 === (userInfo as any)?.cm_nm && (
+                            <Badge variant="default" className="ml-2">내 팀</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-pre-wrap max-w-md">
+                          {team.주요_Comment || team['주요 Comment'] || '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </TableComponent>
+              </div>
+            </DialogContent>
+          </Dialog>
           {/* 팀 파트너 평가결과 Dialog */}
           <Dialog open={isTeamPartnersDialogOpen} onOpenChange={setIsTeamPartnersDialogOpen}>
             <DialogContent className="max-w-7xl max-h-[80vh] overflow-y-auto">
@@ -1969,7 +2003,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                                     앞으로 6개월 동안 Audit Enhancement 를 위하여 앞으로 파트너가 가장 집중해야 할 영역은 무엇이라고 생각하나요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
                                   </div>
                                   <div className="text-sm text-blue-900 dark:text-blue-100">
-                                    {partner['Comment 1']}
+                                    {formatComment(partner['Comment 1'])}
                                   </div>
                                 </div>
                               )}
@@ -1979,7 +2013,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                                     Audit Enhancement 성공을 위해 파트너 및 DoAE로부터 추가로 필요한 지원은 무엇인가요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
                                   </div>
                                   <div className="text-sm text-green-900 dark:text-green-100">
-                                    {partner['Comment 2']}
+                                    {formatComment(partner['Comment 2'])}
                                   </div>
                                 </div>
                               )}
@@ -2064,7 +2098,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                                     앞으로 6개월 동안 Audit Enhancement 를 위하여 앞으로 파트너가 가장 집중해야 할 영역은 무엇이라고 생각하나요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
                                   </div>
                                   <div className="text-sm text-blue-900 dark:text-blue-100">
-                                    {partner['Comment 1']}
+                                    {formatComment(partner['Comment 1'])}
                                   </div>
                                 </div>
                               )}
@@ -2074,7 +2108,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                                     Audit Enhancement 성공을 위해 파트너 및 DoAE로부터 추가로 필요한 지원은 무엇인가요? <span className="text-muted-foreground">(Comment 200자 내외)</span>
                                   </div>
                                   <div className="text-sm text-green-900 dark:text-green-100">
-                                    {partner['Comment 2']}
+                                    {formatComment(partner['Comment 2'])}
                                   </div>
                                 </div>
                               )}

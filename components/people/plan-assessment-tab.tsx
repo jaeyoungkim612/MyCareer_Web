@@ -280,13 +280,18 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         const { data, error } = await costQuery.limit(1).maybeSingle()
         
         if (error) {
-          console.error('❌ 코칭 비용 조회 에러:', error)
-          console.error('❌ 에러 상세:', {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code
-          })
+          // 타임아웃 에러나 뷰 조회 실패는 경고만 출력하고 계속 진행
+          if (error.code === '57014' || error.code === '42P01' || error.message?.includes('statement timeout') || error.message?.includes('does not exist')) {
+            console.warn('⚠️ 코칭 비용 조회 실패 (타임아웃 또는 뷰 없음) - 빈 데이터로 처리:', error.message)
+          } else {
+            console.error('❌ 코칭 비용 조회 에러:', error)
+            console.error('❌ 에러 상세:', {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code
+            })
+          }
         }
         
         if (!error && data) {
@@ -299,7 +304,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
             isSpecialFiltered: isSpecialEmpno,
             ...(isSpecialEmpno && { targetPrjtcd })
           })
-        } else {
+        } else if (!error) {
           console.log(`ℹ️ Plan: No coaching cost data found for empno ${currentUser.empno} (${normalizedEmpno})`)
         }
       } catch (costErr) {
