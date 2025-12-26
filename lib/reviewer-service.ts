@@ -102,7 +102,12 @@ export class ReviewerService {
         return []
       }
 
-      return data || []
+      // 사번 정규화 처리
+      return (data || []).map(employee => ({
+        ...employee,
+        사번: this.normalizeEmpno(employee.사번), // 사번 정규화: 95129 → 095129
+        'Reviewer 사번': this.normalizeEmpno(employee['Reviewer 사번']) // 리뷰어 사번도 정규화
+      }))
     } catch (error) {
       console.error("❌ Get all employees error:", error)
       return []
@@ -200,7 +205,11 @@ export class ReviewerService {
       allReviewees.forEach(reviewee => {
         uniqueRevieweesMap.set(reviewee.사번, reviewee)
       })
-      const reviewees = Array.from(uniqueRevieweesMap.values())
+      const reviewees = Array.from(uniqueRevieweesMap.values()).map(reviewee => ({
+        ...reviewee,
+        사번: this.normalizeEmpno(reviewee.사번), // 사번 정규화: 95129 → 095129
+        'Reviewer 사번': this.normalizeEmpno(reviewee['Reviewer 사번']) // 리뷰어 사번도 정규화
+      }))
       
       console.log("🔍 ReviewerService: My info found with original empno:", !!myInfo)
       console.log("🔍 ReviewerService: My info found with 5-digit empno:", !!myInfo5Digit)
@@ -277,7 +286,12 @@ export class ReviewerService {
         return []
       }
 
-      return data || []
+      // 사번 정규화 처리
+      return (data || []).map(reviewee => ({
+        ...reviewee,
+        사번: this.normalizeEmpno(reviewee.사번), // 사번 정규화: 95129 → 095129
+        'Reviewer 사번': this.normalizeEmpno(reviewee['Reviewer 사번']) // 리뷰어 사번도 정규화
+      }))
     } catch (error) {
       console.error("❌ Get reviewees error:", error)
       return []

@@ -74,13 +74,21 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
   useEffect(() => {
     const user = AuthService.getCurrentUser()
     if (user) {
-      // readOnly 모드에서는 전달받은 empno 우선 사용, 일반 모드에서는 로그인 사용자
+      // readOnly 모드(리뷰어/마스터 리뷰어)에서는 반드시 전달받은 empno 사용
+      // 일반 모드에서는 empno가 있으면 그것을, 없으면 로그인 사용자 사용
       const targetEmpno = readOnly 
-        ? empno || user.empno // readOnly일 때는 전달받은 empno 우선
-        : empno || user.empno // 일반 모드일 때는 기존 로직
-      setCurrentUser({ ...user, empno: targetEmpno })
+        ? empno // readOnly일 때는 반드시 전달받은 empno 사용 (리뷰 대상자)
+        : (empno || user.empno) // 일반 모드일 때는 empno가 있으면 그것을, 없으면 로그인 사용자
+      
+      console.log(`🔍 CollaborationMonitoringTab: loadUser - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
+      
+      if (targetEmpno) {
+        setCurrentUser({ ...user, empno: targetEmpno })
+      } else if (readOnly) {
+        console.warn('⚠️ CollaborationMonitoringTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
+      }
     }
-  }, [empno])
+  }, [empno, readOnly])
 
   useEffect(() => {
     async function fetchGoalAndActuals() {

@@ -132,29 +132,67 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
       console.log(`🔧 BusinessMonitoringTab: Normalizing empno: ${currentEmployeeId} → ${normalizedEmpno}`)
       
-      // 정규화된 사번으로 먼저 시도
-      let { data, error } = await supabase
-        .from("hr_master_dashboard")
-        .select("*")
-        .eq("EMPNO", normalizedEmpno)
-        .single()
+      // 사번 변형 목록 생성 (앞의 0을 제거한 모든 버전 포함)
+      const empnoVariants = [
+        normalizedEmpno,                     // 095129
+        normalizedEmpno.replace(/^0+/, ''),  // 95129 (앞의 0 모두 제거) - 우선순위 높임!
+        currentEmployeeId,                   // 원본
+        currentEmployeeId.replace(/^0+/, ''), // 원본에서 0 제거
+        String(parseInt(normalizedEmpno)),   // 95129 (정수 변환 후 문자열)
+      ].filter((v, i, a) => a.indexOf(v) === i) // 중복 제거
       
-      // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
-      if (error || !data) {
-        console.log("🔄 BusinessMonitoringTab: Trying with original empno:", currentEmployeeId)
+      console.log(`🔍 Budget 조회용 사번 변형:`, empnoVariants)
+      
+      let data = null
+      let error = null
+      
+      // 여러 사번 형식으로 시도 - 예산 값이 있는 데이터를 찾을 때까지
+      for (const empnoVariant of empnoVariants) {
+        console.log(`🔍 Trying empno: ${empnoVariant}`)
         const result = await supabase
           .from("hr_master_dashboard")
           .select("*")
-          .eq("EMPNO", currentEmployeeId)
-          .single()
-        data = result.data
-        error = result.error
+          .eq("EMPNO", empnoVariant)
+          .maybeSingle()
+        
+        console.log(`   Result:`, { 
+          hasData: !!result.data, 
+          hasError: !!result.error,
+          errorCode: result.error?.code,
+          errorMessage: result.error?.message,
+          EMPNO: result.data?.EMPNO,
+          budget_audit: result.data?.budget_audit,
+          budget_non_audit: result.data?.budget_non_audit
+        })
+        
+        if (!result.error && result.data) {
+          console.log(`✅ Data found with empno: ${empnoVariant}`, {
+            budget_audit: result.data.budget_audit,
+            budget_non_audit: result.data.budget_non_audit
+          })
+          
+          // 예산 값이 있으면 사용, 없으면 계속 시도
+          if (result.data.budget_audit !== null || result.data.budget_non_audit !== null) {
+            data = result.data
+            console.log(`✅ Budget data found with empno: ${empnoVariant}`)
+            break
+          } else {
+            console.log(`⚠️ Data found but budget is null, trying next variant...`)
+            // 예산이 null이어도 데이터는 저장 (fallback용)
+            if (!data) {
+              data = result.data
+            }
+          }
+        } else {
+          console.log(`❌ No data with empno: ${empnoVariant}`)
+        }
       }
       
       setBudgetData(data)
       // Budget 관련 주요 값만 보기 좋게 출력
       if (data) {
         console.log('Budget Debug:', {
+          EMPNO: data.EMPNO,
           budget_audit: data.budget_audit,
           budget_non_audit: data.budget_non_audit,
           dept_budget_audit: data.dept_budget_audit,
@@ -165,7 +203,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           dept_revenue_non_audit: data.dept_revenue_non_audit,
         });
       } else {
-        console.log('Budget Debug: No data', error);
+        console.log('❌ Budget Debug: No data found with any empno variant:', empnoVariants);
       }
     }
     fetchBudget()

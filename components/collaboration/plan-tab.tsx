@@ -82,8 +82,22 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
     const loadUserData = async () => {
       const user = AuthService.getCurrentUser()
       if (user) {
-        // empno prop이 있으면 해당 사용자, 없으면 로그인한 사용자
-        const targetEmpno = readOnly ? empno : (empno || user.empno)
+        // readOnly 모드(리뷰어/마스터 리뷰어)에서는 반드시 전달받은 empno 사용
+        // 일반 모드에서는 empno가 있으면 그것을, 없으면 로그인 사용자 사용
+        const targetEmpno = readOnly 
+          ? empno // readOnly일 때는 반드시 전달받은 empno 사용 (리뷰 대상자)
+          : (empno || user.empno) // 일반 모드일 때는 empno가 있으면 그것을, 없으면 로그인 사용자
+        
+        console.log(`🔍 CollaborationPlanTab: loadUserData - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
+        
+        if (!targetEmpno) {
+          if (readOnly) {
+            console.warn('⚠️ CollaborationPlanTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
+          }
+          setIsLoading(false)
+          return
+        }
+        
         setCurrentUser({ ...user, empno: targetEmpno })
         
         // 대상 사용자의 정보 가져오기 (Business Plan과 동일한 로직, 사번 정규화)

@@ -56,12 +56,20 @@ export default function IndustryMonitoringTab({ empno, readOnly = false }: Indus
     const loadUser = async () => {
       const authUser = AuthService.getCurrentUser()
       if (authUser) {
-        // readOnly 모드에서는 전달받은 empno 우선 사용, 일반 모드에서는 로그인 사용자
+        // readOnly 모드(리뷰어/마스터 리뷰어)에서는 반드시 전달받은 empno 사용
+        // 일반 모드에서는 empno가 있으면 그것을, 없으면 로그인 사용자 사용
         const targetEmpno = readOnly 
-          ? empno || authUser.empno // readOnly일 때는 전달받은 empno 우선
-          : empno || authUser.empno // 일반 모드일 때는 기존 로직
-        setCurrentUser({ ...authUser, empno: targetEmpno })
-        setCurrentEmployeeId(targetEmpno)
+          ? empno // readOnly일 때는 반드시 전달받은 empno 사용 (리뷰 대상자)
+          : (empno || authUser.empno) // 일반 모드일 때는 empno가 있으면 그것을, 없으면 로그인 사용자
+        
+        console.log(`🔍 IndustryMonitoringTab: loadUser - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
+        
+        if (targetEmpno) {
+          setCurrentUser({ ...authUser, empno: targetEmpno })
+          setCurrentEmployeeId(targetEmpno)
+        } else if (readOnly) {
+          console.warn('⚠️ IndustryMonitoringTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
+        }
       }
     }
     loadUser()

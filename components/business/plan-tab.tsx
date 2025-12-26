@@ -157,10 +157,20 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
         throw new Error("로그인된 사용자가 없습니다. 다시 로그인해주세요.")
       }
 
-      // readOnly 모드에서는 전달받은 empno 우선 사용, 일반 모드에서는 로그인 사용자
+      // readOnly 모드(리뷰어/마스터 리뷰어)에서는 반드시 전달받은 empno 사용
+      // 일반 모드에서는 empno가 있으면 그것을, 없으면 로그인 사용자 사용
       const targetEmpno = readOnly 
-        ? empno || authUser.empno // readOnly일 때는 전달받은 empno 우선
-        : empno || authUser.empno // 일반 모드일 때는 기존 로직
+        ? empno // readOnly일 때는 반드시 전달받은 empno 사용 (리뷰 대상자)
+        : (empno || authUser.empno) // 일반 모드일 때는 empno가 있으면 그것을, 없으면 로그인 사용자
+      
+      console.log(`🔍 BusinessPlanTab: loadUserInfoAndInitialize - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
+      
+      if (!targetEmpno) {
+        if (readOnly) {
+          console.warn('⚠️ BusinessPlanTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
+        }
+        throw new Error("사용자 정보를 찾을 수 없습니다.")
+      }
       
       setCurrentUser(authUser)
       setCurrentEmployeeId(targetEmpno)

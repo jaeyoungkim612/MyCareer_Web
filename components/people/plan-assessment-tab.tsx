@@ -71,9 +71,22 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
   }, [empno])
 
   // 코칭 시간 불러오기 (회계연도 기준: 2025-3Q ~ 2026-2Q)
+  // readOnly 모드에서는 탭이 활성화될 때까지 조회 지연
+  const [shouldLoadCoaching, setShouldLoadCoaching] = useState(!readOnly)
+  
   useEffect(() => {
     const fetchCoaching = async () => {
-      if (!currentUser?.empno) return
+      if (!currentUser?.empno) {
+        console.log("⚠️ PlanAssessmentTab: currentUser.empno가 없어서 코칭 시간 조회를 건너뜁니다")
+        return
+      }
+      
+      // readOnly 모드에서는 shouldLoadCoaching이 true가 될 때까지 대기
+      if (readOnly && !shouldLoadCoaching) {
+        console.log("⚠️ PlanAssessmentTab: readOnly 모드 - 탭 활성화 시 코칭 시간 조회 예정")
+        return
+      }
+      
       const now = new Date()
       const year = now.getFullYear() // 현재 연도 사용
       const quarter = Math.ceil((now.getMonth() + 1) / 3)
@@ -91,16 +104,39 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
         setCoachingQuarter(quarterHours)
         setCoachingYear(yearHours)
       } catch (e) {
-        console.error("코칭 시간 쿼리 오류:", e)
+        console.error("❌ 코칭 시간 쿼리 오류:", {
+          error: e,
+          errorMessage: (e as Error)?.message,
+          errorStack: (e as Error)?.stack,
+          empno: currentUser.empno,
+          year,
+          quarter
+        })
       }
     }
     fetchCoaching()
-  }, [currentUser])
-
+  }, [currentUser, readOnly, shouldLoadCoaching])
+  
+  // readOnly 모드일 때 컴포넌트가 마운트되면 코칭 데이터 로드 시작
+  useEffect(() => {
+    if (readOnly && currentUser?.empno) {
+      console.log("🔄 PlanAssessmentTab: People 탭 활성화 - 코칭 시간 조회 시작")
+      setShouldLoadCoaching(true)
+    }
+  }, [readOnly, currentUser])
+  
   // 팀원 코칭 시간 데이터 로드
+  const [shouldLoadTeamCoaching, setShouldLoadTeamCoaching] = useState(!readOnly)
+  
   useEffect(() => {
     const fetchTeamCoachingData = async () => {
       if (!currentUser?.empno) return
+      
+      // readOnly 모드에서는 shouldLoadTeamCoaching이 true가 될 때까지 대기
+      if (readOnly && !shouldLoadTeamCoaching) {
+        console.log("⚠️ PlanAssessmentTab: readOnly 모드 - 탭 활성화 시 팀 코칭 데이터 조회 예정")
+        return
+      }
       
       setIsLoadingTeamData(true)
       try {
@@ -115,7 +151,15 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
     }
     
     fetchTeamCoachingData()
-  }, [currentUser])
+  }, [currentUser, readOnly, shouldLoadTeamCoaching])
+  
+  // readOnly 모드일 때 컴포넌트가 마운트되면 팀 코칭 데이터 로드 시작
+  useEffect(() => {
+    if (readOnly && currentUser?.empno) {
+      console.log("🔄 PlanAssessmentTab: People 탭 활성화 - 팀 코칭 데이터 조회 시작")
+      setShouldLoadTeamCoaching(true)
+    }
+  }, [readOnly, currentUser])
 
   useEffect(() => {
     const fetchBudgetAndCost = async () => {
@@ -966,10 +1010,10 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                     {/* 개인 코칭 시간 */}
                     <div className="text-center border-b border-orange-200 dark:border-orange-700 pb-4">
                       <div className="text-5xl font-bold text-orange-900 dark:text-orange-100">
-                        {coachingQuarter}
+                        {coachingYear}
                       </div>
                       <div className="text-lg text-orange-700 dark:text-orange-300">
-                        {coachingQuarterLabel.year}-Q{coachingQuarterLabel.quarter} 분기 누적 시간
+                        회계연도 누적 시간 (2025-Q3 ~ 2026-Q2)
                       </div>
                     </div>
 
@@ -1030,7 +1074,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                         </div>
                       )}
                       <div className="flex justify-between text-sm">
-                        <span className="text-orange-700 dark:text-orange-300">실제: {coachingQuarter}시간</span>
+                        <span className="text-orange-700 dark:text-orange-300">실제: {coachingYear}시간</span>
                         <span className="font-medium text-orange-900 dark:text-orange-100">
                           목표: {assessmentData.coachingTime}시간
                         </span>
@@ -1039,20 +1083,20 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
                         <div
                           className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full transition-all duration-300"
                           style={{
-                            width: `${Math.min((coachingQuarter / assessmentData.coachingTime) * 100, 100)}%`,
+                            width: `${Math.min((coachingYear / assessmentData.coachingTime) * 100, 100)}%`,
                           }}
                         ></div>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-orange-600 dark:text-orange-400">0시간</span>
                         <div className="flex items-center gap-1">
-                          {coachingQuarter >= assessmentData.coachingTime ? (
+                          {coachingYear >= assessmentData.coachingTime ? (
                             <CheckCircle className="h-3 w-3 text-green-600" />
                           ) : (
                             <TrendingUp className="h-3 w-3 text-orange-600" />
                           )}
                           <span className="text-xs font-bold text-orange-700 dark:text-orange-300">
-                            {Math.round((coachingQuarter / assessmentData.coachingTime) * 100)}%
+                            {Math.round((coachingYear / assessmentData.coachingTime) * 100)}%
                           </span>
                         </div>
                       </div>

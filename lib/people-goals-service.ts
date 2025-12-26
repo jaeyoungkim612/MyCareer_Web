@@ -129,9 +129,9 @@ export class PeopleGoalsService {
     
     const { data: quarterRows, error: qErr } = await quarterQuery.limit(100);
     if (qErr) {
-      // 404 에러는 뷰가 없거나 접근 권한이 없을 때 발생 - 빈 배열로 처리
-      if (qErr.code === 'PGRST116' || qErr.code === '42P01' || qErr.message?.includes('does not exist')) {
-        console.warn(`⚠️ v_coaching_time_quarterly 뷰를 찾을 수 없습니다. 빈 데이터로 처리합니다.`, qErr);
+      // 404 에러, 타임아웃 에러, 뷰가 없는 경우 - 빈 배열로 처리
+      if (qErr.code === 'PGRST116' || qErr.code === '42P01' || qErr.code === '57014' || qErr.message?.includes('does not exist') || qErr.message?.includes('statement timeout')) {
+        console.warn(`⚠️ v_coaching_time_quarterly 뷰 조회 실패 (${qErr.code || 'unknown'}). 빈 데이터로 처리합니다.`, qErr.message);
         return { quarterHours: 0, yearHours: 0 };
       }
       throw qErr;
@@ -160,9 +160,9 @@ export class PeopleGoalsService {
     
     const { data: yearRows, error: yErr } = await yearQuery.limit(200);
     if (yErr) {
-      // 404 에러는 뷰가 없거나 접근 권한이 없을 때 발생 - 빈 배열로 처리
-      if (yErr.code === 'PGRST116' || yErr.code === '42P01' || yErr.message?.includes('does not exist')) {
-        console.warn(`⚠️ v_coaching_time_quarterly 뷰를 찾을 수 없습니다. 빈 데이터로 처리합니다.`, yErr);
+      // 404 에러, 타임아웃 에러, 뷰가 없는 경우 - 빈 배열로 처리
+      if (yErr.code === 'PGRST116' || yErr.code === '42P01' || yErr.code === '57014' || yErr.message?.includes('does not exist') || yErr.message?.includes('statement timeout')) {
+        console.warn(`⚠️ v_coaching_time_quarterly 뷰 조회 실패 (${yErr.code || 'unknown'}). 빈 데이터로 처리합니다.`, yErr.message);
         return { quarterHours: 0, yearHours: 0 };
       }
       throw yErr;
@@ -214,6 +214,11 @@ export class PeopleGoalsService {
       const { data: managerProjects, error: projectError } = await managerProjectQuery.limit(50);
       
       if (projectError) {
+        // 타임아웃 에러나 뷰 조회 실패 시 빈 배열 반환
+        if (projectError.code === '57014' || projectError.message?.includes('statement timeout')) {
+          console.warn("⚠️ Manager projects query timeout - returning empty array:", projectError.message)
+          return []
+        }
         console.error("Error fetching manager projects:", projectError)
         return []
       }
@@ -240,6 +245,11 @@ export class PeopleGoalsService {
         .limit(500)
       
       if (teamError) {
+        // 타임아웃 에러나 뷰 조회 실패 시 빈 배열 반환
+        if (teamError.code === '57014' || teamError.message?.includes('statement timeout')) {
+          console.warn("⚠️ Team coaching data query timeout - returning empty array:", teamError.message)
+          return []
+        }
         console.error("Error fetching team coaching data:", teamError)
         return []
       }

@@ -130,6 +130,17 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
     isMaster: false
   })
 
+  // 코칭 시간 로딩 상태 관리 (readOnly 모드에서 lazy load)
+  const [shouldLoadCoaching, setShouldLoadCoaching] = useState(!readOnly)
+  
+  useEffect(() => {
+    // readOnly 모드일 때 컴포넌트가 마운트되면 코칭 데이터 로드 플래그 설정
+    if (readOnly) {
+      console.log("🔄 ResultsTab: People 탭 활성화 - 코칭 시간 조회 시작")
+      setShouldLoadCoaching(true)
+    }
+  }, [readOnly])
+
   // HR 정보 로드
   useEffect(() => {
     const loadUserInfo = async () => {
@@ -353,34 +364,52 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         console.log("✅ Final goal data set:", { finalGpsTarget, finalPeiTarget, finalRefreshOffTarget, finalCoachingTimeTarget })
 
         // 코칭타임 실적 데이터 조회
-        try {
-          const now = new Date()
-          const year = now.getFullYear()
-          const quarter = Math.ceil((now.getMonth() + 1) / 3)
-          
-          const { quarterHours, yearHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
-          
+        // readOnly 모드(리뷰어/마스터 리뷰어)에서는 shouldLoadCoaching이 true일 때만 조회
+        if (!readOnly || shouldLoadCoaching) {
+          try {
+            const now = new Date()
+            const year = now.getFullYear()
+            const quarter = Math.ceil((now.getMonth() + 1) / 3)
+            
+            const { quarterHours, yearHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
+            
+            setCoachingTimeData({
+              quarterHours,
+              yearHours,
+              year,
+              quarter
+            })
+            
+            console.log("✅ Coaching time data loaded:", { quarterHours, yearHours, year, quarter })
+          } catch (coachingError) {
+            console.log("❌ 코칭타임 데이터 조회 에러:", coachingError)
+          }
+        } else {
+          console.log("⚠️ ResultsTab: readOnly 모드 - People 탭 활성화 시 코칭 시간 조회 예정")
           setCoachingTimeData({
-            quarterHours,
-            yearHours,
-            year,
-            quarter
+            quarterHours: 0,
+            yearHours: 0,
+            year: 0,
+            quarter: 0
           })
-          
-          console.log("✅ Coaching time data loaded:", { quarterHours, yearHours, year, quarter })
-        } catch (coachingError) {
-          console.log("❌ 코칭타임 데이터 조회 에러:", coachingError)
         }
         
         // 팀원 코칭 시간 데이터 조회
-        setIsLoadingTeamData(true)
-        try {
-          const teamData = await PeopleGoalsService.getTeamCoachingTimeStats(normalizedEmpno)
-          setTeamCoachingData(teamData)
-          console.log("📊 Results: Team coaching data loaded:", teamData)
-        } catch (error) {
-          console.error("❌ Results: Error loading team coaching data:", error)
-        } finally {
+        // readOnly 모드(리뷰어/마스터 리뷰어)에서는 shouldLoadCoaching이 true일 때만 조회
+        if (!readOnly || shouldLoadCoaching) {
+          setIsLoadingTeamData(true)
+          try {
+            const teamData = await PeopleGoalsService.getTeamCoachingTimeStats(normalizedEmpno)
+            setTeamCoachingData(teamData)
+            console.log("📊 Results: Team coaching data loaded:", teamData)
+          } catch (error) {
+            console.error("❌ Results: Error loading team coaching data:", error)
+          } finally {
+            setIsLoadingTeamData(false)
+          }
+        } else {
+          console.log("⚠️ ResultsTab: readOnly 모드 - People 탭 활성화 시 팀 코칭 데이터 조회 예정")
+          setTeamCoachingData([])
           setIsLoadingTeamData(false)
         }
         
@@ -440,7 +469,11 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                 }
                 
                 // v_employee_core가 실패하면 a_utilization 테이블 직접 사용
-                console.log('⚠️ v_employee_core 뷰 조회 실패, a_utilization 테이블 직접 조회 시도:', coreError)
+                if (coreError?.code === '57014' || coreError?.message?.includes('statement timeout')) {
+                  console.warn('⚠️ v_employee_core 뷰 타임아웃 - a_utilization 테이블 직접 조회 시도:', coreError.message)
+                } else {
+                  console.log('⚠️ v_employee_core 뷰 조회 실패, a_utilization 테이블 직접 조회 시도:', coreError)
+                }
                 
                 // 최신 UTIL_DATE 찾기
                 const { data: latestUtilDate } = await supabase
@@ -506,12 +539,24 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             const { data: utilDateData } = utilDateResult
             
             if (leaveError) {
-              console.log("❌ 팀원 휴가 데이터 조회 에러:", leaveError)
-              return
+              // 타임아웃 에러인 경우 경고 로그만 출력하고 계속 진행 (빈 데이터로 처리)
+              if (leaveError.code === '57014' || leaveError.message?.includes('statement timeout')) {
+                console.warn("⚠️ 팀원 휴가 데이터 조회 타임아웃 - 빈 데이터로 처리합니다:", leaveError.message)
+              } else {
+                console.log("❌ 팀원 휴가 데이터 조회 에러:", leaveError)
+              }
+              // 타임아웃 에러는 빈 데이터로 계속 진행, 다른 에러는 조기 리턴
+              if (leaveError.code !== '57014' && !leaveError.message?.includes('statement timeout')) {
+                return
+              }
             }
             
             if (utilError) {
-              console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
+              if (utilError.code === '57014' || utilError.message?.includes('statement timeout')) {
+                console.warn("⚠️ 팀원 활용률 데이터 조회 타임아웃 - 빈 데이터로 처리합니다:", utilError.message)
+              } else {
+                console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
+              }
             }
             
             console.log("🔍 팀원 휴가 데이터:", leaveData)
@@ -797,7 +842,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
     }
     
     loadUserInfo()
-  }, [empno, readOnly])
+  }, [empno, readOnly, shouldLoadCoaching])
 
   const getTierColor = (tier: string) => {
     switch (tier) {
@@ -861,12 +906,12 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
     return { rate, actual, target }
   }
 
-  // 코칭타임 달성률 계산 함수 추가
+  // 코칭타임 달성률 계산 함수 (회계연도 누적 기준)
   const getCoachingTimeAchievement = () => {
-    if (!coachingTimeData.quarterHours || !goalData.coachingTimeTarget) {
+    if (!coachingTimeData.yearHours || !goalData.coachingTimeTarget) {
       return { rate: 0, actual: 0, target: 0 }
     }
-    const actual = coachingTimeData.quarterHours
+    const actual = coachingTimeData.yearHours
     const target = goalData.coachingTimeTarget
     const rate = Math.round((actual / target) * 100)
     return { rate, actual, target }
@@ -1222,13 +1267,13 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         {/* Staff Coaching Time Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Staff Coaching Time</CardTitle>
+            <CardTitle className="text-sm font-medium">Staff Coaching Time (회계연도 누적)</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center mb-2">
               <div className="text-2xl font-bold">
-                {coachingTimeData.quarterHours > 0 ? `${coachingTimeData.quarterHours} 시간` : '- 시간'}
+                {coachingTimeData.yearHours > 0 ? `${coachingTimeData.yearHours} 시간` : '- 시간'}
               </div>
               <div className="flex items-center gap-1">
                 <ArrowRight className="h-4 w-4 text-gray-400" />
@@ -1239,7 +1284,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span>실제: {coachingTimeData.quarterHours > 0 ? `${coachingTimeData.quarterHours} 시간` : '- 시간'}</span>
+                <span>실제: {coachingTimeData.yearHours > 0 ? `${coachingTimeData.yearHours} 시간` : '- 시간'}</span>
                 <span>목표: {goalData.coachingTimeTarget || '-'} 시간</span>
               </div>
               <Progress 
@@ -1254,6 +1299,9 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                 }`}>
                   {coachingTimeAchievement.rate > 0 ? `달성률 ${coachingTimeAchievement.rate}%` : '데이터 없음'}
                 </span>
+              </div>
+              <div className="text-xs text-muted-foreground text-center mt-1">
+                2025-Q3 ~ 2026-Q2
               </div>
             </div>
 
@@ -1577,6 +1625,32 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                     variant="outline"
                     size="sm"
                     onClick={async () => {
+                      const { ReviewerService } = await import("@/lib/reviewer-service")
+                      
+                      // 1. 리뷰 대상자의 정규화된 사번으로 팀원 목록 가져오기
+                      const targetEmpno = empno || AuthService.getCurrentUser()?.empno
+                      const normalizedTargetEmpno = ReviewerService.normalizeEmpno(targetEmpno || '')
+                      
+                      // 2. a_hr_master에서 팀원들의 사번 목록 가져오기
+                      const { data: teamMembers } = await supabase
+                        .from("a_hr_master")
+                        .select("EMPNO, EMPNM, CM_NM")
+                        .eq("TL_EMPNO", normalizedTargetEmpno)
+                      
+                      if (!teamMembers || teamMembers.length === 0) {
+                        setTeamPartners([])
+                        setIsTeamPartnersDialogOpen(true)
+                        return
+                      }
+                      
+                      // 3. 팀원들의 사번으로 evaluation_partner 조회 (여러 형식 시도)
+                      const teamEmpnos = teamMembers.map(m => m.EMPNO)
+                      const empnoVariations = teamEmpnos.flatMap(empno => [
+                        empno,                          // 095129
+                        parseInt(empno),                // 95129 (정수)
+                        empno.replace(/^0+/, ''),      // 95129 (문자열)
+                      ])
+                      
                       const { data } = await supabase
                         .from("evaluation_partner")
                         .select(`
@@ -1597,9 +1671,16 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                           "Comment 1",
                           "Comment 2"
                         `)
-                        .eq("소속", (userInfo as any)?.cm_nm || '')
+                        .in("사번", empnoVariations)
                         .order("평균", { ascending: false })
-                      setTeamPartners(data || [])
+                      
+                      // 4. 조회된 데이터의 사번도 정규화
+                      const normalizedData = (data as any[] || []).map((partner: any) => ({
+                        ...partner,
+                        사번: ReviewerService.normalizeEmpno(partner.사번?.toString() || '')
+                      }))
+                      
+                      setTeamPartners(normalizedData)
                       setIsTeamPartnersDialogOpen(true)
                     }}
                   >
@@ -1612,6 +1693,56 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                     variant="outline"
                     size="sm"
                     onClick={async () => {
+                      const { ReviewerService } = await import("@/lib/reviewer-service")
+                      
+                      // 1. a_hr_master에서 모든 파트너급(TL_EMPNO가 있는) 사번 가져오기
+                      const { data: allTeamLeaders } = await supabase
+                        .from("a_hr_master")
+                        .select("EMPNO, EMPNM, CM_NM")
+                        .not("TL_EMPNO", "is", null)
+                      
+                      if (!allTeamLeaders || allTeamLeaders.length === 0) {
+                        // fallback: 전체 조회
+                        const { data } = await supabase
+                          .from("evaluation_partner")
+                          .select(`
+                            사번,
+                            성명,
+                            평가자,
+                            응답수,
+                            회신률,
+                            소속,
+                            직위,
+                            "1",
+                            "2",
+                            "3",
+                            "4",
+                            합계,
+                            평균,
+                            등급,
+                            "Comment 1",
+                            "Comment 2"
+                          `)
+                          .order("평균", { ascending: false })
+                        
+                        const normalizedData = (data as any[] || []).map((partner: any) => ({
+                          ...partner,
+                          사번: ReviewerService.normalizeEmpno(partner.사번?.toString() || '')
+                        }))
+                        
+                        setAllPartners(normalizedData)
+                        setIsAllPartnersDialogOpen(true)
+                        return
+                      }
+                      
+                      // 2. TL들의 사번으로 evaluation_partner 조회 (여러 형식 시도)
+                      const allEmpnos = [...new Set(allTeamLeaders.map(m => m.EMPNO))]
+                      const empnoVariations = allEmpnos.flatMap(empno => [
+                        empno,                          // 095129
+                        parseInt(empno),                // 95129 (정수)
+                        empno.replace(/^0+/, ''),      // 95129 (문자열)
+                      ])
+                      
                       const { data } = await supabase
                         .from("evaluation_partner")
                         .select(`
@@ -1632,8 +1763,16 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                           "Comment 1",
                           "Comment 2"
                         `)
+                        .in("사번", empnoVariations)
                         .order("평균", { ascending: false })
-                      setAllPartners(data || [])
+                      
+                      // 3. 조회된 데이터의 사번도 정규화
+                      const normalizedData = (data as any[] || []).map((partner: any) => ({
+                        ...partner,
+                        사번: ReviewerService.normalizeEmpno(partner.사번?.toString() || '')
+                      }))
+                      
+                      setAllPartners(normalizedData)
                       setIsAllPartnersDialogOpen(true)
                     }}
                   >

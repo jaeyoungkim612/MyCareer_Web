@@ -441,11 +441,21 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
   useEffect(() => {
     const user = AuthService.getCurrentUser()
     if (user) {
-      // empno prop이 있으면 해당 사용자, 없으면 로그인한 사용자
-      const targetEmpno = empno || user.empno
-      setCurrentUser({ ...user, empno: targetEmpno })
+      // readOnly 모드(리뷰어/마스터 리뷰어)에서는 반드시 전달받은 empno 사용
+      // 일반 모드에서는 empno가 있으면 그것을, 없으면 로그인 사용자 사용
+      const targetEmpno = readOnly 
+        ? empno // readOnly일 때는 반드시 전달받은 empno 사용 (리뷰 대상자)
+        : (empno || user.empno) // 일반 모드일 때는 empno가 있으면 그것을, 없으면 로그인 사용자
+      
+      console.log(`🔍 QualityMonitoringTab: loadUser - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
+      
+      if (targetEmpno) {
+        setCurrentUser({ ...user, empno: targetEmpno })
+      } else if (readOnly) {
+        console.warn('⚠️ QualityMonitoringTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
+      }
     }
-  }, [empno])
+  }, [empno, readOnly])
 
   // 실적 데이터 가져오기 함수
   const fetchPerformanceData = async () => {
