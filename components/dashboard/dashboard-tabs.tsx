@@ -105,16 +105,24 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         
         setBusinessGoal(goal)
         
-        // BPR_fact 테이블에서 Team Budget 데이터 가져오기
+        // BPR_fact 테이블에서 My Budget 및 Team Budget 데이터 가져오기
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        
+        // 사번 변형 목록 생성
+        const empnoVariants = [normalizedEmpno]
+        if (normalizedEmpno.startsWith('0')) {
+          empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
+        } else {
+          empnoVariants.push(`0${normalizedEmpno}`)
+        }
         
         // 1. 사용자의 본부(CM_NM) 조회
         const { data: userData } = await supabase
           .from("a_hr_master")
           .select("CM_NM")
           .eq("EMPNO", normalizedEmpno)
-          .single()
+          .maybeSingle()
         
         if (!userData?.CM_NM) {
           console.log("❌ 사용자 본부 정보 없음")
@@ -142,46 +150,130 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         const latestDate = latestDateData.CDM_REPORT_DATE
         console.log("📅 최신 날짜:", latestDate)
         
-        // 3. 페이지네이션으로 전체 BPR 데이터 가져오기
-        let allBprData: any[] = []
-        let offset = 0
+        // 3. My BPR 데이터 가져오기 (Pagination)
+        let allMyBprData: any[] = []
+        let myPage = 0
         const pageSize = 1000
         
         while (true) {
-          const { data: bprPage, count } = await supabase
-            .from("BPR_fact")
-            .select("*", { count: "exact" })
-            .eq("PRJT_CMOFNM", userData.CM_NM)
-            .eq("CDM_REPORT_DATE", latestDate)
-            .range(offset, offset + pageSize - 1)
+          const { data, error } = await supabase
+            .from('BPR_fact')
+            .select('*')
+            .in('CDM_PERSON_ID', empnoVariants)
+            .eq('CDM_REPORT_DATE', latestDate)
+            .not('CDM_SOURCE', 'is', null)
+            .range(myPage * pageSize, (myPage + 1) * pageSize - 1)
           
-          if (!bprPage || bprPage.length === 0) break
-          
-          allBprData = allBprData.concat(bprPage)
-          
-          if (bprPage.length < pageSize) break
-          offset += pageSize
+          if (error || !data || data.length === 0) break
+          allMyBprData = allMyBprData.concat(data)
+          if (data.length < pageSize) break
+          myPage++
+          if (myPage >= 20) break
         }
         
-        console.log(`📦 BPR 데이터 ${allBprData.length}건 로드됨`)
+        console.log(`📦 My BPR 데이터 ${allMyBprData.length}건 로드됨`)
         
-        // 4. 중복 제거
-        const uniqueData = new Map()
-        allBprData.forEach(item => {
-          const key = `${item.CDM_PROJECT_CODE}_${item.CDM_PERSON_ID}_${item.CDM_SOURCE}_${item.CDM_STAGE}`
-          if (!uniqueData.has(key)) {
-            uniqueData.set(key, item)
+        // 4. Team BPR 데이터 가져오기 (Pagination)
+        let allTeamBprData: any[] = []
+        let teamPage = 0
+        
+        while (true) {
+          const { data: bprPage } = await supabase
+            .from("BPR_fact")
+            .select("*")
+            .eq("PRJT_CMOFNM", userData.CM_NM)
+            .eq("CDM_REPORT_DATE", latestDate)
+            .not('CDM_SOURCE', 'is', null)
+            .range(teamPage * pageSize, (teamPage + 1) * pageSize - 1)
+          
+          if (!bprPage || bprPage.length === 0) break
+          allTeamBprData = allTeamBprData.concat(bprPage)
+          if (bprPage.length < pageSize) break
+          teamPage += pageSize
+          if (teamPage >= 20000) break
+        }
+        
+        console.log(`📦 Team BPR 데이터 ${allTeamBprData.length}건 로드됨`)
+        
+        // 5. My BPR 데이터 집계
+        let myAuditRevenue = 0, myAuditBacklog = 0, myAuditPipeline = 0
+        let myNonAuditRevenue = 0, myNonAuditBacklog = 0, myNonAuditPipeline = 0
+        
+        allMyBprData.forEach(item => {
+          const auditTypeRaw = String(item['감사 구분'] || '').trim()
+          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
+          const cdmSource = String(item.CDM_SOURCE || '').trim()
+          const cdmStage = String(item.CDM_STAGE || '').trim()
+          
+          // F-link Revenue
+          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
+            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+            if (isAudit) {
+              myAuditRevenue += amount
+            } else {
+              myNonAuditRevenue += amount
+            }
+          }
+          
+          // F-link Backlog (분기별 월 데이터 합산)
+          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
+            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
+            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
+            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
+            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
+            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
+            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
+            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
+            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
+            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
+            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
+            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
+            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
+            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
+            if (isAudit) {
+              myAuditBacklog += amount
+            } else {
+              myNonAuditBacklog += amount
+            }
+          }
+          
+          // Salesforce Pipeline
+          if (cdmSource === 'Salesforce') {
+            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
+            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
+            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
+            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
+            const amount = (q1 + q2 + q3 + q4) / 1_000_000
+            
+            if (isAudit) {
+              myAuditPipeline += amount
+            } else {
+              myNonAuditPipeline += amount
+            }
           }
         })
         
-        const deduplicatedData = Array.from(uniqueData.values())
-        console.log(`🔍 중복 제거 후 ${deduplicatedData.length}건`)
+        console.log("📊 My Budget 집계 완료:", {
+          audit: { rev: myAuditRevenue, bl: myAuditBacklog, pl: myAuditPipeline },
+          nonAudit: { rev: myNonAuditRevenue, bl: myNonAuditBacklog, pl: myNonAuditPipeline }
+        })
         
-        // 5. 집계
+        // 6. Team BPR 데이터 집계 (중복 제거)
+        const uniqueTeamData = new Map()
+        allTeamBprData.forEach(item => {
+          const key = `${item.CDM_PROJECT_CODE}_${item.CDM_PERSON_ID}_${item.CDM_SOURCE}_${item.CDM_STAGE}`
+          if (!uniqueTeamData.has(key)) {
+            uniqueTeamData.set(key, item)
+          }
+        })
+        
+        const deduplicatedTeamData = Array.from(uniqueTeamData.values())
+        console.log(`🔍 Team 중복 제거 후 ${deduplicatedTeamData.length}건`)
+        
         let teamAuditRevenue = 0, teamAuditBacklog = 0, teamAuditPipeline = 0
         let teamNonAuditRevenue = 0, teamNonAuditBacklog = 0, teamNonAuditPipeline = 0
         
-        deduplicatedData.forEach(item => {
+        deduplicatedTeamData.forEach(item => {
           const auditTypeRaw = String(item['감사 구분'] || '').trim()
           const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
           const cdmSource = String(item.CDM_SOURCE || '').trim()
@@ -197,9 +289,21 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
             }
           }
           
-          // F-link Backlog
+          // F-link Backlog (분기별 월 데이터 합산)
           if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
-            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
+            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
+            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
+            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
+            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
+            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
+            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
+            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
+            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
+            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
+            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
+            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
+            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
+            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
             if (isAudit) {
               teamAuditBacklog += amount
             } else {
@@ -228,9 +332,16 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
           nonAudit: { rev: teamNonAuditRevenue, bl: teamNonAuditBacklog, pl: teamNonAuditPipeline }
         })
         
-        // 6. budgetData 구성 (기존 데이터 + BPR 데이터)
+        // 7. budgetData 구성 (BPR_fact 데이터 + hr_master_dashboard 예산/기타 데이터)
         const combinedBudgetData = {
           ...(hrResult.data || {}),
+          // My Budget 실적 (BPR_fact에서)
+          current_audit_revenue: Math.round(myAuditRevenue * 1_000_000),
+          current_audit_backlog: Math.round(myAuditBacklog * 1_000_000),
+          pipeline_audit_current_total: Math.round(myAuditPipeline * 1_000_000),
+          current_non_audit_revenue: Math.round(myNonAuditRevenue * 1_000_000),
+          current_non_audit_backlog: Math.round(myNonAuditBacklog * 1_000_000),
+          pipeline_non_audit_current_total: Math.round(myNonAuditPipeline * 1_000_000),
           // Team Budget 실적 (BPR_fact에서)
           dept_revenue_audit: Math.round(teamAuditRevenue * 1_000_000),
           dept_backlog_audit: Math.round(teamAuditBacklog * 1_000_000),
