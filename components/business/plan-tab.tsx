@@ -99,7 +99,7 @@ export function BusinessPlanTab({ empno, readOnly = false }: BusinessPlanTabProp
   // 컴포넌트 마운트 시 사용자 정보 로드 및 데이터 초기화
   useEffect(() => {
     loadUserInfoAndInitialize()
-  }, [empno])
+  }, [empno, readOnly])
 
   // currentEmployeeId가 설정된 후 데이터 로드
   useEffect(() => {

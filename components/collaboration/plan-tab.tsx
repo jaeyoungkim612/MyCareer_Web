@@ -161,7 +161,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
     }
     
     loadUserData()
-  }, [empno])
+  }, [empno, readOnly])
 
   useEffect(() => {
     if (currentUser?.empno) fetchPlanData()

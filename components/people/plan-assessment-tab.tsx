@@ -68,7 +68,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
 
   useEffect(() => {
     loadUserInfoAndInitialize()
-  }, [empno])
+  }, [empno, readOnly])
 
   // 코칭 시간 불러오기 (회계연도 기준: 2025-3Q ~ 2026-2Q)
   // readOnly 모드에서는 탭이 활성화될 때까지 조회 지연

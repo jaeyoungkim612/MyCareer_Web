@@ -227,7 +227,7 @@ export default function ExpertisePlanTab({ empno, readOnly = false }: ExpertiseP
     }
     
     loadUserData()
-  }, [empno])
+  }, [empno, readOnly])
 
   useEffect(() => {
     if (currentUser?.empno) {

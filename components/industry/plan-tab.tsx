@@ -161,7 +161,7 @@ export default function IndustryPlanTab({ empno, readOnly = false }: IndustryPla
       }
     }
     fetchData()
-  }, [empno])
+  }, [empno, readOnly])
 
   const handleSave = async (status: '작성중' | '완료') => {
     if (!currentUser?.empno) {

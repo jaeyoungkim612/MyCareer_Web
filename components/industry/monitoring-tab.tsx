@@ -73,7 +73,7 @@ export default function IndustryMonitoringTab({ empno, readOnly = false }: Indus
       }
     }
     loadUser()
-  }, [empno])
+  }, [empno, readOnly])
 
   // empno가 설정되면 활동 목록 불러오기
   useEffect(() => {
