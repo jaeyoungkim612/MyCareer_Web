@@ -112,9 +112,14 @@ export class PeopleGoalsService {
     
     const yearQuarter = `${year}-Q${quarter}`;
     
-    // 사번 170068인 경우 특정 PRJTCD만 필터링 (정규화된 사번으로 비교)
-    const isSpecialEmpno = normalizedEmpno === '170068';
-    const targetPrjtcd = '00184-90-323';
+    // 특정 사번별 PRJTCD 필터링
+    const specialFilters: { [key: string]: string } = {
+      '170068': '00184-90-323',
+      '120276': '00184-90-220'
+    };
+    
+    const targetPrjtcd = specialFilters[normalizedEmpno];
+    const isSpecialEmpno = !!targetPrjtcd;
     
     // 이번 분기: 여러 row 합산
     let quarterQuery = supabase

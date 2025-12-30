@@ -124,7 +124,7 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
       setShouldLoadCoaching(true)
     }
   }, [readOnly, currentUser])
-  
+
   // 팀원 코칭 시간 데이터 로드
   const [shouldLoadTeamCoaching, setShouldLoadTeamCoaching] = useState(!readOnly)
   
@@ -284,13 +284,13 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           if (error.code === '57014' || error.code === '42P01' || error.message?.includes('statement timeout') || error.message?.includes('does not exist')) {
             console.warn('⚠️ 코칭 비용 조회 실패 (타임아웃 또는 뷰 없음) - 빈 데이터로 처리:', error.message)
           } else {
-            console.error('❌ 코칭 비용 조회 에러:', error)
-            console.error('❌ 에러 상세:', {
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code
-            })
+          console.error('❌ 코칭 비용 조회 에러:', error)
+          console.error('❌ 에러 상세:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
           }
         }
         

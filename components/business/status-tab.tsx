@@ -173,7 +173,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           
           // 예산 값이 있으면 사용, 없으면 계속 시도
           if (result.data.budget_audit !== null || result.data.budget_non_audit !== null) {
-            data = result.data
+        data = result.data
             console.log(`✅ Budget data found with empno: ${empnoVariant}`)
             break
           } else {
@@ -381,7 +381,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           const { data, error, count } = await supabase
             .from('BPR_fact')
             .select('*', { count: 'exact' })
-            .eq('PRJT_CMOFNM', userDeptName)
+            .ilike('PRJT_CMOFNM', `${userDeptName}%`)
             .eq('CDM_REPORT_DATE', latestDate)
             .not('CDM_SOURCE', 'is', null)
             .range(page * pageSize, (page + 1) * pageSize - 1)
@@ -1097,7 +1097,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             const { data, error } = await supabase
               .from('BPR_fact')
               .select('*')
-              .eq('PRJT_CMOFNM', userDeptName)
+              .ilike('PRJT_CMOFNM', `${userDeptName}%`)
               .eq('CDM_REPORT_DATE', latestDate)
               .not('CDM_SOURCE', 'is', null)
               .range(detailPage * detailPageSize, (detailPage + 1) * detailPageSize - 1)
@@ -2189,7 +2189,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             const { data } = await supabase
               .from('BPR_fact')
               .select('*')
-              .eq('PRJT_CMOFNM', userDeptName)
+              .ilike('PRJT_CMOFNM', `${userDeptName}%`)
               .eq('CDM_REPORT_DATE', latestDate)
               .not('CDM_SOURCE', 'is', null)
               .range(page * pageSize, (page + 1) * pageSize - 1)

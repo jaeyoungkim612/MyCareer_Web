@@ -65,8 +65,8 @@ export default function IndustryMonitoringTab({ empno, readOnly = false }: Indus
         console.log(`🔍 IndustryMonitoringTab: loadUser - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
         
         if (targetEmpno) {
-          setCurrentUser({ ...authUser, empno: targetEmpno })
-          setCurrentEmployeeId(targetEmpno)
+        setCurrentUser({ ...authUser, empno: targetEmpno })
+        setCurrentEmployeeId(targetEmpno)
         } else if (readOnly) {
           console.warn('⚠️ IndustryMonitoringTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
         }

@@ -366,23 +366,23 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         // 코칭타임 실적 데이터 조회
         // readOnly 모드(리뷰어/마스터 리뷰어)에서는 shouldLoadCoaching이 true일 때만 조회
         if (!readOnly || shouldLoadCoaching) {
-          try {
-            const now = new Date()
-            const year = now.getFullYear()
-            const quarter = Math.ceil((now.getMonth() + 1) / 3)
-            
-            const { quarterHours, yearHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
-            
-            setCoachingTimeData({
-              quarterHours,
-              yearHours,
-              year,
-              quarter
-            })
-            
-            console.log("✅ Coaching time data loaded:", { quarterHours, yearHours, year, quarter })
-          } catch (coachingError) {
-            console.log("❌ 코칭타임 데이터 조회 에러:", coachingError)
+        try {
+          const now = new Date()
+          const year = now.getFullYear()
+          const quarter = Math.ceil((now.getMonth() + 1) / 3)
+          
+          const { quarterHours, yearHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
+          
+          setCoachingTimeData({
+            quarterHours,
+            yearHours,
+            year,
+            quarter
+          })
+          
+          console.log("✅ Coaching time data loaded:", { quarterHours, yearHours, year, quarter })
+        } catch (coachingError) {
+          console.log("❌ 코칭타임 데이터 조회 에러:", coachingError)
           }
         } else {
           console.log("⚠️ ResultsTab: readOnly 모드 - People 탭 활성화 시 코칭 시간 조회 예정")
@@ -397,14 +397,14 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         // 팀원 코칭 시간 데이터 조회
         // readOnly 모드(리뷰어/마스터 리뷰어)에서는 shouldLoadCoaching이 true일 때만 조회
         if (!readOnly || shouldLoadCoaching) {
-          setIsLoadingTeamData(true)
-          try {
-            const teamData = await PeopleGoalsService.getTeamCoachingTimeStats(normalizedEmpno)
-            setTeamCoachingData(teamData)
-            console.log("📊 Results: Team coaching data loaded:", teamData)
-          } catch (error) {
-            console.error("❌ Results: Error loading team coaching data:", error)
-          } finally {
+        setIsLoadingTeamData(true)
+        try {
+          const teamData = await PeopleGoalsService.getTeamCoachingTimeStats(normalizedEmpno)
+          setTeamCoachingData(teamData)
+          console.log("📊 Results: Team coaching data loaded:", teamData)
+        } catch (error) {
+          console.error("❌ Results: Error loading team coaching data:", error)
+        } finally {
             setIsLoadingTeamData(false)
           }
         } else {
@@ -472,7 +472,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                 if (coreError?.code === '57014' || coreError?.message?.includes('statement timeout')) {
                   console.warn('⚠️ v_employee_core 뷰 타임아웃 - a_utilization 테이블 직접 조회 시도:', coreError.message)
                 } else {
-                  console.log('⚠️ v_employee_core 뷰 조회 실패, a_utilization 테이블 직접 조회 시도:', coreError)
+                console.log('⚠️ v_employee_core 뷰 조회 실패, a_utilization 테이블 직접 조회 시도:', coreError)
                 }
                 
                 // 최신 UTIL_DATE 찾기
@@ -543,11 +543,11 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               if ('code' in leaveError && (leaveError.code === '57014' || leaveError.message?.includes('statement timeout'))) {
                 console.warn("⚠️ 팀원 휴가 데이터 조회 타임아웃 - 빈 데이터로 처리합니다:", leaveError.message)
               } else {
-                console.log("❌ 팀원 휴가 데이터 조회 에러:", leaveError)
+              console.log("❌ 팀원 휴가 데이터 조회 에러:", leaveError)
               }
               // 타임아웃 에러는 빈 데이터로 계속 진행, 다른 에러는 조기 리턴
               if (!('code' in leaveError && leaveError.code === '57014') && !leaveError?.message?.includes('statement timeout')) {
-                return
+              return
               }
             }
             
@@ -555,7 +555,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               if ('code' in utilError && (utilError.code === '57014' || utilError.message?.includes('statement timeout'))) {
                 console.warn("⚠️ 팀원 활용률 데이터 조회 타임아웃 - 빈 데이터로 처리합니다:", utilError.message)
               } else {
-                console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
+              console.log("❌ 팀원 활용률 데이터 조회 에러:", utilError)
               }
             }
             
@@ -1547,7 +1547,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
         {/* DoAE Interim 다면평가결과 섹션 */}
         <div className="space-y-4">
           <h2 className="text-lg font-bold">DoAE Interim 다면평가결과</h2>
-          
+
           {/* 파트너 평가결과 Card - Full Width, Table */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1636,27 +1636,27 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                       
                       if (!allTeamLeaders || allTeamLeaders.length === 0) {
                         // fallback: 전체 조회
-                        const { data } = await supabase
-                          .from("evaluation_partner")
-                          .select(`
-                            사번,
-                            성명,
-                            평가자,
-                            응답수,
-                            회신률,
-                            소속,
-                            직위,
-                            "1",
-                            "2",
-                            "3",
-                            "4",
-                            합계,
-                            평균,
-                            등급,
-                            "Comment 1",
-                            "Comment 2"
-                          `)
-                          .order("평균", { ascending: false })
+                      const { data } = await supabase
+                        .from("evaluation_partner")
+                        .select(`
+                          사번,
+                          성명,
+                          평가자,
+                          응답수,
+                          회신률,
+                          소속,
+                          직위,
+                          "1",
+                          "2",
+                          "3",
+                          "4",
+                          합계,
+                          평균,
+                          등급,
+                          "Comment 1",
+                          "Comment 2"
+                        `)
+                        .order("평균", { ascending: false })
                         
                         const normalizedData = (data as any[] || []).map((partner: any) => ({
                           ...partner,

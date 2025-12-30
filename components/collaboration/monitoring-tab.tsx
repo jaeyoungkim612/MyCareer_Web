@@ -83,7 +83,7 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
       console.log(`🔍 CollaborationMonitoringTab: loadUser - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
       
       if (targetEmpno) {
-        setCurrentUser({ ...user, empno: targetEmpno })
+      setCurrentUser({ ...user, empno: targetEmpno })
       } else if (readOnly) {
         console.warn('⚠️ CollaborationMonitoringTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
       }

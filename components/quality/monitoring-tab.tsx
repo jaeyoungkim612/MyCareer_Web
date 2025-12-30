@@ -450,10 +450,10 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       console.log(`🔍 QualityMonitoringTab: loadUser - readOnly=${readOnly}, empno=${empno}, targetEmpno=${targetEmpno}`)
       
       if (targetEmpno) {
-        setCurrentUser({ ...user, empno: targetEmpno })
+      setCurrentUser({ ...user, empno: targetEmpno })
       } else if (readOnly) {
         console.warn('⚠️ QualityMonitoringTab: readOnly 모드인데 empno가 전달되지 않았습니다.')
-      }
+    }
     }
   }, [empno, readOnly])
 
