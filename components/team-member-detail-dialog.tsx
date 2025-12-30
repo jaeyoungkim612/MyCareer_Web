@@ -336,7 +336,14 @@ export function TeamMemberDetailDialog({
           pending_GSP_FOCUS_30: gspData?.["GSP_Focus_30_STATUS"] === '승인대기' ? gspData?.["GSP/Focus 30"] : null,
         }
         
-        console.log(`✅ TeamMemberDetailDialog: Final merged data:`, finalData)
+        console.log(`✅ TeamMemberDetailDialog: Final merged data:`, {
+          ...finalData,
+          sources: {
+            JOB_INFO_NM: gspData?.["보직_STATUS"] === '승인완료' ? 'GSP(승인완료)' : 'L_직무및활동',
+            INDUSTRY_SPEC: gspData?.["산업전문화_STATUS"] === '승인완료' ? 'GSP(승인완료)' : 'L_직무및활동',
+            TF_COUNCIL: gspData?.["Council_TF_STATUS"] === '승인완료' ? 'GSP(승인완료)' : 'L_직무및활동',
+          }
+        })
         setTargetUserInfo(finalData)
       } catch (error) {
         console.error('❌ TeamMemberDetailDialog: Error fetching target user info:', error)
@@ -396,17 +403,32 @@ export function TeamMemberDetailDialog({
                     <div className="flex items-center gap-2">
                       <Briefcase className="h-5 w-5 text-orange-600" />
                       <span className="text-base text-muted-foreground">보직(HC):</span>
-                      <span className="text-base font-medium">{targetUserInfo?.JOB_INFO_NM || "정보 없음"}</span>
+                      <span className="text-base font-medium">
+                        {targetUserInfo?.JOB_INFO_NM || "정보 없음"}
+                        {targetUserInfo?.pending_JOB_INFO_NM && (
+                          <span className="ml-2 text-xs text-yellow-600">(승인대기: {targetUserInfo.pending_JOB_INFO_NM})</span>
+                        )}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Target className="h-5 w-5 text-orange-600" />
                       <span className="text-base text-muted-foreground">산업전문화:</span>
-                      <span className="text-base font-medium">{targetUserInfo?.INDUSTRY_SPEC || memberData.specialization || "TMT/Bio"}</span>
+                      <span className="text-base font-medium">
+                        {targetUserInfo?.INDUSTRY_SPEC || "정보 없음"}
+                        {targetUserInfo?.pending_INDUSTRY_SPEC && (
+                          <span className="ml-2 text-xs text-yellow-600">(승인대기: {targetUserInfo.pending_INDUSTRY_SPEC})</span>
+                        )}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Users className="h-5 w-5 text-orange-600" />
                       <span className="text-base text-muted-foreground">TF & Council:</span>
-                      <span className="text-base font-medium">{targetUserInfo?.TF_COUNCIL || memberData.tfCouncil || "PI, Digital"}</span>
+                      <span className="text-base font-medium">
+                        {targetUserInfo?.TF_COUNCIL || "정보 없음"}
+                        {targetUserInfo?.pending_TF_COUNCIL && (
+                          <span className="ml-2 text-xs text-yellow-600">(승인대기: {targetUserInfo.pending_TF_COUNCIL})</span>
+                        )}
+                      </span>
                     </div>
                   </div>
 
