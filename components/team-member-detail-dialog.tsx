@@ -259,14 +259,34 @@ export function TeamMemberDetailDialog({
       
       setIsLoadingUserInfo(true)
       try {
-        // 사번 정규화 (95129 → 095129)
+        // 사번 정규화 (95129 → 095129, 5129 → 095129)
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const { UserInfoMapper } = await import("@/data/user-info")
         const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
         console.log(`🔍 TeamMemberDetailDialog: Normalizing empno: ${empno} → ${normalizedEmpno}`)
         
-        // 1. a_GSP_Table에서 최신 데이터 조회 (승인완료 + 승인대기)
-        const { data: gspData } = await supabase
+        // 1. UserInfoMapper로 기본 정보 조회 (a_hr_master + L_직무및활동 + employee_photos)
+        // UserInfoMapper는 내부적으로 정규화 및 fallback 처리를 수행함
+        const userMasterInfo = await UserInfoMapper.loadUserInfo(empno)
+        
+        if (!userMasterInfo) {
+          console.error(`❌ TeamMemberDetailDialog: Failed to load user info for ${empno}`)
+          setIsLoadingUserInfo(false)
+          return
+        }
+        
+        console.log(`✅ TeamMemberDetailDialog: UserMasterInfo loaded:`, {
+          empno: userMasterInfo.empno,
+          empnm: userMasterInfo.empnm,
+          org_nm: userMasterInfo.org_nm,
+          industry_specialization: userMasterInfo.industry_specialization,
+          council_tf: userMasterInfo.council_tf,
+        })
+        
+        // 2. a_GSP_Table에서 최신 데이터 조회 (승인완료 + 승인대기)
+        // 정규화된 사번과 원본 사번 모두 시도
+        let gspData = null
+        const { data: gspDataNormalized } = await supabase
           .from('a_GSP_Table')
           .select('*')
           .eq('사번', normalizedEmpno)
@@ -274,37 +294,41 @@ export function TeamMemberDetailDialog({
           .limit(1)
           .maybeSingle()
         
-        console.log(`🔍 TeamMemberDetailDialog: GSP data for ${normalizedEmpno}:`, gspData)
-        
-        // 2. UserInfoMapper로 기본 정보 조회 (a_hr_master + L_직무및활동 + employee_photos)
-        let userMasterInfo = await UserInfoMapper.loadUserInfo(normalizedEmpno)
-        
-        // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
-        if (!userMasterInfo) {
-          console.log(`🔄 TeamMemberDetailDialog: Trying with original empno: ${empno}`)
-          userMasterInfo = await UserInfoMapper.loadUserInfo(empno)
+        if (gspDataNormalized) {
+          gspData = gspDataNormalized
+        } else {
+          // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
+          const originalEmpno = empno.replace(/^0+/, '') || empno
+          const { data: gspDataOriginal } = await supabase
+            .from('a_GSP_Table')
+            .select('*')
+            .eq('사번', originalEmpno)
+            .order('변경요청일자', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          gspData = gspDataOriginal
         }
         
-        console.log(`🔍 TeamMemberDetailDialog: UserMasterInfo for ${normalizedEmpno}:`, userMasterInfo)
+        console.log(`🔍 TeamMemberDetailDialog: GSP data for ${normalizedEmpno}:`, gspData)
         
         // 3. GSP 승인완료 데이터 우선, 없으면 기본 데이터 사용
         const finalData = {
-          EMPNO: userMasterInfo?.empno,
-          EMPNM: userMasterInfo?.empnm,
-          ORG_NM: userMasterInfo?.org_nm,
-          GRADNM: userMasterInfo?.gradnm,
-          PHOTO_URL: userMasterInfo?.photo_url,
+          EMPNO: userMasterInfo.empno,
+          EMPNM: userMasterInfo.empnm,
+          ORG_NM: userMasterInfo.org_nm,
+          GRADNM: userMasterInfo.gradnm,
+          PHOTO_URL: userMasterInfo.photo_url,
           // GSP 테이블의 승인완료 데이터 우선 사용
           JOB_INFO_NM: (gspData?.["보직_STATUS"] === '승인완료' ? gspData?.["보직(HC)"] : null) 
-            || userMasterInfo?.job_info_nm,
+            || userMasterInfo.job_info_nm,
           INDUSTRY_SPEC: (gspData?.["산업전문화_STATUS"] === '승인완료' ? gspData?.["산업전문화"] : null) 
-            || userMasterInfo?.industry_specialization,
+            || userMasterInfo.industry_specialization,
           TF_COUNCIL: (gspData?.["Council_TF_STATUS"] === '승인완료' ? gspData?.["Council/TF 등"] : null) 
-            || userMasterInfo?.council_tf,
+            || userMasterInfo.council_tf,
           GSP_YN: (gspData?.["GSP_Focus_30_STATUS"] === '승인완료' && gspData?.["GSP/Focus 30"]?.includes('GSP')) ? 'Y' 
-            : (userMasterInfo?.gsp_focus_30?.includes('GSP') ? 'Y' : 'N'),
+            : (userMasterInfo.gsp_focus_30?.includes('GSP') ? 'Y' : 'N'),
           FOCUS_30_YN: (gspData?.["GSP_Focus_30_STATUS"] === '승인완료' && gspData?.["GSP/Focus 30"]?.includes('Focus')) ? 'Y' 
-            : (userMasterInfo?.gsp_focus_30?.includes('Focus') ? 'Y' : 'N'),
+            : (userMasterInfo.gsp_focus_30?.includes('Focus') ? 'Y' : 'N'),
           // 승인대기 데이터도 표시 (뱃지용)
           pending_JOB_INFO_NM: gspData?.["보직_STATUS"] === '승인대기' ? gspData?.["보직(HC)"] : null,
           pending_INDUSTRY_SPEC: gspData?.["산업전문화_STATUS"] === '승인대기' ? gspData?.["산업전문화"] : null,
@@ -315,7 +339,7 @@ export function TeamMemberDetailDialog({
         console.log(`✅ TeamMemberDetailDialog: Final merged data:`, finalData)
         setTargetUserInfo(finalData)
       } catch (error) {
-        console.error('Error fetching target user info:', error)
+        console.error('❌ TeamMemberDetailDialog: Error fetching target user info:', error)
       } finally {
         setIsLoadingUserInfo(false)
       }
