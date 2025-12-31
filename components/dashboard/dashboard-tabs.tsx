@@ -253,7 +253,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
           }
         })
         
-        console.log("📊 My Budget 집계 완료:", {
+        console.log("✅ DashboardTabs: My Budget 집계 완료:", {
           audit: { rev: myAuditRevenue, bl: myAuditBacklog, pl: myAuditPipeline },
           nonAudit: { rev: myNonAuditRevenue, bl: myNonAuditBacklog, pl: myNonAuditPipeline }
         })
@@ -351,9 +351,11 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
           dept_pipeline_non_audit_current_total: Math.round(teamNonAuditPipeline * 1_000_000),
         }
         
+        console.log("✅ DashboardTabs: Combined budget data set")
         setBudgetData(combinedBudgetData)
         
       } catch (e: any) {
+        console.error('❌ DashboardTabs: Business data fetch error:', e)
         setGoalError(e.message || String(e))
       } finally {
         setGoalLoading(false)
@@ -452,24 +454,48 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
           }
           
           // Util A/B 계산
-          const { data: utilData } = await supabase
-            .from("v_employee_core")
-            .select("EMPNO, UTIL_A, UTIL_B")
-            .in("EMPNO", teamEmpnos)
+          console.log(`📊 DashboardTabs: Fetching Util A/B for ${teamEmpnos.length} team members`)
           
-          if (utilData && utilData.length > 0) {
-            const validUtilA = utilData.filter(item => item.UTIL_A !== null && item.UTIL_A !== "")
-            const validUtilB = utilData.filter(item => item.UTIL_B !== null && item.UTIL_B !== "")
+          try {
+            const { data: utilData, error: utilError } = await supabase
+              .from("v_employee_core")
+              .select("EMPNO, UTIL_A, UTIL_B")
+              .in("EMPNO", teamEmpnos)
             
-            const utilASum = validUtilA.reduce((sum, item) => sum + (parseFloat(item.UTIL_A) || 0), 0)
-            const utilBSum = validUtilB.reduce((sum, item) => sum + (parseFloat(item.UTIL_B) || 0), 0)
-            
-            utilAAverage = validUtilA.length > 0 ? Math.round((utilASum / validUtilA.length) * 100) / 100 : 0
-            utilBAverage = validUtilB.length > 0 ? Math.round((utilBSum / validUtilB.length) * 100) / 100 : 0
+            if (utilError) {
+              console.error('❌ DashboardTabs: Util query error:', utilError)
+              // timeout이나 에러 발생 시에도 계속 진행
+            } else if (utilData && utilData.length > 0) {
+              console.log(`✅ DashboardTabs: Util data loaded (${utilData.length} records)`)
+              const validUtilA = utilData.filter(item => item.UTIL_A !== null && item.UTIL_A !== "")
+              const validUtilB = utilData.filter(item => item.UTIL_B !== null && item.UTIL_B !== "")
+              
+              const utilASum = validUtilA.reduce((sum, item) => sum + (parseFloat(item.UTIL_A) || 0), 0)
+              const utilBSum = validUtilB.reduce((sum, item) => sum + (parseFloat(item.UTIL_B) || 0), 0)
+              
+              utilAAverage = validUtilA.length > 0 ? Math.round((utilASum / validUtilA.length) * 100) / 100 : 0
+              utilBAverage = validUtilB.length > 0 ? Math.round((utilBSum / validUtilB.length) * 100) / 100 : 0
+              
+              console.log(`📊 DashboardTabs: Util A Average: ${utilAAverage}%, Util B Average: ${utilBAverage}%`)
+            } else {
+              console.warn('⚠️ DashboardTabs: No util data found')
+            }
+          } catch (e) {
+            console.error('❌ DashboardTabs: Util fetch error:', e)
+            // 에러 발생 시에도 계속 진행 (null 값 유지)
           }
         }
         
         // 실제 데이터 설정
+        console.log("✅ DashboardTabs: People actual data set:", {
+          gpsScore,
+          peiScore,
+          coachingTimeHours,
+          refreshOffUsageRate,
+          utilAAverage,
+          utilBAverage
+        })
+        
         setPeopleActualData({
           gpsScore,
           peiScore,
@@ -480,6 +506,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         })
         
       } catch (e: any) {
+        console.error('❌ DashboardTabs: People data fetch error:', e)
         setPeopleError(e.message || String(e))
       } finally {
         setPeopleLoading(false)

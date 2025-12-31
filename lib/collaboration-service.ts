@@ -102,17 +102,17 @@ export class CollaborationService {
       console.log(`🔍 Query conditions:`, {
         empnoVariants,
         latestDate,
-        gubunFilter: ['X', 'I', 'P']
+        gubunFilter: ['X', 'I']
       })
       
       // 최신 날짜의 데이터만 조회 (원본 테이블 직접 조회)
-      // GUBUN 코드: X = X-LoS, I = LoS, P = PwCC
+      // GUBUN 코드: X = X-LoS, I = LoS (P는 제외)
       const { data, error, count } = await supabase
         .from('a_collaboration')
         .select('GUBUN, REFCNT, TOTREV, EMPLNO, ETL_DATE', { count: 'exact' })
         .in('EMPLNO', empnoVariants)
         .eq('ETL_DATE', latestDate)
-        .in('GUBUN', ['X', 'I', 'P'])
+        .in('GUBUN', ['X', 'I'])
       
       if (error) {
         console.error('❌ CollaborationService query error:', error)
@@ -149,7 +149,7 @@ export class CollaborationService {
         
         console.log(`  - EMPLNO: ${row.EMPLNO}, GUBUN: ${row.GUBUN}, REFCNT: ${row.REFCNT} (${count}), TOTREV: ${row.TOTREV} (${amount}), ETL_DATE: ${row.ETL_DATE}`)
         
-        // GUBUN 코드 매핑: X = X-LoS, I = LoS, P = PwCC
+        // GUBUN 코드 매핑: X = X-LoS, I = LoS
         if (row.GUBUN === 'X') {
           result.xlos.count += count
           result.xlos.amount += amount
@@ -158,10 +158,7 @@ export class CollaborationService {
           result.los.count += count
           result.los.amount += amount
         }
-        if (row.GUBUN === 'P') {
-          result.axnode.count += count
-          result.axnode.amount += amount
-        }
+        // AX Node는 DB에 데이터 없음 (항상 0)
       });
       
       console.log('✅ CollaborationService final result:', result)
