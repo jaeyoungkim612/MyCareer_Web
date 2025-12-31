@@ -160,6 +160,14 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
   // 임시저장/제출 (upsert로 저장)
   const handleSaveMid = async (status: "draft" | "submitted") => {
     if (!empno) return
+    
+    // 제출 시 확인 창
+    if (status === "submitted") {
+      if (!confirm("제출하시겠습니까?\n제출 후에는 수정이 불가능합니다.")) {
+        return
+      }
+    }
+    
     setLoading(true)
     try {
       // 사번 정규화 (95129 → 095129)
@@ -185,7 +193,7 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
       await fetchAssessments()
       setIsEditingMid(false)
       setTabValueMid("view")
-      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
+      alert(status === "draft" ? "임시저장 완료!" : "제출이 완료되었습니다.\n이후 수정이 불가능합니다.")
     } catch (e) {
       console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
@@ -195,6 +203,14 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
   }
   const handleSaveFinal = async (status: "draft" | "submitted") => {
     if (!empno) return
+    
+    // 제출 시 확인 창
+    if (status === "submitted") {
+      if (!confirm("제출하시겠습니까?\n제출 후에는 수정이 불가능합니다.")) {
+        return
+      }
+    }
+    
     setLoading(true)
     try {
       // 사번 정규화 (95129 → 095129)
@@ -220,7 +236,7 @@ export default function IndustrySelfAssessmentTab({ empno: propEmpno, readOnly =
       await fetchAssessments()
       setIsEditingFinal(false)
       setTabValueFinal("view")
-      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
+      alert(status === "draft" ? "임시저장 완료!" : "제출이 완료되었습니다.\n이후 수정이 불가능합니다.")
     } catch (e) {
       console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
