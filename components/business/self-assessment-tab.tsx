@@ -58,7 +58,10 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
 
   // DB에서 평가 데이터 fetch (최신 이력만)
   const fetchAssessments = async () => {
-    if (!empno) return
+    if (!empno) {
+      console.error("❌ fetchAssessments: empno가 없습니다")
+      return
+    }
     setLoading(true)
     try {
       // 사번 정규화 (95129 → 095129)
@@ -73,6 +76,7 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+        
       const { data: final, error: finalError } = await supabase
         .from("business_final_assessments")
         .select("*")
@@ -80,11 +84,23 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (midError) console.error(midError)
-      if (finalError) console.error(finalError)
+        
+      if (midError) {
+        console.error("❌ Mid assessment fetch error:", midError)
+      } else {
+        console.log("✅ Mid assessment loaded:", mid)
+      }
+      
+      if (finalError) {
+        console.error("❌ Final assessment fetch error:", finalError)
+      } else {
+        console.log("✅ Final assessment loaded:", final)
+      }
+      
       setMidAssessment(mid)
       setFinalAssessment(final)
     } catch (e) {
+      console.error("❌ fetchAssessments 오류:", e)
       alert("DB에서 평가 데이터를 불러오지 못했습니다.")
     } finally {
       setLoading(false)
@@ -124,12 +140,16 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
   }
   // 임시저장/제출 (upsert로 저장)
   const handleSaveMid = async (status: "draft" | "submitted") => {
-    if (!empno) return
+    if (!empno) {
+      console.error("❌ 사번이 없습니다:", empno)
+      return
+    }
     setLoading(true)
     try {
       // 사번 정규화 (95129 → 095129)
       const { ReviewerService } = await import("@/lib/reviewer-service")
       const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log(`🔧 BusinessSelfAssessment: Normalizing empno: ${empno} → ${normalizedEmpno}`)
       
       const payload = {
         empno: normalizedEmpno,
@@ -139,33 +159,51 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
         // created_at은 넣지 않음 (DB에서 자동 생성)
       }
       
+      console.log("📤 Saving mid assessment:", payload)
+      
       // upsert 사용: 기존 데이터가 있으면 update, 없으면 insert
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("business_mid_assessments")
         .upsert(payload, { 
           onConflict: 'empno',
           ignoreDuplicates: false 
-        });
+        })
+        .select();
       
-      if (error) throw error
+      if (error) {
+        console.error("❌ Supabase 에러:", error)
+        throw error
+      }
+      
+      console.log("✅ 저장 성공:", data)
       await fetchAssessments()
       setIsEditingMid(false)
       setTabValueMid("view")
       alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
-    } catch (e) {
-      console.error("저장 오류:", e)
-      alert("저장에 실패했습니다. 다시 시도해 주세요.")
+    } catch (e: any) {
+      console.error("❌ 저장 오류:", e)
+      console.error("에러 상세:", {
+        message: e.message,
+        code: e.code,
+        details: e.details,
+        hint: e.hint
+      })
+      alert(`저장에 실패했습니다.\n${e.message || "다시 시도해 주세요."}`)
     } finally {
       setLoading(false)
     }
   }
   const handleSaveFinal = async (status: "draft" | "submitted") => {
-    if (!empno) return
+    if (!empno) {
+      console.error("❌ 사번이 없습니다:", empno)
+      return
+    }
     setLoading(true)
     try {
       // 사번 정규화 (95129 → 095129)
       const { ReviewerService } = await import("@/lib/reviewer-service")
       const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log(`🔧 BusinessSelfAssessment: Normalizing empno: ${empno} → ${normalizedEmpno}`)
       
       const payload = {
         empno: normalizedEmpno,
@@ -175,22 +213,36 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
         // created_at은 넣지 않음 (DB에서 자동 생성)
       }
       
+      console.log("📤 Saving final assessment:", payload)
+      
       // upsert 사용: 기존 데이터가 있으면 update, 없으면 insert
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("business_final_assessments")
         .upsert(payload, { 
           onConflict: 'empno',
           ignoreDuplicates: false 
-        });
+        })
+        .select();
       
-      if (error) throw error
+      if (error) {
+        console.error("❌ Supabase 에러:", error)
+        throw error
+      }
+      
+      console.log("✅ 저장 성공:", data)
       await fetchAssessments()
       setIsEditingFinal(false)
       setTabValueFinal("view")
       alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
-    } catch (e) {
-      console.error("저장 오류:", e)
-      alert("저장에 실패했습니다. 다시 시도해 주세요.")
+    } catch (e: any) {
+      console.error("❌ 저장 오류:", e)
+      console.error("에러 상세:", {
+        message: e.message,
+        code: e.code,
+        details: e.details,
+        hint: e.hint
+      })
+      alert(`저장에 실패했습니다.\n${e.message || "다시 시도해 주세요."}`)
     } finally {
       setLoading(false)
     }
@@ -260,7 +312,7 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
               >
                 View
               </TabsTrigger>
-              {!readOnly && (
+              {!readOnly && !midSubmitted && (
                 <TabsTrigger value="edit" onClick={handleEditMid}>
                   Edit
                 </TabsTrigger>
@@ -271,7 +323,7 @@ export function BusinessSelfAssessmentTab({ empno: propEmpno, readOnly = false }
                 {renderSectionedView(midAssessment?.comment)}
               </div>
             </TabsContent>
-            {!readOnly && (
+            {!readOnly && !midSubmitted && (
               <TabsContent value="edit" className="space-y-6">
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
                   <Textarea

@@ -145,6 +145,7 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
       await fetchAssessments()
       setIsEditingMid(false)
       setTabValueMid("view")
+      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
     } catch (e) {
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
     } finally {
@@ -173,6 +174,7 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
       await fetchAssessments()
       setIsEditingFinal(false)
       setTabValueFinal("view")
+      alert(status === "draft" ? "임시저장 완료!" : "제출 완료!")
     } catch (e) {
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
     } finally {
@@ -244,7 +246,7 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
               >
                 View
               </TabsTrigger>
-              {!readOnly && (
+              {!readOnly && !midSubmitted && (
                 <TabsTrigger value="edit" onClick={handleEditMid}>
                   Edit
                 </TabsTrigger>
@@ -255,7 +257,7 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
                 {renderSectionedView(midAssessment?.comment)}
               </div>
             </TabsContent>
-            {!readOnly && (
+            {!readOnly && !midSubmitted && (
               <TabsContent value="edit" className="space-y-6">
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md">
                   <Textarea
@@ -270,12 +272,10 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
                     <X className="mr-2 h-4 w-4" />
                     Cancel
                   </Button>
-                  {!midSubmitted && (
-                    <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      임시저장
-                    </Button>
-                  )}
+                  <Button onClick={() => handleSaveMid("draft") } disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    임시저장
+                  </Button>
                   <Button onClick={() => handleSaveMid("submitted") } className="bg-green-600 text-white" disabled={loading}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     제출
