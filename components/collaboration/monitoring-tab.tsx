@@ -128,6 +128,19 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
     return n?.toLocaleString() ?? "0"
   }
 
+  // 안전한 달성률 계산 (0으로 나누기 방지, 100% 제한)
+  const calculateProgress = (actual: number, target: number): number => {
+    if (!target || target === 0) return 0
+    const percentage = (actual / target) * 100
+    return Math.min(Math.max(percentage, 0), 100) // 0~100% 사이로 제한
+  }
+
+  // 달성률 표시용 (100% 초과 가능)
+  const calculateAchievement = (actual: number, target: number): number => {
+    if (!target || target === 0) return 0
+    return Math.round((actual / target) * 100)
+  }
+
   if (loading) return <div className="flex flex-col justify-center items-center h-64 space-y-4">로딩 중...</div>
 
   const getStatusColor = (actual: number, target: number): string => {
@@ -178,8 +191,19 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                 <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(mergedMonitoringData.metrics.xlosCollaboration.target.count)}건</span>
               </div>
               <div className="text-2xl font-bold">{mergedMonitoringData.metrics.xlosCollaboration.actual.count}건</div>
-              <Progress value={(mergedMonitoringData.metrics.xlosCollaboration.actual.count / mergedMonitoringData.metrics.xlosCollaboration.target.count) * 100} className="h-2 mt-2" />
-              <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.xlosCollaboration.actual.count / mergedMonitoringData.metrics.xlosCollaboration.target.count) * 100)}%</div>
+              <Progress 
+                value={calculateProgress(
+                  mergedMonitoringData.metrics.xlosCollaboration.actual.count,
+                  mergedMonitoringData.metrics.xlosCollaboration.target.count
+                )} 
+                className="h-2 mt-2" 
+              />
+              <div className="mt-1 text-xs text-right text-gray-500">
+                달성률: {calculateAchievement(
+                  mergedMonitoringData.metrics.xlosCollaboration.actual.count,
+                  mergedMonitoringData.metrics.xlosCollaboration.target.count
+                )}%
+              </div>
             </div>
             {/* 금액 */}
             <div>
@@ -188,8 +212,19 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                 <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(mergedMonitoringData.metrics.xlosCollaboration.target.amount).toLocaleString()}백만원</span>
               </div>
               <div className="text-2xl font-bold">{Math.ceil(mergedMonitoringData.metrics.xlosCollaboration.actual.amount).toLocaleString()}백만원</div>
-              <Progress value={(mergedMonitoringData.metrics.xlosCollaboration.actual.amount / mergedMonitoringData.metrics.xlosCollaboration.target.amount) * 100} className="h-2 mt-2" />
-              <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.xlosCollaboration.actual.amount / mergedMonitoringData.metrics.xlosCollaboration.target.amount) * 100)}%</div>
+              <Progress 
+                value={calculateProgress(
+                  mergedMonitoringData.metrics.xlosCollaboration.actual.amount,
+                  mergedMonitoringData.metrics.xlosCollaboration.target.amount
+                )} 
+                className="h-2 mt-2" 
+              />
+              <div className="mt-1 text-xs text-right text-gray-500">
+                달성률: {calculateAchievement(
+                  mergedMonitoringData.metrics.xlosCollaboration.actual.amount,
+                  mergedMonitoringData.metrics.xlosCollaboration.target.amount
+                )}%
+              </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">대상기간은 25년 6월 이후 부터 입니다</p>
           </CardContent>
@@ -208,8 +243,19 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                 <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(mergedMonitoringData.metrics.losCollaboration.target.count)}건</span>
               </div>
               <div className="text-2xl font-bold">{mergedMonitoringData.metrics.losCollaboration.actual.count}건</div>
-              <Progress value={(mergedMonitoringData.metrics.losCollaboration.actual.count / mergedMonitoringData.metrics.losCollaboration.target.count) * 100} className="h-2 mt-2" />
-              <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.losCollaboration.actual.count / mergedMonitoringData.metrics.losCollaboration.target.count) * 100)}%</div>
+              <Progress 
+                value={calculateProgress(
+                  mergedMonitoringData.metrics.losCollaboration.actual.count,
+                  mergedMonitoringData.metrics.losCollaboration.target.count
+                )} 
+                className="h-2 mt-2" 
+              />
+              <div className="mt-1 text-xs text-right text-gray-500">
+                달성률: {calculateAchievement(
+                  mergedMonitoringData.metrics.losCollaboration.actual.count,
+                  mergedMonitoringData.metrics.losCollaboration.target.count
+                )}%
+              </div>
             </div>
             {/* 금액 */}
             <div>
@@ -218,8 +264,19 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                 <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(mergedMonitoringData.metrics.losCollaboration.target.amount).toLocaleString()}백만원</span>
               </div>
               <div className="text-2xl font-bold">{Math.ceil(mergedMonitoringData.metrics.losCollaboration.actual.amount).toLocaleString()}백만원</div>
-              <Progress value={(mergedMonitoringData.metrics.losCollaboration.actual.amount / mergedMonitoringData.metrics.losCollaboration.target.amount) * 100} className="h-2 mt-2" />
-              <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.losCollaboration.actual.amount / mergedMonitoringData.metrics.losCollaboration.target.amount) * 100)}%</div>
+              <Progress 
+                value={calculateProgress(
+                  mergedMonitoringData.metrics.losCollaboration.actual.amount,
+                  mergedMonitoringData.metrics.losCollaboration.target.amount
+                )} 
+                className="h-2 mt-2" 
+              />
+              <div className="mt-1 text-xs text-right text-gray-500">
+                달성률: {calculateAchievement(
+                  mergedMonitoringData.metrics.losCollaboration.actual.amount,
+                  mergedMonitoringData.metrics.losCollaboration.target.amount
+                )}%
+              </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">대상기간은 25년 6월 이후 부터 입니다</p>
           </CardContent>
@@ -238,8 +295,19 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                 <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(mergedMonitoringData.metrics.axNodeCollaboration.target.count)}건</span>
               </div>
               <div className="text-2xl font-bold">{mergedMonitoringData.metrics.axNodeCollaboration.actual.count}건</div>
-              <Progress value={(mergedMonitoringData.metrics.axNodeCollaboration.actual.count / mergedMonitoringData.metrics.axNodeCollaboration.target.count) * 100} className="h-2 mt-2" />
-              <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.axNodeCollaboration.actual.count / mergedMonitoringData.metrics.axNodeCollaboration.target.count) * 100)}%</div>
+              <Progress 
+                value={calculateProgress(
+                  mergedMonitoringData.metrics.axNodeCollaboration.actual.count,
+                  mergedMonitoringData.metrics.axNodeCollaboration.target.count
+                )} 
+                className="h-2 mt-2" 
+              />
+              <div className="mt-1 text-xs text-right text-gray-500">
+                달성률: {calculateAchievement(
+                  mergedMonitoringData.metrics.axNodeCollaboration.actual.count,
+                  mergedMonitoringData.metrics.axNodeCollaboration.target.count
+                )}%
+              </div>
             </div>
             {/* 금액 */}
             <div>
@@ -248,8 +316,19 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                 <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(mergedMonitoringData.metrics.axNodeCollaboration.target.amount).toLocaleString()}백만원</span>
               </div>
               <div className="text-2xl font-bold">{Math.ceil(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount).toLocaleString()}백만원</div>
-              <Progress value={(mergedMonitoringData.metrics.axNodeCollaboration.actual.amount / mergedMonitoringData.metrics.axNodeCollaboration.target.amount) * 100} className="h-2 mt-2" />
-              <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((mergedMonitoringData.metrics.axNodeCollaboration.actual.amount / mergedMonitoringData.metrics.axNodeCollaboration.target.amount) * 100)}%</div>
+              <Progress 
+                value={calculateProgress(
+                  mergedMonitoringData.metrics.axNodeCollaboration.actual.amount,
+                  mergedMonitoringData.metrics.axNodeCollaboration.target.amount
+                )} 
+                className="h-2 mt-2" 
+              />
+              <div className="mt-1 text-xs text-right text-gray-500">
+                달성률: {calculateAchievement(
+                  mergedMonitoringData.metrics.axNodeCollaboration.actual.amount,
+                  mergedMonitoringData.metrics.axNodeCollaboration.target.amount
+                )}%
+              </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">대상기간은 25년 6월 이후 부터 입니다</p>
           </CardContent>
@@ -294,26 +373,23 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                     )}건
                   </td>
                   <td className="p-4 text-right">
-                    {(
-                      ((mergedMonitoringData.metrics.xlosCollaboration.actual.count +
+                    {calculateAchievement(
+                      mergedMonitoringData.metrics.xlosCollaboration.actual.count +
                         mergedMonitoringData.metrics.losCollaboration.actual.count +
-                        mergedMonitoringData.metrics.axNodeCollaboration.actual.count) /
-                        (mergedMonitoringData.metrics.xlosCollaboration.target.count +
-                          mergedMonitoringData.metrics.losCollaboration.target.count +
-                          mergedMonitoringData.metrics.axNodeCollaboration.target.count)) *
-                      100
-                    ).toFixed(1)}
-                    %
+                        mergedMonitoringData.metrics.axNodeCollaboration.actual.count,
+                      mergedMonitoringData.metrics.xlosCollaboration.target.count +
+                        mergedMonitoringData.metrics.losCollaboration.target.count +
+                        mergedMonitoringData.metrics.axNodeCollaboration.target.count
+                    )}%
                     <Progress
-                      value={
-                        ((mergedMonitoringData.metrics.xlosCollaboration.actual.count +
+                      value={calculateProgress(
+                        mergedMonitoringData.metrics.xlosCollaboration.actual.count +
                           mergedMonitoringData.metrics.losCollaboration.actual.count +
-                          mergedMonitoringData.metrics.axNodeCollaboration.actual.count) /
-                          (mergedMonitoringData.metrics.xlosCollaboration.target.count +
-                            mergedMonitoringData.metrics.losCollaboration.target.count +
-                            mergedMonitoringData.metrics.axNodeCollaboration.target.count)) *
-                        100
-                      }
+                          mergedMonitoringData.metrics.axNodeCollaboration.actual.count,
+                        mergedMonitoringData.metrics.xlosCollaboration.target.count +
+                          mergedMonitoringData.metrics.losCollaboration.target.count +
+                          mergedMonitoringData.metrics.axNodeCollaboration.target.count
+                      )}
                       className="h-1.5 mt-2"
                     />
                   </td>
@@ -335,26 +411,23 @@ export function CollaborationMonitoringTab({ empno, readOnly = false }: Collabor
                     ).toLocaleString()}백만원
                   </td>
                   <td className="p-4 text-right">
-                    {(
-                      ((mergedMonitoringData.metrics.xlosCollaboration.actual.amount +
+                    {calculateAchievement(
+                      mergedMonitoringData.metrics.xlosCollaboration.actual.amount +
                         mergedMonitoringData.metrics.losCollaboration.actual.amount +
-                        mergedMonitoringData.metrics.axNodeCollaboration.actual.amount) /
-                        (mergedMonitoringData.metrics.xlosCollaboration.target.amount +
-                          mergedMonitoringData.metrics.losCollaboration.target.amount +
-                          mergedMonitoringData.metrics.axNodeCollaboration.target.amount)) *
-                      100
-                    ).toFixed(1)}
-                    %
+                        mergedMonitoringData.metrics.axNodeCollaboration.actual.amount,
+                      mergedMonitoringData.metrics.xlosCollaboration.target.amount +
+                        mergedMonitoringData.metrics.losCollaboration.target.amount +
+                        mergedMonitoringData.metrics.axNodeCollaboration.target.amount
+                    )}%
                     <Progress
-                      value={
-                        ((mergedMonitoringData.metrics.xlosCollaboration.actual.amount +
+                      value={calculateProgress(
+                        mergedMonitoringData.metrics.xlosCollaboration.actual.amount +
                           mergedMonitoringData.metrics.losCollaboration.actual.amount +
-                          mergedMonitoringData.metrics.axNodeCollaboration.actual.amount) /
-                          (mergedMonitoringData.metrics.xlosCollaboration.target.amount +
-                            mergedMonitoringData.metrics.losCollaboration.target.amount +
-                            mergedMonitoringData.metrics.axNodeCollaboration.target.amount)) *
-                        100
-                      }
+                          mergedMonitoringData.metrics.axNodeCollaboration.actual.amount,
+                        mergedMonitoringData.metrics.xlosCollaboration.target.amount +
+                          mergedMonitoringData.metrics.losCollaboration.target.amount +
+                          mergedMonitoringData.metrics.axNodeCollaboration.target.amount
+                      )}
                       className="h-1.5 mt-2"
                     />
                   </td>
