@@ -254,15 +254,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           empnoVariants.push(`0${normalizedEmpno}`)
         }
         
-        // BD 데이터 조회
+        // BD 데이터 조회 (전체 기간)
         let bdQuery = supabase
           .from('L_BD_Table_Detail')
           .select('*')
           .in('사번', empnoVariants)
-        
-        if (latestMonth) {
-          bdQuery = bdQuery.eq('Update기준월', latestMonth)
-        }
+          .order('Update기준월', { ascending: false })
         
         const { data: bdData } = await bdQuery
         
@@ -286,12 +283,12 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             }
           })
           
-          console.log('📊 BD 실제 데이터 집계:', {
+          console.log('📊 BD 실제 데이터 집계 (전체 기간):', {
             myAuditAmount,
             myNonAuditAmount,
             myAuditCount,
             myNonAuditCount,
-            latestMonth
+            totalRecords: bdData.length
           })
           
           setBdActualData({
@@ -889,6 +886,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       chargeRatio: string
       reportMonth: string
       note: string
+      updateMonth: string
     }>>([])
     const [latestUpdateMonth, setLatestUpdateMonth] = useState<string>('')
     const [loadingDetails, setLoadingDetails] = useState(false)
@@ -987,10 +985,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
             .from('L_BD_Table_Detail')
             .select('*')
             .in('사번', allEmpnoVariants)
-
-          if (latestMonth) {
-            bdQuery = bdQuery.eq('Update기준월', latestMonth)
-          }
+            .order('Update기준월', { ascending: false })  // Update기준월 내림차순 정렬
 
           const { data: bdData, error: bdError } = await bdQuery
 
@@ -1035,7 +1030,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
               cisMonth: item['CIS 등록월'] || '',
               chargeRatio: item['수임비율'] || '',
               reportMonth: item['집계연월'] || '',
-              note: item['비고'] || ''
+              note: item['비고'] || '',
+              updateMonth: item['Update기준월'] ? String(item['Update기준월']).replace('.0', '') : ''  // Update기준월 추가 (.0 제거)
             }
           }).sort((a, b) => b.amount - a.amount) // 금액 내림차순 정렬
 
@@ -1691,8 +1687,8 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                     <DialogHeader>
                       <DialogTitle>
                         {title} 상세 내역
-                        {isBdData && latestUpdateMonth && (
-                          <span className="text-sm text-gray-500 ml-2">(Update기준월: {latestUpdateMonth})</span>
+                        {isBdData && (
+                          <span className="text-sm text-gray-500 ml-2">(전체 기간)</span>
                         )}
                         {auditType && !isBdData && ` (${auditType === 'audit' ? '감사' : '비감사'})`}
                       </DialogTitle>
@@ -1721,6 +1717,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <Table>
                             <TableHeader>
                               <TableRow>
+                                <TableHead className="w-28">Update기준월</TableHead>
                                 <TableHead className="w-24">집계연월</TableHead>
                                 <TableHead className="w-32">Project Code</TableHead>
                                 <TableHead className="max-w-xs">Project Name</TableHead>
@@ -1734,6 +1731,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                             <TableBody>
                               {bdDetails.map((project, index) => (
                                 <TableRow key={index}>
+                                  <TableCell className="font-medium w-28">{project.updateMonth}</TableCell>
                                   <TableCell className="font-medium w-24">{project.reportMonth}</TableCell>
                                   <TableCell className="w-32">{project.projectCode}</TableCell>
                                   <TableCell className="max-w-xs truncate" title={project.projectName}>{project.projectName}</TableCell>
