@@ -282,71 +282,48 @@ export class PeopleGoalsService {
       
       console.log(`📊 Team coaching hours by EMPNO:`, Object.fromEntries(empnoMap))
       
-      // 6. ReviewerService로 팀원 목록 가져와서 매칭 (이미 import되어 있음)
+      // 6. ReviewerService로 팀원 목록 가져와서 매칭
       const userRole = await ReviewerService.getUserRole(normalizedManagerEmpno)
-      
-      // 7. 팀원들의 HR 정보와 코칭 시간 매칭
+
+      // 7. ⚡ 모든 팀원 HR 정보를 1쿼리로 배치 조회 (N+1 제거)
+      const teamEmpnos = Array.from(empnoMap.keys())
+      const normalizedEmpnoList = teamEmpnos.map(e => ReviewerService.normalizeEmpno(e))
+
+      const hrMap = new Map<string, any>()
+      if (normalizedEmpnoList.length > 0) {
+        const { data: hrBatch } = await supabase
+          .from('a_hr_master')
+          .select('EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM')
+          .in('EMPNO', normalizedEmpnoList)
+
+        hrBatch?.forEach(row => hrMap.set(String(row.EMPNO), row))
+      }
+
+      // 8. 팀원별 코칭 데이터 + HR 정보 매칭
       const teamMembersData: TeamMemberCoachingData[] = []
-      
       for (const [empno, totalHours] of empnoMap.entries()) {
-        try {
-          const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
-          
-          // HR 정보 조회
-          const { data: hrData } = await supabase
-            .from('a_hr_master')
-            .select('EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM')
-            .eq('EMPNO', normalizedEmpno)
-            .maybeSingle()
-          
-          // 리뷰어 테이블에서 매칭되는 팀원 찾기
-          const revieweeInfo = userRole.reviewees?.find(r => 
-            ReviewerService.normalizeEmpno(r.사번) === normalizedEmpno
-          )
-          
-          // 팀원의 상세 코칭 데이터도 필터링 적용
-          const memberCoachingData = teamCoachingData.filter(row => {
-            if (row.EMPNO !== empno) return false
-            // 팀원이 170068인 경우 특정 PRJTCD만 포함
-            if (empno === '170068' && row.PRJTCD !== targetPrjtcd) {
-              return false
-            }
-            return true
-          })
+        const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+        const hrData = hrMap.get(normalizedEmpno)
 
-          teamMembersData.push({
-            empno: empno,
-            empnm: hrData?.EMPNM || revieweeInfo?.성명 || '퇴사자',
-            org_nm: hrData?.ORG_NM || revieweeInfo?.['FY26 팀명'] || '',
-            job_info_nm: hrData?.JOB_INFO_NM || '',
-            gradnm: hrData?.GRADNM || '',
-            totalCoachingHours: totalHours,
-            coachingData: memberCoachingData
-          })
-          
-        } catch (error) {
-          console.error(`Error fetching HR data for EMPNO ${empno}:`, error)
-          
-          // 에러가 있어도 기본 정보는 추가 (필터링 적용)
-          const memberCoachingData = teamCoachingData.filter(row => {
-            if (row.EMPNO !== empno) return false
-            // 팀원이 170068인 경우 특정 PRJTCD만 포함
-            if (empno === '170068' && row.PRJTCD !== targetPrjtcd) {
-              return false
-            }
-            return true
-          })
+        const revieweeInfo = userRole.reviewees?.find(r =>
+          ReviewerService.normalizeEmpno(r.사번) === normalizedEmpno
+        )
 
-          teamMembersData.push({
-            empno: empno,
-            empnm: '퇴사자',
-            org_nm: '',
-            job_info_nm: '',
-            gradnm: '',
-            totalCoachingHours: totalHours,
-            coachingData: memberCoachingData
-          })
-        }
+        const memberCoachingData = teamCoachingData.filter(row => {
+          if (row.EMPNO !== empno) return false
+          if (empno === '170068' && row.PRJTCD !== targetPrjtcd) return false
+          return true
+        })
+
+        teamMembersData.push({
+          empno,
+          empnm: hrData?.EMPNM || revieweeInfo?.성명 || '퇴사자',
+          org_nm: hrData?.ORG_NM || revieweeInfo?.['FY26 팀명'] || '',
+          job_info_nm: hrData?.JOB_INFO_NM || '',
+          gradnm: hrData?.GRADNM || '',
+          totalCoachingHours: totalHours,
+          coachingData: memberCoachingData,
+        })
       }
       
       // 8. 코칭 시간 순으로 정렬 (많은 순)

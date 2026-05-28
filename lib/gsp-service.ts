@@ -332,80 +332,52 @@ export class GSPService {
       
       console.log(`📋 GSPService: Found ${pendingData.length} pending approval records`)
 
-      // 각 사용자의 HR 정보를 별도로 조회
+      // ⚡ 배치 사전 로딩: HR, 사진을 한 번에 가져와서 N+1 제거
+      // (ReviewerService는 이미 함수 상단에서 import됨)
+      const allEmpnoVariants = new Set<string>()
+      for (const item of pendingData) {
+        const norm = ReviewerService.normalizeEmpno(item.사번)
+        allEmpnoVariants.add(norm)
+        allEmpnoVariants.add(String(item.사번).replace(/^0+/, '')) // 원본
+      }
+      const empnoList = Array.from(allEmpnoVariants).filter(Boolean)
+
+      const [hrBatchRes, photoBatchRes] = await Promise.all([
+        supabase.from("a_hr_master")
+          .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM")
+          .in("EMPNO", empnoList),
+        supabase.from("employee_photos")
+          .select("empno, photo_url")
+          .in("empno", empnoList),
+      ])
+
+      const hrMap = new Map<string, any>()
+      hrBatchRes.data?.forEach(r => hrMap.set(String(r.EMPNO), r))
+      const photoMap = new Map<string, string>()
+      photoBatchRes.data?.forEach(p => { if (p.photo_url) photoMap.set(String(p.empno), p.photo_url) })
+
+      const lookupHr = (empno: string) => {
+        const norm = ReviewerService.normalizeEmpno(empno)
+        return hrMap.get(norm) || hrMap.get(String(empno).replace(/^0+/, '')) || null
+      }
+      const lookupPhoto = (empno: string) => {
+        const norm = ReviewerService.normalizeEmpno(empno)
+        return photoMap.get(norm) || photoMap.get(String(empno).replace(/^0+/, '')) || null
+      }
+
       const approvals = await Promise.all(pendingData.map(async (item: any) => {
-        const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(item.사번)
-        
-        // HR 정보 조회
-        console.log(`🔍 GSPService: Looking up HR data for ${item.사번} → ${normalizedEmpno}`)
-        
-        let { data: hrRecords, error: hrError } = await supabase
-          .from("a_hr_master")
-          .select("EMPNM, ORG_NM, JOB_INFO_NM")
-          .eq("EMPNO", normalizedEmpno)
-          .limit(1)
-        
-        let hrData = hrRecords?.[0] || null
-        
-        console.log(`📋 GSPService: HR data with normalized empno:`, hrData, hrError)
-        
-        // 정규화된 사번으로 못 찾으면 원본 사번으로 다시 시도
-        if (!hrData && !hrError) {
-          const originalEmpno = item.사번.replace(/^0+/, '') // 앞의 0 제거
-          console.log(`🔄 GSPService: Trying HR lookup with original empno: ${originalEmpno}`)
-          const result = await supabase
-            .from("a_hr_master")
-            .select("EMPNM, ORG_NM, JOB_INFO_NM")
-            .eq("EMPNO", originalEmpno)
-            .limit(1)
-          hrData = result.data?.[0] || null
-          console.log(`📋 GSPService: HR data with original empno:`, hrData, result.error)
-        }
-        
-        // a_GSP_Table에서 현재 승인완료된 데이터 조회 (승인대기가 아닌 항목들의 현재값)
-        console.log(`📋 GSPService: Looking up current approved data for ${item.사번} → ${normalizedEmpno}`)
-        
-        // 현재 정보는 a_GSP_Table에서 승인완료된 항목들을 가져옴
-        // 승인대기가 아닌 항목들은 현재 유효한 값들
-        
-        // 사진 정보 조회 (employee_photos 테이블에서)
-        console.log(`📸 GSPService: Looking up photo for ${item.사번} → ${normalizedEmpno}`)
-        
-        let { data: photoRecords, error: photoError } = await supabase
-          .from("employee_photos")
-          .select("photo_url")
-          .eq("empno", normalizedEmpno)
-          .limit(1)
-        
-        let photoData = photoRecords?.[0] || null
-        
-        console.log(`📸 GSPService: Photo data with normalized empno:`, photoData, photoError)
-        
-        // 정규화된 사번으로 못 찾으면 원본 사번으로 다시 시도
-        if (!photoData && !photoError) {
-          const originalEmpno = item.사번.replace(/^0+/, '') // 앞의 0 제거
-          console.log(`🔄 GSPService: Trying photo lookup with original empno: ${originalEmpno}`)
-          const result = await supabase
-            .from("employee_photos")
-            .select("photo_url")
-            .eq("empno", originalEmpno)
-            .limit(1)
-          photoData = result.data?.[0] || null
-          console.log(`📸 GSPService: Photo data with original empno:`, photoData, result.error)
-        }
-        
-        // 현재값 로직: 이전에 승인완료된 값을 정확히 가져오기
-        // 승인대기 상태일 때도 이전 승인완료 값이 있어야 함
-        
-        // UserInfoMapper를 통해 기본 정보 조회
+
+        const hrData = lookupHr(item.사번)
+        const photoData = lookupPhoto(item.사번) ? { photo_url: lookupPhoto(item.사번) } : null
+
+        // UserInfoMapper는 자체 캐시 있음 (배치 호출은 안 하지만 추후 캐시 히트)
         const { UserInfoMapper } = await import("@/data/user-info")
         let baseUserInfo = null
         try {
           baseUserInfo = await UserInfoMapper.loadUserInfo(normalizedEmpno)
           if (!baseUserInfo) {
-            // 정규화된 사번으로 못 찾으면 원본 사번으로 시도
-            const originalEmpno = item.사번.replace(/^0+/, '')
+            const originalEmpno = String(item.사번).replace(/^0+/, '')
             baseUserInfo = await UserInfoMapper.loadUserInfo(originalEmpno)
           }
         } catch (error) {

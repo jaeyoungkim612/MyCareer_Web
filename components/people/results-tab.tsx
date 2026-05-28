@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -221,57 +221,30 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           console.log('❌ Refresh Off 데이터 조회 에러:', refreshOffError)
         }
 
-        // GPS/PEI 실데이터(2606) 조회 - 여러 사번 형식으로 시도
+        // GPS/PEI 실데이터(2606) + 목표기준(2506) 1쿼리로 일괄 조회
         let scoreData = null
         let fallbackTargetData = null
-        
-        console.log(`🔍 Results: GPS/PEI 데이터 조회 시작...`)
-        
-        // 여러 사번 형식으로 시도해보기
-        const empnoVariations = [
-          fiveDigitEmpno,           // 98095
-          normalizedEmpno,          // 098095
-          targetEmpno,              // 원본
-          fiveDigitEmpno.padStart(6, '0'), // 098095
-          fiveDigitEmpno.padStart(5, '0')  // 98095
-        ]
-        
-        console.log(`🔍 Results: GPS/PEI empno variations:`, empnoVariations)
-        
-        // 2606 실데이터 조회
-        for (const empnoVariation of empnoVariations) {
-          const { data, error } = await supabase
-            .from("L_GPS_PEI_Table")
-            .select('"GPS(ITS)", "GPS(PEI)"')
-            .eq('"EMPNO"', empnoVariation)
-            .eq('"연도"', "2606")
-            .maybeSingle()
-          
-          console.log(`🔍 Results: Trying 2606 empno "${empnoVariation}":`, { data, error })
-          
-          if (data && !error) {
-            scoreData = data
-            console.log(`✅ Results: Found 2606 data with empno: ${empnoVariation}`)
-            break
-          }
-        }
-        
-        // 2506 목표기준 데이터 조회
-        for (const empnoVariation of empnoVariations) {
-          const { data, error } = await supabase
-            .from("L_GPS_PEI_Table")
-            .select('"GPS(ITS)", "GPS(PEI)"')
-            .eq('"EMPNO"', empnoVariation)
-            .eq('"연도"', "2506")
-            .maybeSingle()
-          
-          console.log(`🔍 Results: Trying 2506 empno "${empnoVariation}":`, { data, error })
-          
-          if (data && !error) {
-            fallbackTargetData = data
-            console.log(`✅ Results: Found 2506 data with empno: ${empnoVariation}`)
-            break
-          }
+
+        const empnoVariations = Array.from(new Set([
+          fiveDigitEmpno,
+          normalizedEmpno,
+          targetEmpno,
+          fiveDigitEmpno.padStart(6, '0'),
+          fiveDigitEmpno.padStart(5, '0'),
+        ])).filter(Boolean)
+
+        const { data: gpsPeiRows, error: gpsPeiError } = await supabase
+          .from("L_GPS_PEI_Table")
+          .select('"EMPNO", "연도", "GPS(ITS)", "GPS(PEI)"')
+          .in('"EMPNO"', empnoVariations)
+          .in('"연도"', ['2606', '2506'])
+
+        if (gpsPeiError) {
+          console.error('❌ GPS/PEI 일괄 조회 실패:', gpsPeiError)
+        } else {
+          scoreData = gpsPeiRows?.find((r: any) => r['연도'] === '2606') || null
+          fallbackTargetData = gpsPeiRows?.find((r: any) => r['연도'] === '2506') || null
+          console.log(`📊 GPS/PEI 일괄 조회: ${gpsPeiRows?.length || 0}건`)
         }
 
         // HR 정보 설정
@@ -447,96 +420,59 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           console.log("🔍 팀원 사번 목록:", teamEmpnos)
           
           if (teamEmpnos.length > 0) {
-            // ⚡ 병렬 처리: 모든 팀원 데이터를 한번에 조회
-            const [leaveResult, utilizationResult, utilDateResult] = await Promise.all([
-              // 휴가 정보 조회
+            // ⚡ Phase 1: 휴가 정보 + 최신 활용률 날짜를 병렬로 조회
+            //   (v_employee_core 뷰는 조인이 많아 타임아웃이 잦아 사용 안 함)
+            const [leaveResult, latestUtilDateResult] = await Promise.all([
               supabase
                 .from("a_leave_info")
                 .select("EMPNO, SUM_TIME, RMN_TIME, BASE_YMD")
                 .in("EMPNO", teamEmpnos)
                 .order("BASE_YMD", { ascending: false }),
-              
-              // 활용률 정보 조회 - v_employee_core 뷰가 실패하면 a_utilization 테이블 직접 사용
-              (async () => {
-                // 먼저 v_employee_core 뷰 시도
-                const { data: coreData, error: coreError } = await supabase
-                  .from("v_employee_core")
-                  .select("EMPNO, EMPNM, CM_NM, UTIL_A, UTIL_B, BASE_YMD")
-                  .in("EMPNO", teamEmpnos)
-                
-                if (!coreError && coreData) {
-                  return { data: coreData, error: null }
-                }
-                
-                // v_employee_core가 실패하면 a_utilization 테이블 직접 사용
-                if (coreError?.code === '57014' || coreError?.message?.includes('statement timeout')) {
-                  console.warn('⚠️ v_employee_core 뷰 타임아웃 - a_utilization 테이블 직접 조회 시도:', coreError.message)
-                } else {
-                console.log('⚠️ v_employee_core 뷰 조회 실패, a_utilization 테이블 직접 조회 시도:', coreError)
-                }
-                
-                // 최신 UTIL_DATE 찾기
-                const { data: latestUtilDate } = await supabase
-                  .from("a_utilization")
-                  .select("UTIL_DATE")
-                  .in("EMPNO", teamEmpnos)
-                  .order("UTIL_DATE", { ascending: false })
-                  .limit(1)
-                  .maybeSingle()
-                
-                const latestDate = latestUtilDate?.UTIL_DATE
-                
-                // a_utilization에서 활용률 데이터 조회
-                const { data: utilData, error: utilError } = latestDate
-                  ? await supabase
-                      .from("a_utilization")
-                      .select("EMPNO, UTIL_A, UTIL_B, UTIL_DATE")
-                      .in("EMPNO", teamEmpnos)
-                      .eq("UTIL_DATE", latestDate)
-                  : { data: null, error: { message: '최신 UTIL_DATE를 찾을 수 없습니다.' } }
-                
-                if (utilError || !utilData) {
-                  return { data: null, error: utilError || { message: '활용률 데이터를 찾을 수 없습니다.' } }
-                }
-                
-                // a_hr_master에서 EMPNM, CM_NM 가져오기
-                const { data: hrData } = await supabase
-                  .from("a_hr_master")
-                  .select("EMPNO, EMPNM, CM_NM")
-                  .in("EMPNO", teamEmpnos)
-                
-                const hrMap = new Map()
-                if (hrData) {
-                  hrData.forEach(hr => {
-                    hrMap.set(hr.EMPNO, { EMPNM: hr.EMPNM, CM_NM: hr.CM_NM })
-                  })
-                }
-                
-                // 데이터 병합
-                const mergedData = utilData.map(util => ({
-                  EMPNO: util.EMPNO,
-                  EMPNM: hrMap.get(util.EMPNO)?.EMPNM || util.EMPNO,
-                  CM_NM: hrMap.get(util.EMPNO)?.CM_NM || '',
-                  UTIL_A: util.UTIL_A,
-                  UTIL_B: util.UTIL_B,
-                  BASE_YMD: util.UTIL_DATE
-                }))
-                
-                return { data: mergedData, error: null }
-              })(),
-              
-              // 최신 활용률 날짜 조회
+
+              // 최신 UTIL_DATE — 인덱스가 있다면 매우 빠름 (전사 단일 스냅샷 날짜)
               supabase
                 .from("a_utilization")
                 .select("UTIL_DATE")
-                .in("EMPNO", teamEmpnos)
                 .order("UTIL_DATE", { ascending: false })
                 .limit(1)
+                .maybeSingle(),
             ])
-            
+
             const { data: leaveData, error: leaveError } = leaveResult
-            const { data: utilData, error: utilError } = utilizationResult
-            const { data: utilDateData } = utilDateResult
+            const latestUtilDateValue = latestUtilDateResult.data?.UTIL_DATE || null
+
+            // ⚡ Phase 2: 그 날짜의 팀원 활용률 행만 조회 (v_employee_core 우회)
+            let utilData: any[] | null = null
+            let utilError: any = null
+            if (latestUtilDateValue) {
+              const utilRes = await supabase
+                .from("a_utilization")
+                .select("EMPNO, UTIL_A, UTIL_B, UTIL_DATE")
+                .in("EMPNO", teamEmpnos)
+                .eq("UTIL_DATE", latestUtilDateValue)
+
+              utilError = utilRes.error
+              if (utilRes.data) {
+                // HR 정보는 refreshOffDataResult에서 재사용 (재조회 X)
+                const hrMap = new Map<string, { EMPNM: string; CM_NM: string }>()
+                refreshOffDataResult.forEach((hr: any) => {
+                  hrMap.set(hr.EMPNO, { EMPNM: hr.EMPNM, CM_NM: hr.CM_NM })
+                })
+                utilData = utilRes.data.map(u => ({
+                  EMPNO: u.EMPNO,
+                  EMPNM: hrMap.get(u.EMPNO)?.EMPNM || u.EMPNO,
+                  CM_NM: hrMap.get(u.EMPNO)?.CM_NM || '',
+                  UTIL_A: u.UTIL_A,
+                  UTIL_B: u.UTIL_B,
+                  BASE_YMD: u.UTIL_DATE,
+                }))
+              }
+            }
+
+            // 최신 날짜는 Phase 1에서 이미 확보 → utilDateData 호환 형태로 래핑
+            const utilDateData = latestUtilDateValue
+              ? [{ UTIL_DATE: latestUtilDateValue }]
+              : null
             
             if (leaveError) {
               // 타임아웃 에러인 경우 경고 로그만 출력하고 계속 진행 (빈 데이터로 처리)
@@ -740,72 +676,46 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
             console.log("⚠️ HR 데이터에 팀(CM_NM) 정보가 없습니다")
           }
           
-          // 2. 파트너 평가결과 조회 - 사번으로 조회 (정수형 변환 포함)
-          
-          // 먼저 DB에 어떤 사번들이 있는지 샘플 조회 (406 에러 방지를 위해 간단한 컬럼만)
-          const { data: samplePartners, error: sampleError } = await supabase
+          // 2. 파트너 평가결과 조회 - 사번 변형 일괄 .in() 조회 (정수형 + 문자열)
+          const partnerEmpnoVariations: (string | number)[] = Array.from(new Set([
+            parseInt(targetEmpno),
+            parseInt(normalizedEmpno),
+            parseInt(fiveDigitEmpno),
+            targetEmpno,
+            normalizedEmpno,
+            fiveDigitEmpno,
+          ].filter((v: any) => v !== undefined && v !== null && !Number.isNaN(v))))
+
+          const { data: partnerRows, error: partnerError } = await supabase
             .from("evaluation_partner")
-            .select("사번, 성명")
-            .limit(10)
-          
-          if (sampleError) {
-            console.error(`❌ 샘플 파트너 조회 에러:`, sampleError)
+            .select(`
+              사번,
+              성명,
+              평가자,
+              응답수,
+              회신률,
+              소속,
+              직위,
+              "1",
+              "2",
+              "3",
+              "4",
+              합계,
+              평균,
+              등급,
+              "Comment 1",
+              "Comment 2"
+            `)
+            .in("사번", partnerEmpnoVariations)
+            .limit(1)
+
+          if (partnerError) {
+            console.error('❌ 파트너 평가결과 조회 실패:', partnerError)
+          } else if (partnerRows && partnerRows.length > 0) {
+            partnerData = partnerRows[0]
+            console.log(`✅ 파트너 평가결과 데이터 발견:`, partnerData)
           } else {
-            console.log(`📋 evaluation_partner 테이블 샘플 사번들:`, samplePartners?.map((p: any) => `${p.사번} (${p.성명})`))
-          }
-          
-          const empnoVariations = [
-            parseInt(targetEmpno),        // 정수 변환 (95129)
-            parseInt(normalizedEmpno),    // 정수 변환 (98095)
-            parseInt(fiveDigitEmpno),     // 정수 변환 (98095)
-            targetEmpno,                  // 문자열 원본
-            normalizedEmpno,              // 문자열 정규화
-            fiveDigitEmpno,               // 문자열 5자리
-          ]
-          
-          console.log(`🔍 파트너 평가결과 조회 - 시도할 사번들:`, empnoVariations)
-          
-          for (const empnoVar of empnoVariations) {
-            console.log(`🔍 파트너 평가결과 조회 시도 - 사번: ${empnoVar} (타입: ${typeof empnoVar})`)
-            
-            // 406 에러 방지: 필요한 컬럼만 명시적으로 선택
-            const { data, error } = await supabase
-              .from("evaluation_partner")
-              .select(`
-                사번,
-                성명,
-                평가자,
-                응답수,
-                회신률,
-                소속,
-                직위,
-                "1",
-                "2",
-                "3",
-                "4",
-                합계,
-                평균,
-                등급,
-                "Comment 1",
-                "Comment 2"
-              `)
-              .eq("사번", empnoVar)
-            
-            console.log(`  파트너 평가결과 조회 결과:`, { 
-              data: data, 
-              error: error,
-              count: data?.length 
-            })
-            
-            if (!error && data && data.length > 0) {
-              partnerData = data[0]
-              console.log(`✅ 파트너 평가결과 데이터 발견 (사번: ${empnoVar}):`, partnerData)
-              break
-            }
-          }
-          
-          if (!partnerData) {
-            console.log(`ℹ️ 파트너 평가결과 데이터 없음 - 조회한 사번:`, empnoVariations)
+            console.log(`ℹ️ 파트너 평가결과 데이터 없음 - 조회한 사번:`, partnerEmpnoVariations)
           }
           
           setEvaluationData({
@@ -964,13 +874,37 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
     return { rate, actual, target }
   }
 
-  const gpsAchievement = getGpsAchievement()
-  const peiAchievement = getPeiAchievement()
-  const refreshOffAchievement = getRefreshOffAchievement()
-  const coachingTimeAchievement = getCoachingTimeAchievement()
+  // 매 렌더마다 재계산되던 파생값들을 의존성 기반 메모이즈
+  const gpsAchievement = useMemo(() => getGpsAchievement(), [gpsScore, goalData.gpsTarget])
+  const peiAchievement = useMemo(() => getPeiAchievement(), [peiScore, goalData.peiTarget])
+  const refreshOffAchievement = useMemo(() => getRefreshOffAchievement(), [refreshOffData.usageRate, goalData.refreshOffTarget])
+  const coachingTimeAchievement = useMemo(() => getCoachingTimeAchievement(), [coachingTimeData.yearHours, goalData.coachingTimeTarget])
 
-  // 팀 전체 코칭 시간 계산
-  const totalTeamCoachingHours = teamCoachingData.reduce((sum, member) => sum + member.totalCoachingHours, 0)
+  // 팀 전체 코칭 시간 계산 (배열 변할 때만)
+  const totalTeamCoachingHours = useMemo(
+    () => teamCoachingData.reduce((sum, member) => sum + member.totalCoachingHours, 0),
+    [teamCoachingData]
+  )
+
+  // 평가팀 전체 평균 (allTeamData.filter().reduce() 매 렌더 방지)
+  const allTeamAverage = useMemo(() => {
+    const list = (evaluationData.allTeamData || []).filter((t: any) => t.구분 !== '공통')
+    if (list.length === 0) return null
+    const sum = list.reduce((s: number, t: any) => s + (parseFloat(t.평균) || 0), 0)
+    return sum / list.length
+  }, [evaluationData.allTeamData])
+
+  // 팀 파트너 평균
+  const teamPartnersAverage = useMemo(() => {
+    if (teamPartners.length === 0) return null
+    return teamPartners.reduce((s, p) => s + (parseFloat(p.평균) || 0), 0) / teamPartners.length
+  }, [teamPartners])
+
+  // 전체 파트너 평균
+  const allPartnersAverage = useMemo(() => {
+    if (allPartners.length === 0) return null
+    return allPartners.reduce((s, p) => s + (parseFloat(p.평균) || 0), 0) / allPartners.length
+  }, [allPartners])
 
   // 팀원 상세 정보 다이얼로그 컴포넌트
   const TeamCoachingDetailDialog = () => (
@@ -1866,11 +1800,11 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                         {evaluationData.teamData.평균}
                       </div>
                     </div>
-                    {evaluationData.allTeamData && evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length > 0 && (
+                    {allTeamAverage !== null && (
                       <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
                         <div className="text-sm text-green-700 dark:text-green-300 mb-1">전체 평균</div>
                         <div className="text-3xl font-bold text-green-900 dark:text-green-100">
-                          {(evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').reduce((sum: number, team: any) => sum + (parseFloat(team.평균) || 0), 0) / evaluationData.allTeamData.filter((t: any) => t.구분 !== '공통').length).toFixed(1)}
+                          {allTeamAverage.toFixed(1)}
                         </div>
                       </div>
                     )}
@@ -1948,7 +1882,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                   <>
                     <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {(teamPartners.reduce((sum, p) => sum + (parseFloat(p.평균) || 0), 0) / teamPartners.length).toFixed(1)}
+                        {(teamPartnersAverage ?? 0).toFixed(1)}
                       </div>
                       <div className="text-sm text-blue-600 dark:text-blue-400">팀 평균 점수 ({teamPartners.length}명)</div>
                     </div>
@@ -2043,7 +1977,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
                   <>
                     <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        {(allPartners.reduce((sum, p) => sum + (parseFloat(p.평균) || 0), 0) / allPartners.length).toFixed(1)}
+                        {(allPartnersAverage ?? 0).toFixed(1)}
                       </div>
                       <div className="text-sm text-green-600 dark:text-green-400">전체 평균 점수 ({allPartners.length}명)</div>
                     </div>

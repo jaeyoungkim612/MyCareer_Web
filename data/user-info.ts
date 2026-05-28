@@ -250,6 +250,64 @@ export class UserInfoMapper {
     return this.userInfo !== null
   }
 
+  // 여러 사번에 대한 HR 마스터 + 사진을 한 번에 배치 로딩
+  // (팀원/전직원 목록 부트 시 캐시 워밍업용)
+  static async loadHrBatch(
+    empnos: string[]
+  ): Promise<Map<string, UserMasterInfo>> {
+    const result = new Map<string, UserMasterInfo>()
+    if (!empnos || empnos.length === 0) return result
+
+    const { ReviewerService } = await import("../lib/reviewer-service")
+
+    // 정규화 + 원본 사번 모두 포함
+    const variantSet = new Set<string>()
+    const variantToOriginal = new Map<string, string>()
+    for (const orig of empnos) {
+      const norm = ReviewerService.normalizeEmpno(orig)
+      const stripped = String(orig).replace(/^0+/, '')
+      variantSet.add(norm); variantToOriginal.set(norm, orig)
+      if (stripped) { variantSet.add(stripped); variantToOriginal.set(stripped, orig) }
+    }
+    const variantList = Array.from(variantSet).filter(Boolean)
+
+    // 한 번에 a_hr_master + employee_photos 배치 조회
+    const [hrRes, photoRes] = await Promise.all([
+      supabase.from("a_hr_master")
+        .select("EMPNO, EMPNM, ORG_NM, JOB_INFO_NM, GRADNM, CM_NM, PWC_ID")
+        .in("EMPNO", variantList),
+      supabase.from("employee_photos")
+        .select("empno, photo_url")
+        .in("empno", variantList),
+    ])
+
+    const photoMap = new Map<string, string>()
+    photoRes.data?.forEach(p => {
+      if (p.photo_url) photoMap.set(String(p.empno), p.photo_url)
+    })
+
+    hrRes.data?.forEach(row => {
+      const original = variantToOriginal.get(String(row.EMPNO)) ?? String(row.EMPNO)
+      const photoUrl =
+        photoMap.get(String(row.EMPNO)) ||
+        photoMap.get(ReviewerService.normalizeEmpno(original)) ||
+        photoMap.get(String(original).replace(/^0+/, ''))
+
+      result.set(original, {
+        empno: row.EMPNO,
+        empnm: row.EMPNM,
+        pwc_id: row.PWC_ID || '',
+        org_nm: row.ORG_NM,
+        job_info_nm: row.JOB_INFO_NM,
+        gradnm: row.GRADNM,
+        cm_nm: row.CM_NM,
+        photo_url: photoUrl,
+      })
+    })
+
+    return result
+  }
+
   // 기본 정보만 가져오기
   static getBasicInfo() {
     if (!this.userInfo) return null

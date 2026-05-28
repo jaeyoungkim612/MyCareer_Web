@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { FileText, BarChart3, ArrowUp, ArrowDown, DollarSign, PieChartIcon, ChevronDown, ChevronUp, Eye } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import type { HrMasterDashboardRow } from "@/data/hr-master-dashboard"
 import { supabase } from "@/lib/supabase"
 import { AuthService } from "@/lib/auth-service"
@@ -234,75 +234,41 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       try {
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
-        
-        // 최신 Update기준월 조회
-        const { data: latestMonthData } = await supabase
-          .from('L_BD_Table_Detail')
-          .select('Update기준월')
-          .not('Update기준월', 'is', null)
-          .order('Update기준월', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        
-        const latestMonth = latestMonthData ? (latestMonthData as any)['Update기준월'] : null
-        
-        // 사번 변형 목록 생성
+
+        // 사번 변형 목록 (정규화 + 원본)
         const empnoVariants = [normalizedEmpno]
         if (normalizedEmpno.startsWith('0')) {
           empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
         } else {
           empnoVariants.push(`0${normalizedEmpno}`)
         }
-        
-        // BD 데이터 조회 (전체 기간)
-        let bdQuery = supabase
-          .from('L_BD_Table_Detail')
-          .select('*')
-          .in('사번', empnoVariants)
-          .order('Update기준월', { ascending: false })
-        
-        const { data: bdData } = await bdQuery
-        
-        if (bdData && bdData.length > 0) {
-          // 감사/비감사 금액 및 건수 집계
-          let myAuditAmount = 0
-          let myNonAuditAmount = 0
-          let myAuditCount = 0
-          let myNonAuditCount = 0
-          
-          bdData.forEach(item => {
-            const auditType = item['Audit/Non-Audit']
-            const amount = parseFloat(String(item['Amount'] || 0)) / 1_000 // 천원 단위를 백만원 단위로 변환
-            
-            if (auditType === '감사') {
-              myAuditAmount += amount
-              myAuditCount += 1
-            } else if (auditType === '비감사') {
-              myNonAuditAmount += amount
-              myNonAuditCount += 1
-            }
-          })
-          
-          console.log('📊 BD 실제 데이터 집계 (전체 기간):', {
-            myAuditAmount,
-            myNonAuditAmount,
-            myAuditCount,
-            myNonAuditCount,
-            totalRecords: bdData.length
-          })
-          
-          setBdActualData({
-            myAuditAmount,
-            myNonAuditAmount,
-            myAuditCount,
-            myNonAuditCount
-          })
+
+        // 서버 집계 RPC 호출 (감사/비감사 × 금액/건수)
+        const { data, error } = await supabase.rpc('get_bd_aggregate_by_person', {
+          p_empno_list: empnoVariants,
+        })
+
+        if (error) {
+          console.error('❌ get_bd_aggregate_by_person 실패:', error)
+          return
         }
+
+        const row = (data || [])[0]
+        if (!row) return
+
+        setBdActualData({
+          myAuditAmount: Number(row.audit_amount) || 0,
+          myNonAuditAmount: Number(row.non_audit_amount) || 0,
+          myAuditCount: Number(row.audit_count) || 0,
+          myNonAuditCount: Number(row.non_audit_count) || 0,
+        })
+
+        console.log('📊 BD 집계 (서버 RPC):', row)
       } catch (error) {
         console.error('❌ BD 실제 데이터 조회 실패:', error)
       }
     }
-    
+
     fetchBdActualData()
   }, [currentEmployeeId])
 
@@ -314,287 +280,58 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       try {
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
-        
-        // 사번 변형 목록 생성 (정규화된 사번 + 원본 사번)
+
         const empnoVariants = [normalizedEmpno]
         if (normalizedEmpno.startsWith('0')) {
           empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
         } else {
           empnoVariants.push(`0${normalizedEmpno}`)
         }
-        
-        console.log(`🔍 BPR 조회용 사번 변형:`, empnoVariants)
-        
-        // 1. a_hr_master에서 현재 사용자의 본부(CM_NM) 조회
+
+        // 사용자 본부(CM_NM) 조회
         const { data: userHrData, error: userHrError } = await supabase
           .from('a_hr_master')
           .select('CM_NM')
           .in('EMPNO', empnoVariants)
           .limit(1)
           .maybeSingle()
-        
-        if (userHrError || !userHrData) {
-          console.error('❌ 사용자 본부 정보 조회 에러 (a_hr_master):', userHrError)
+
+        if (userHrError || !userHrData?.CM_NM) {
+          console.error('❌ 사용자 본부 정보 조회 실패:', userHrError)
           return
         }
-        
+
         const userDeptName = userHrData.CM_NM
-        console.log(`🏢 사용자 본부 (a_hr_master): ${userDeptName}`)
-        
-        if (!userDeptName) {
-          console.warn('⚠️ 사용자의 본부 정보가 없습니다.')
-          return
-        }
-        
-        // 2. 최신 CDM_REPORT_DATE 조회 (원본 테이블 사용)
-        const { data: latestDateData, error: dateError } = await supabase
-          .from('BPR_fact')
-          .select('CDM_REPORT_DATE')
-          .not('CDM_REPORT_DATE', 'is', null)
-          .order('CDM_REPORT_DATE', { ascending: false })
-          .limit(1)
-          .single()
-        
-        if (dateError) {
-          console.error('❌ 최신 CDM_REPORT_DATE 조회 에러:', dateError)
-        }
-        
-        const latestDate = latestDateData?.CDM_REPORT_DATE
-        console.log('📅 최신 CDM_REPORT_DATE:', latestDate)
-        
-        if (!latestDate) {
-          console.warn('⚠️ CDM_REPORT_DATE가 없습니다.')
-          return
-        }
-        
-        // 3. BPR 원본 테이블에서 프로젝트 본부(PRJT_CMOFNM)가 사용자 본부와 같은 데이터 조회
-        // Supabase 기본 limit(1000)을 피하기 위해 pagination으로 모든 데이터 가져오기
-        let allBprData: any[] = []
-        let page = 0
-        const pageSize = 1000
-        let totalCount = 0
-        
-        while (true) {
-          const { data, error, count } = await supabase
-            .from('BPR_fact')
-            .select('*', { count: 'exact' })
-            .ilike('PRJT_CMOFNM', `${userDeptName}%`)
-            .eq('CDM_REPORT_DATE', latestDate)
-            .not('CDM_SOURCE', 'is', null)
-            .range(page * pageSize, (page + 1) * pageSize - 1)
-          
-          if (error) {
-            console.error(`❌ BPR 데이터 조회 에러 (page ${page}):`, error)
-            break
-          }
-          
-          if (page === 0 && count) {
-            totalCount = count
-          }
-          
-          if (!data || data.length === 0) break
-          
-          allBprData = allBprData.concat(data)
-          
-          if (data.length < pageSize) break
-          page++
-          
-          // 안전장치: 최대 20 페이지 (20,000건)
-          if (page >= 20) {
-            console.warn('⚠️ 최대 페이지 수 도달 (20페이지)')
-            break
-          }
-        }
-        
-        // 중복 제거 (고유 ID 기준)
-        const uniqueBprData = Array.from(
-          new Map(allBprData.map(item => [item.ID || JSON.stringify(item), item])).values()
-        )
-        
-        if (uniqueBprData.length !== allBprData.length) {
-          console.warn(`⚠️ 중복 데이터 발견! ${allBprData.length}건 → ${uniqueBprData.length}건 (${allBprData.length - uniqueBprData.length}건 중복 제거)`)
-        }
-        
-        const bprData = uniqueBprData
-        const bprError = null
-        const count = totalCount
-        
-        if (bprError) {
-          console.error('❌ BPR 데이터 조회 에러:', bprError)
-          return
-        }
-        
-        // 조회 조건 확인
-        console.log(`🔍 조회 조건 확인:`)
-        console.log(`  - PRJT_CMOFNM: "${userDeptName}"`)
-        console.log(`  - CDM_REPORT_DATE: "${latestDate}"`)
-        
-        // 날짜 분포 확인
-        const dateDistribution = new Map<string, number>()
-        bprData?.forEach(d => {
-          const date = String(d.CDM_REPORT_DATE || 'null')
-          dateDistribution.set(date, (dateDistribution.get(date) || 0) + 1)
+
+        // 서버 집계 RPC (BPR_fact 전체 fetch + JS forEach 제거)
+        const { data, error } = await supabase.rpc('get_bpr_aggregate_by_dept', {
+          p_dept_prefix: userDeptName,
+          p_report_date: null, // 자동으로 최신 CDM_REPORT_DATE 사용
         })
-        console.log(`📅 조회된 데이터의 날짜 분포:`, Object.fromEntries(dateDistribution))
-        
-        // 기본 통계
-        console.log(`📊 BPR 데이터 조회: ${bprData?.length || 0}건 | F-link: ${bprData?.filter(d => String(d.CDM_SOURCE || '').trim() === 'F-link').length || 0}개 | Salesforce: ${bprData?.filter(d => String(d.CDM_SOURCE || '').trim() === 'Salesforce').length || 0}개`)
-        
-        if (!bprData || bprData.length === 0) {
-          console.warn('⚠️ BPR 데이터가 없습니다.')
+
+        if (error) {
+          console.error('❌ get_bpr_aggregate_by_dept 실패:', error)
           return
         }
-        
-        // 샘플 데이터 상세 출력 (금액 있는 것만 5개씩)
-        if (bprData.length > 0) {
-          // Salesforce: 금액 있는 것만 5개
-          const salesforceWithAmount = bprData.filter(d => {
-            const source = String(d.CDM_SOURCE || '').trim()
-            if (source !== 'Salesforce') return false
-            const q1 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q1 || 0))
-            const q2 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q2 || 0))
-            const q3 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q3 || 0))
-            const q4 = parseFloat(String(d.CDM_REVENUE_TOTAL_Q4 || 0))
-            return (q1 + q2 + q3 + q4) > 0
-          }).slice(0, 5)
-          
-          if (salesforceWithAmount.length > 0) {
-            console.log('📊 Salesforce 샘플 (금액 있는 것 5개):')
-            salesforceWithAmount.forEach((item, idx) => {
-              const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
-              const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
-              const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
-              const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
-              console.log(`  [${idx + 1}] ${item.CDM_PROJECT_NAME} - Stage: ${item.CDM_STAGE}, Q합계: ${((q1+q2+q3+q4)/1_000_000).toFixed(2)}백만`)
-            })
-          }
-          
-          // F-link: 슬래시 없고 금액 있는 것만 5개
-          const flinkWithAmount = bprData.filter(d => {
-            const source = String(d.CDM_SOURCE || '').trim()
-            const stage = String(d.CDM_STAGE || '').trim()
-            if (source !== 'F-link') return false
-            if (stage.includes('/')) return false  // 슬래시 제외
-            const amount = parseFloat(String(d.CDM_REVENUE_TOTAL || 0))
-            return amount > 0
-          }).slice(0, 5)
-          
-          if (flinkWithAmount.length > 0) {
-            console.log('🔗 F-link 샘플 (슬래시 없고 금액 있는 것 5개):')
-            flinkWithAmount.forEach((item, idx) => {
-              const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
-              console.log(`  [${idx + 1}] ${item.CDM_PROJECT_NAME} - Stage: ${item.CDM_STAGE}, 금액: ${amount.toFixed(2)}백만`)
-            })
-          } else {
-            console.log('🔗 F-link (슬래시 없고 금액 있는 것): 없음')
-          }
-        }
-        
-        // 4. 데이터 집계
-        let auditRevenue = 0
-        let nonAuditRevenue = 0
-        let auditBacklog = 0
-        let nonAuditBacklog = 0
-        let auditPipeline = 0
-        let nonAuditPipeline = 0
-        
-        // 디버깅용: CDM_SOURCE와 CDM_STAGE 값 확인
-        const sourceStageMap = new Map<string, number>()
-        
-        bprData.forEach(item => {
-          const auditTypeRaw = String(item['감사 구분'] || '')
-          // '감사' 글자 있으면 감사, 나머지는 모두 비감사
-          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
-          
-          const cdmSource = String(item.CDM_SOURCE || '').trim()
-          const cdmStage = String(item.CDM_STAGE || '').trim()
-          
-          // 디버깅: Source와 Stage 조합 카운트
-          const key = `${cdmSource}|${cdmStage}`
-          sourceStageMap.set(key, (sourceStageMap.get(key) || 0) + 1)
-          
-          // Revenue: CDM_SOURCE = 'F-link', CDM_STAGE = 'Realized' (슬래시 없는 것만!)
-          // F-link는 CDM_REVENUE_TOTAL 사용!
-          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
-            const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0))
-            const amount = revenueTotal / 1_000_000 // 원단위 → 백만원
-            if (isAudit) {
-              auditRevenue += amount
-            } else {
-              nonAuditRevenue += amount
-            }
-          }
-          
-          // Backlog: CDM_SOURCE = 'F-link', CDM_STAGE = 'Backlog' (슬래시 없는 것만!)
-          // 분기별 월 데이터 합산 (M1~M12 → Q1~Q4)
-          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
-            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
-            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
-            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
-            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
-            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
-            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
-            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
-            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
-            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
-            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
-            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
-            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
-            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000 // 원단위 → 백만원
-            if (isAudit) {
-              auditBacklog += amount
-            } else {
-              nonAuditBacklog += amount
-            }
-          }
-          
-          // Pipeline: CDM_SOURCE = 'Salesforce', Q1+Q2+Q3+Q4 합계
-          if (cdmSource === 'Salesforce') {
-            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
-            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
-            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
-            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
-            const amount = (q1 + q2 + q3 + q4) / 1_000_000 // 원단위 → 백만원
-            
-            if (isAudit) {
-              auditPipeline += amount
-            } else {
-              nonAuditPipeline += amount
-            }
-          }
-        })
-        
-        // F-link 통계 (간소화)
-        const flinkData = bprData?.filter(d => String(d.CDM_SOURCE).trim() === 'F-link') || []
-        const flinkBacklogNoSlash = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Backlog' && !String(d.CDM_STAGE || '').includes('/')).length
-        const flinkRealizedNoSlash = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Realized' && !String(d.CDM_STAGE || '').includes('/')).length
-        const flinkBacklogWithAmount = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Backlog' && !String(d.CDM_STAGE || '').includes('/') && parseFloat(String(d.CDM_REVENUE_TOTAL || 0)) > 0).length
-        const flinkRealizedWithAmount = flinkData.filter(d => String(d.CDM_STAGE || '') === 'Realized' && !String(d.CDM_STAGE || '').includes('/') && parseFloat(String(d.CDM_REVENUE_TOTAL || 0)) > 0).length
-        
-        console.log(`🔗 F-link 통계: Backlog ${flinkBacklogNoSlash}개 (금액↑ ${flinkBacklogWithAmount}) | Realized ${flinkRealizedNoSlash}개 (금액↑ ${flinkRealizedWithAmount})`)
-        
-        console.log('📊 Team BPR 데이터 집계 결과:')
-        console.log(`  ✅ 감사 Revenue: ${auditRevenue.toFixed(2)} 백만원`)
-        console.log(`  ✅ 비감사 Revenue: ${nonAuditRevenue.toFixed(2)} 백만원`)
-        console.log(`  ✅ 감사 Backlog: ${auditBacklog.toFixed(2)} 백만원`)
-        console.log(`  ✅ 비감사 Backlog: ${nonAuditBacklog.toFixed(2)} 백만원`)
-        console.log(`  ✅ 감사 Pipeline: ${auditPipeline.toFixed(2)} 백만원`)
-        console.log(`  ✅ 비감사 Pipeline: ${nonAuditPipeline.toFixed(2)} 백만원`)
-        console.log(`  📅 최신 날짜: ${latestDate}`)
-        
+
+        const row = (data || [])[0]
+        if (!row) return
+
         setTeamBprData({
-          auditRevenue,
-          nonAuditRevenue,
-          auditBacklog,
-          nonAuditBacklog,
-          auditPipeline,
-          nonAuditPipeline
+          auditRevenue: Number(row.audit_revenue) || 0,
+          nonAuditRevenue: Number(row.non_audit_revenue) || 0,
+          auditBacklog: Number(row.audit_backlog) || 0,
+          nonAuditBacklog: Number(row.non_audit_backlog) || 0,
+          auditPipeline: Number(row.audit_pipeline) || 0,
+          nonAuditPipeline: Number(row.non_audit_pipeline) || 0,
         })
+
+        console.log(`📊 Team BPR 집계 (서버 RPC, 본부=${userDeptName}):`, row)
       } catch (error) {
         console.error('❌ Team BPR 데이터 조회 실패:', error)
       }
     }
-    
+
     fetchTeamBprData()
   }, [currentEmployeeId])
 
@@ -606,158 +343,43 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
       try {
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(currentEmployeeId)
-        
-        // 사번 변형 목록 생성
+
         const empnoVariants = [normalizedEmpno]
         if (normalizedEmpno.startsWith('0')) {
           empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
         } else {
           empnoVariants.push(`0${normalizedEmpno}`)
         }
-        
-        console.log(`🔍 My BPR 조회용 사번 변형:`, empnoVariants)
-        
-        // 최신 CDM_REPORT_DATE 조회
-        const { data: latestDateData } = await supabase
-          .from('BPR_fact')
-          .select('CDM_REPORT_DATE')
-          .not('CDM_REPORT_DATE', 'is', null)
-          .order('CDM_REPORT_DATE', { ascending: false })
-          .limit(1)
-          .single()
-        
-        const latestDate = latestDateData?.CDM_REPORT_DATE
-        console.log('📅 My BPR 최신 CDM_REPORT_DATE:', latestDate)
-        
-        if (!latestDate) {
-          console.warn('⚠️ My BPR CDM_REPORT_DATE가 없습니다.')
+
+        // 서버 집계 RPC (BPR_fact 전체 fetch + JS forEach 제거)
+        const { data, error } = await supabase.rpc('get_bpr_aggregate_by_person', {
+          p_empno_list: empnoVariants,
+          p_report_date: null,
+        })
+
+        if (error) {
+          console.error('❌ get_bpr_aggregate_by_person 실패:', error)
           return
         }
-        
-        // BPR 데이터 조회 (Pagination)
-        let allMyBprData: any[] = []
-        let page = 0
-        const pageSize = 1000
-        
-        while (true) {
-          const { data, error } = await supabase
-            .from('BPR_fact')
-            .select('*')
-            .in('CDM_PERSON_ID', empnoVariants)
-            .eq('CDM_REPORT_DATE', latestDate)
-            .not('CDM_SOURCE', 'is', null)
-            .range(page * pageSize, (page + 1) * pageSize - 1)
-          
-          if (error) {
-            console.error(`❌ My BPR 데이터 조회 에러 (page ${page}):`, error)
-            break
-          }
-          
-          if (!data || data.length === 0) break
-          
-          allMyBprData = allMyBprData.concat(data)
-          
-          if (data.length < pageSize) break
-          page++
-          
-          if (page >= 20) {
-            console.warn('⚠️ My BPR 최대 페이지 수 도달 (20페이지)')
-            break
-          }
-        }
-        
-        // 중복 제거
-        const uniqueMyBprData = Array.from(
-          new Map(allMyBprData.map(item => [item.ID || JSON.stringify(item), item])).values()
-        )
-        
-        console.log(`📊 My BPR 데이터 조회: ${uniqueMyBprData.length}건`)
-        
-        // 데이터 집계
-        let myAuditRevenue = 0
-        let myNonAuditRevenue = 0
-        let myAuditBacklog = 0
-        let myNonAuditBacklog = 0
-        let myAuditPipeline = 0
-        let myNonAuditPipeline = 0
-        
-        uniqueMyBprData.forEach(item => {
-          const auditTypeRaw = String(item['감사 구분'] || '')
-          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
-          
-          const cdmSource = String(item.CDM_SOURCE || '').trim()
-          const cdmStage = String(item.CDM_STAGE || '').trim()
-          
-          // Revenue: F-link + Realized (슬래시 제외)
-          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
-            const revenueTotal = parseFloat(String(item.CDM_REVENUE_TOTAL || 0))
-            const amount = revenueTotal / 1_000_000
-            if (isAudit) {
-              myAuditRevenue += amount
-            } else {
-              myNonAuditRevenue += amount
-            }
-          }
-          
-          // Backlog: F-link + Backlog (슬래시 제외, 분기별 월 데이터 합산)
-          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
-            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
-            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
-            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
-            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
-            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
-            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
-            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
-            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
-            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
-            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
-            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
-            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
-            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
-            if (isAudit) {
-              myAuditBacklog += amount
-            } else {
-              myNonAuditBacklog += amount
-            }
-          }
-          
-          // Pipeline: Salesforce + Q1~Q4 합계
-          if (cdmSource === 'Salesforce') {
-            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
-            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
-            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
-            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
-            const amount = (q1 + q2 + q3 + q4) / 1_000_000
-            
-            if (isAudit) {
-              myAuditPipeline += amount
-            } else {
-              myNonAuditPipeline += amount
-            }
-          }
-        })
-        
-        console.log('📊 My BPR 데이터 집계 결과:')
-        console.log(`  ✅ 감사 Revenue: ${myAuditRevenue.toFixed(2)} 백만원`)
-        console.log(`  ✅ 비감사 Revenue: ${myNonAuditRevenue.toFixed(2)} 백만원`)
-        console.log(`  ✅ 감사 Backlog: ${myAuditBacklog.toFixed(2)} 백만원`)
-        console.log(`  ✅ 비감사 Backlog: ${myNonAuditBacklog.toFixed(2)} 백만원`)
-        console.log(`  ✅ 감사 Pipeline: ${myAuditPipeline.toFixed(2)} 백만원`)
-        console.log(`  ✅ 비감사 Pipeline: ${myNonAuditPipeline.toFixed(2)} 백만원`)
-        
+
+        const row = (data || [])[0]
+        if (!row) return
+
         setMyBprData({
-          auditRevenue: myAuditRevenue,
-          nonAuditRevenue: myNonAuditRevenue,
-          auditBacklog: myAuditBacklog,
-          nonAuditBacklog: myNonAuditBacklog,
-          auditPipeline: myAuditPipeline,
-          nonAuditPipeline: myNonAuditPipeline
+          auditRevenue: Number(row.audit_revenue) || 0,
+          nonAuditRevenue: Number(row.non_audit_revenue) || 0,
+          auditBacklog: Number(row.audit_backlog) || 0,
+          nonAuditBacklog: Number(row.non_audit_backlog) || 0,
+          auditPipeline: Number(row.audit_pipeline) || 0,
+          nonAuditPipeline: Number(row.non_audit_pipeline) || 0,
         })
+
+        console.log('📊 My BPR 집계 (서버 RPC):', row)
       } catch (error) {
         console.error('❌ My BPR 데이터 조회 실패:', error)
       }
     }
-    
+
     fetchMyBprData()
   }, [currentEmployeeId])
 
@@ -891,6 +513,17 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     const [latestUpdateMonth, setLatestUpdateMonth] = useState<string>('')
     const [loadingDetails, setLoadingDetails] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
+
+    // 합계 캐시 (매 렌더마다 .reduce() 재계산 방지)
+    const projectDetailsSums = useMemo(() => ({
+      revenue: projectDetails.revenue.reduce((sum, p) => sum + p.amount, 0),
+      backlog: projectDetails.backlog.reduce((sum, p) => sum + p.amount, 0),
+      pipeline: projectDetails.pipeline.reduce((sum, p) => sum + p.amount, 0),
+    }), [projectDetails])
+    const bdDetailsSum = useMemo(
+      () => bdDetails.reduce((sum, p) => sum + p.amount, 0),
+      [bdDetails]
+    )
 
     const percentage = (actual / budget) * 100
     const isExceeded = actual > budget
@@ -1704,7 +1337,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                             <div className="text-sm text-gray-600 mb-1">총 계약 금액</div>
                             <div className="text-lg font-bold text-orange-600">
                               {bdDetails.length > 0
-                                ? `${Math.ceil(bdDetails.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                ? `${Math.ceil(bdDetailsSum).toLocaleString('ko-KR')}백만원`
                                 : '0백만원'}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
@@ -1761,7 +1394,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                             <div className="text-sm text-gray-600 mb-1">Revenue 합계</div>
                             <div className="text-lg font-bold text-orange-600">
                               {projectDetails.revenue.length > 0
-                                ? `${Math.ceil(projectDetails.revenue.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                ? `${Math.ceil(projectDetailsSums.revenue).toLocaleString('ko-KR')}백만원`
                                 : '0백만원'}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
@@ -1772,7 +1405,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                             <div className="text-sm text-gray-600 mb-1">Backlog 합계</div>
                             <div className="text-lg font-bold text-emerald-600">
                               {projectDetails.backlog.length > 0
-                                ? `${Math.ceil(projectDetails.backlog.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                ? `${Math.ceil(projectDetailsSums.backlog).toLocaleString('ko-KR')}백만원`
                                 : '0백만원'}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
@@ -1783,7 +1416,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                             <div className="text-sm text-gray-600 mb-1">Pipeline 합계</div>
                             <div className="text-lg font-bold text-violet-600">
                               {projectDetails.pipeline.length > 0
-                                ? `${Math.ceil(projectDetails.pipeline.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                                ? `${Math.ceil(projectDetailsSums.pipeline).toLocaleString('ko-KR')}백만원`
                                 : '0백만원'}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
@@ -2128,6 +1761,13 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
     const [loadingDetails, setLoadingDetails] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
 
+    // 합계 캐시 (매 렌더마다 .reduce() 재계산 방지)
+    const projectDetailsSums = useMemo(() => ({
+      revenue: projectDetails.revenue.reduce((sum, p) => sum + p.amount, 0),
+      backlog: projectDetails.backlog.reduce((sum, p) => sum + p.amount, 0),
+      pipeline: projectDetails.pipeline.reduce((sum, p) => sum + p.amount, 0),
+    }), [projectDetails])
+
     const totalActual = auditActual + nonAuditActual
     const percentage = Math.round((totalActual / totalBudget) * 100)
     const auditPercentage = Math.round((auditActual / totalActual) * 100)
@@ -2424,7 +2064,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <div className="text-sm text-gray-600 mb-1">Revenue 합계</div>
                           <div className="text-lg font-bold text-orange-600">
                             {projectDetails.revenue.length > 0
-                              ? `${Math.ceil(projectDetails.revenue.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                              ? `${Math.ceil(projectDetailsSums.revenue).toLocaleString('ko-KR')}백만원`
                               : '0백만원'}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
@@ -2435,7 +2075,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <div className="text-sm text-gray-600 mb-1">Backlog 합계</div>
                           <div className="text-lg font-bold text-emerald-600">
                             {projectDetails.backlog.length > 0
-                              ? `${Math.ceil(projectDetails.backlog.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                              ? `${Math.ceil(projectDetailsSums.backlog).toLocaleString('ko-KR')}백만원`
                               : '0백만원'}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
@@ -2446,7 +2086,7 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                           <div className="text-sm text-gray-600 mb-1">Pipeline 합계</div>
                           <div className="text-lg font-bold text-violet-600">
                             {projectDetails.pipeline.length > 0
-                              ? `${Math.ceil(projectDetails.pipeline.reduce((sum, p) => sum + p.amount, 0)).toLocaleString('ko-KR')}백만원`
+                              ? `${Math.ceil(projectDetailsSums.pipeline).toLocaleString('ko-KR')}백만원`
                               : '0백만원'}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">

@@ -98,80 +98,72 @@ export default function Intro() {
     lastUpdated: string | null
   }
 
-  // 팀원들의 Plan과 Self Assessment 상태 로드
+  // RPC row → TeamMemberStatus 변환 헬퍼
+  const rpcRowToMemberStatus = (row: any, originalEmpno: string): TeamMemberStatus => ({
+    empno: originalEmpno,
+    planStatus: {
+      business: row.business_plan_status || null,
+      people: row.people_plan_status || null,
+      collaboration: row.collaboration_plan_status || null,
+      quality: row.quality_plan_status || null,
+      industry: row.industry_plan_status || null,
+    },
+    selfAssessmentStatus: {
+      business_mid: row.business_mid_status || null,
+      business_final: row.business_final_status || null,
+      people_mid: row.people_mid_status || null,
+      people_final: row.people_final_status || null,
+      collaboration_mid: row.collaboration_mid_status || null,
+      collaboration_final: row.collaboration_final_status || null,
+      quality_mid: row.quality_mid_status || null,
+      quality_final: row.quality_final_status || null,
+      industry_mid: row.industry_mid_status || null,
+      industry_final: row.industry_final_status || null,
+    },
+    lastUpdated: row.last_updated || null,
+  })
+
+  // 팀원들의 Plan과 Self Assessment 상태 로드 (RPC 1회 호출)
   const loadTeamPlanAssessmentStatus = async (reviewees: any[]) => {
-    console.log("🔍 Loading plan and assessment status for", reviewees.length, "team members")
+    console.log("🔍 Loading team status via RPC for", reviewees.length, "members")
     const statusMap = new Map<string, TeamMemberStatus>()
-    
-    for (const reviewee of reviewees) {
-      try {
-        const empno = reviewee.사번
-        // 사번 정규화 (95129 → 095129)
-        const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
-        console.log(`📋 Loading status for ${reviewee.성명} (${empno} → ${normalizedEmpno})`)
-        
-        // Plan Status 조회 (정규화된 사번 사용)
-        const [businessPlan, peoplePlan, collaborationPlan, qualityPlan, industryPlan] = await Promise.all([
-          supabase.from('business_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('people_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('collaborations').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('quality_non_audit_performance').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('industry_tl_planning').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
-        ])
 
-        // Self Assessment Status 조회 (정규화된 사번 사용)
-        const [businessMid, businessFinal, peopleMid, peopleFinal, collaborationMid, collaborationFinal, qualityMid, qualityFinal, industryMid, industryFinal] = await Promise.all([
-          supabase.from('business_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('business_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('people_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('people_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('collaboration_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('collaboration_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('quality_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('quality_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('industry_tl_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('industry_tl_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
-        ])
-
-        const memberStatus: TeamMemberStatus = {
-          empno,
-          planStatus: {
-            business: businessPlan.data?.status || null,
-            people: peoplePlan.data?.status || null,
-            collaboration: collaborationPlan.data?.status || null,
-            quality: qualityPlan.data?.status || null,
-            industry: industryPlan.data?.status || null
-          },
-          selfAssessmentStatus: {
-            business_mid: businessMid.data?.status || null,
-            business_final: businessFinal.data?.status || null,
-            people_mid: peopleMid.data?.status || null,
-            people_final: peopleFinal.data?.status || null,
-            collaboration_mid: collaborationMid.data?.status || null,
-            collaboration_final: collaborationFinal.data?.status || null,
-            quality_mid: qualityMid.data?.status || null,
-            quality_final: qualityFinal.data?.status || null,
-            industry_mid: industryMid.data?.status || null,
-            industry_final: industryFinal.data?.status || null
-          },
-          lastUpdated: [
-            businessPlan.data?.updated_at,
-            peoplePlan.data?.updated_at,
-            collaborationPlan.data?.updated_at,
-            qualityPlan.data?.updated_at,
-            industryPlan.data?.updated_at
-          ].filter(Boolean).sort().reverse()[0] || null
-        }
-
-        statusMap.set(empno, memberStatus)
-        console.log(`✅ Status loaded for ${reviewee.성명}`)
-      } catch (error) {
-        console.log(`ℹ️ Status not available for ${reviewee.성명}:`, error)
-      }
+    if (reviewees.length === 0) {
+      setTeamPlanAssessmentStatus(statusMap)
+      return
     }
-    
-    setTeamPlanAssessmentStatus(statusMap)
-    console.log("✅ Team plan and assessment status loaded:", statusMap.size, "of", reviewees.length, "members")
+
+    try {
+      const empnoIndex = new Map<string, string>() // normalized → original
+      const empnoList: string[] = []
+      for (const r of reviewees) {
+        const original = r.사번
+        const normalized = ReviewerService.normalizeEmpno(original)
+        empnoIndex.set(normalized, original)
+        empnoList.push(normalized)
+      }
+
+      const { data, error } = await supabase.rpc('get_team_assessment_status', {
+        p_empno_list: empnoList,
+      })
+
+      if (error) {
+        console.error("❌ get_team_assessment_status RPC failed:", error)
+        setTeamPlanAssessmentStatus(statusMap)
+        return
+      }
+
+      for (const row of (data || [])) {
+        const original = empnoIndex.get(row.empno) ?? row.empno
+        statusMap.set(original, rpcRowToMemberStatus(row, original))
+      }
+
+      setTeamPlanAssessmentStatus(statusMap)
+      console.log(`✅ Team status loaded via RPC: ${statusMap.size} of ${reviewees.length} members`)
+    } catch (error) {
+      console.error("❌ loadTeamPlanAssessmentStatus error:", error)
+      setTeamPlanAssessmentStatus(statusMap)
+    }
   }
 
   // 🚀 개별 직원 정보 로딩 (지연 로딩용)
@@ -247,78 +239,32 @@ export default function Intro() {
     }
   }
 
-  // 🚀 개별 직원 평가 상태 로딩 (지연 로딩용)
+  // 🚀 개별 직원 평가 상태 로딩 (지연 로딩용) - RPC 1회 호출
   const loadIndividualMemberStatus = async (empno: string, name: string): Promise<TeamMemberStatus | null> => {
     try {
-      // 사번 정규화 (95129 → 095129)
-      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
-      console.log(`📋 Loading individual status for ${name} (${empno} → ${normalizedEmpno})`)
-      
       // 이미 캐시에 있으면 반환
       if (teamPlanAssessmentStatus.has(empno)) {
-        console.log(`✅ Using cached status for ${name}`)
         return teamPlanAssessmentStatus.get(empno) || null
       }
 
-      // Plan Status 조회 (정규화된 사번 사용)
-      const [businessPlan, peoplePlan, collaborationPlan, qualityPlan, industryPlan] = await Promise.all([
-        supabase.from('business_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('people_goals').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('collaborations').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('quality_non_audit_performance').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('industry_tl_planning').select('status, updated_at').eq('employee_id', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
-      ])
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      const { data, error } = await supabase.rpc('get_team_assessment_status', {
+        p_empno_list: [normalizedEmpno],
+      })
 
-      // Self Assessment Status 조회 (정규화된 사번 사용)
-      const [businessMid, businessFinal, peopleMid, peopleFinal, collaborationMid, collaborationFinal, qualityMid, qualityFinal, industryMid, industryFinal] = await Promise.all([
-        supabase.from('business_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('business_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('people_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('people_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('collaboration_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('collaboration_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('quality_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('quality_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('industry_tl_mid_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('industry_tl_final_assessments').select('status, updated_at').eq('empno', normalizedEmpno).order('created_at', { ascending: false }).limit(1).maybeSingle()
-      ])
-
-      const memberStatus: TeamMemberStatus = {
-        empno,
-        planStatus: {
-          business: businessPlan.data?.status || null,
-          people: peoplePlan.data?.status || null,
-          collaboration: collaborationPlan.data?.status || null,
-          quality: qualityPlan.data?.status || null,
-          industry: industryPlan.data?.status || null
-        },
-        selfAssessmentStatus: {
-          business_mid: businessMid.data?.status || null,
-          business_final: businessFinal.data?.status || null,
-          people_mid: peopleMid.data?.status || null,
-          people_final: peopleFinal.data?.status || null,
-          collaboration_mid: collaborationMid.data?.status || null,
-          collaboration_final: collaborationFinal.data?.status || null,
-          quality_mid: qualityMid.data?.status || null,
-          quality_final: qualityFinal.data?.status || null,
-          industry_mid: industryMid.data?.status || null,
-          industry_final: industryFinal.data?.status || null
-        },
-        lastUpdated: [
-          businessPlan.data?.updated_at,
-          peoplePlan.data?.updated_at,
-          collaborationPlan.data?.updated_at,
-          qualityPlan.data?.updated_at,
-          industryPlan.data?.updated_at
-        ].filter(Boolean).sort().reverse()[0] || null
+      if (error) {
+        console.error(`❌ get_team_assessment_status (individual) failed for ${name}:`, error)
+        return null
       }
 
-      // 캐시에 저장
+      const row = (data || [])[0]
+      if (!row) return null
+
+      const memberStatus = rpcRowToMemberStatus(row, empno)
       setTeamPlanAssessmentStatus(prev => new Map(prev).set(empno, memberStatus))
-      console.log(`✅ Individual status loaded and cached for ${name}`)
       return memberStatus
     } catch (error) {
-      console.log(`❌ Error loading status for ${name}:`, error)
+      console.error(`❌ Error loading status for ${name}:`, error)
       return null
     }
   }
@@ -326,45 +272,24 @@ export default function Intro() {
   // 📷 직원들의 사진 정보만 배치 로딩 (UI 표시용)
   const loadEmployeePhotos = async (employees: any[]) => {
     try {
-      console.log("📷 Loading employee photos for", employees.length, "employees")
-      
-      const empnos = employees.map(emp => emp.사번)
-      console.log("📷 Original employee numbers:", empnos)
-      
-      // 사번들을 정규화 (95129 → 095129)
-      const normalizedEmpnos = empnos.map(empno => ReviewerService.normalizeEmpno(empno))
-      console.log("📷 Normalized employee numbers for photos:", normalizedEmpnos)
-      
-      if (normalizedEmpnos.length === 0) return
+      const empnos = employees.map(emp => emp.사번).filter(Boolean)
+      if (empnos.length === 0) return
 
-      // 배치로 모든 사진 정보 조회 (정규화된 사번 사용)
-      const { data: photosData, error } = await supabase
-        .from("employee_photos")
-        .select("empno, photo_url")
-        .in("empno", normalizedEmpnos)
+      console.log(`📦 Batch loading HR + photos for ${empnos.length} employees`)
 
-      if (error) {
-        console.error("❌ Error loading employee photos:", error)
-        return
-      }
+      // ⚡ HR 마스터 + 사진 한 번에 배치 로딩 → teamMemberInfo 캐시 사전 워밍업
+      const memberMap = await UserInfoMapper.loadHrBatch(empnos)
 
-      // Map으로 변환하여 캐시에 저장 (원본 사번으로 매핑)
       const photosMap = new Map<string, string>()
-      photosData?.forEach(photo => {
-        if (photo.photo_url) {
-          // 정규화된 사번을 원본 사번으로 역변환해서 매핑
-          const originalEmpno = empnos.find(orig => ReviewerService.normalizeEmpno(orig) === photo.empno)
-          if (originalEmpno) {
-            photosMap.set(originalEmpno, photo.photo_url)
-            console.log(`📷 Photo mapped: ${originalEmpno} (${photo.empno}) → ${photo.photo_url}`)
-          }
-        }
+      memberMap.forEach((info, originalEmpno) => {
+        if (info.photo_url) photosMap.set(originalEmpno, info.photo_url)
       })
 
       setEmployeePhotos(photosMap)
-      console.log("✅ Employee photos loaded:", photosMap.size, "photos cached")
+      setTeamMemberInfo(memberMap)
+      console.log(`✅ Cache warmed: ${memberMap.size} HR records, ${photosMap.size} photos`)
     } catch (error) {
-      console.error("❌ Error loading employee photos:", error)
+      console.error("❌ Error loading employee batch:", error)
     }
   }
 
@@ -593,38 +518,35 @@ export default function Intro() {
         return
       }
 
-      // 각 피드백의 평가자 사진을 가져오기
-      const feedbackWithPhotos = await Promise.all(
-        feedbackData.map(async (feedback: any) => {
-          try {
-            // 평가자의 사진 조회
-            const { data: photoData } = await supabase
-              .from("employee_photos")
-              .select("photo_url")
-              .eq("empno", feedback.reviewer_empno)
-              .single()
+      // 모든 평가자 사번 수집 후 1회 배치 조회 (N+1 → 1쿼리)
+      const reviewerEmpnos = Array.from(new Set(
+        feedbackData.map((f: any) => f.reviewer_empno).filter(Boolean)
+      ))
 
-            return {
-              id: feedback.id,
-              name: feedback.reviewer_name,
-              role: feedback.reviewer_grade,
-              avatar: photoData?.photo_url || null,
-              date: new Date(feedback.created_at).toLocaleDateString('ko-KR'),
-              comment: feedback.comment
-            }
-          } catch (error) {
-            console.log(`ℹ️ Photo not found for reviewer ${feedback.reviewer_name}`)
-            return {
-              id: feedback.id,
-              name: feedback.reviewer_name,
-              role: feedback.reviewer_grade,
-              avatar: null,
-              date: new Date(feedback.created_at).toLocaleDateString('ko-KR'),
-              comment: feedback.comment
-            }
-          }
-        })
-      )
+      const photoMap = new Map<string, string>()
+      if (reviewerEmpnos.length > 0) {
+        const { data: photosData, error: photoError } = await supabase
+          .from("employee_photos")
+          .select("empno, photo_url")
+          .in("empno", reviewerEmpnos)
+
+        if (photoError) {
+          console.error("❌ Batch reviewer photo fetch failed:", photoError)
+        } else {
+          photosData?.forEach(p => {
+            if (p.photo_url) photoMap.set(p.empno, p.photo_url)
+          })
+        }
+      }
+
+      const feedbackWithPhotos = feedbackData.map((feedback: any) => ({
+        id: feedback.id,
+        name: feedback.reviewer_name,
+        role: feedback.reviewer_grade,
+        avatar: photoMap.get(feedback.reviewer_empno) || null,
+        date: new Date(feedback.created_at).toLocaleDateString('ko-KR'),
+        comment: feedback.comment,
+      }))
 
       setReviewerFeedback(feedbackWithPhotos)
       console.log("✅ Reviewer feedback loaded:", feedbackWithPhotos.length, "items")
@@ -639,62 +561,37 @@ export default function Intro() {
   // GSP 데이터 로드 (승인받은 값과 승인대기 값을 모두 고려)
   const loadGSPData = async (empno: string) => {
     try {
-      console.log("🔍 Loading GSP data for empno:", empno)
-      
-      // 1. 최신 레코드 가져오기 (승인대기 상태일 수 있음)
-      const gspStatus = await GSPService.checkGSPStatus(empno)
-      console.log("📋 Latest GSP status:", gspStatus)
-      
-      if (gspStatus.exists && gspStatus.data) {
-        // 2. 각 필드별로 승인완료된 값을 찾기 위해 히스토리 조회
-        const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
-        const { data: allRecords, error } = await supabase
-          .from("a_GSP_Table")
-          .select("*")
-          .eq("사번", normalizedEmpno)
-          .order("변경요청일자", { ascending: false })
-        
-        console.log("📚 All GSP records for history:", allRecords)
-        
-        if (!error && allRecords) {
-          // 3. 각 필드별 승인완료된 최신 값을 찾기
-          const getLatestApprovedValue = (field: string, statusField: string) => {
-            for (const record of allRecords) {
-              if (record[statusField] === '승인완료' && record[field]) {
-                return record[field]
-              }
-            }
-            return null
-          }
-          
-          // 4. 최신 레코드를 베이스로 하되, 승인완료된 값들로 보완
-          const enhancedData = { ...gspStatus.data }
-          
-          // 각 필드별로 승인완료된 값이 있으면 추가
-          const approvedFields = {
-            "보직(HC)": getLatestApprovedValue("보직(HC)", "보직_STATUS"),
-            "산업전문화": getLatestApprovedValue("산업전문화", "산업전문화_STATUS"),
-            "GSP/Focus 30": getLatestApprovedValue("GSP/Focus 30", "GSP_Focus_30_STATUS"),
-            "Council/TF 등": getLatestApprovedValue("Council/TF 등", "Council_TF_STATUS")
-          }
-          
-          console.log("✅ Approved values found:", approvedFields)
-          
-          // 승인완료된 값들을 enhancedData에 추가 (별도 필드로)
-          enhancedData.approved_보직 = approvedFields["보직(HC)"]
-          enhancedData.approved_산업전문화 = approvedFields["산업전문화"]
-          enhancedData.approved_gsp_focus_30 = approvedFields["GSP/Focus 30"]
-          enhancedData.approved_council_tf = approvedFields["Council/TF 등"]
-          
-          setGspData(enhancedData)
-          console.log("✅ Enhanced GSP data loaded:", enhancedData)
-        } else {
-          setGspData(gspStatus.data)
-        }
-      } else {
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      console.log("🔍 Loading GSP data via RPC for empno:", normalizedEmpno)
+
+      // RPC 1회 호출: 최신 레코드 + 4개 필드별 승인완료 값 동시 반환
+      const { data, error } = await supabase.rpc('get_gsp_with_approved_values', {
+        p_empno: normalizedEmpno,
+      })
+
+      if (error) {
+        console.error("❌ get_gsp_with_approved_values 실패:", error)
+        setGspData(null)
+        return
+      }
+
+      const row = (data || [])[0]
+      if (!row || !row.latest_record) {
         console.log("ℹ️ No GSP data found for user")
         setGspData(null)
+        return
       }
+
+      const enhancedData = {
+        ...(row.latest_record as GSPData),
+        approved_보직: row.approved_보직 ?? null,
+        approved_산업전문화: row.approved_산업전문화 ?? null,
+        approved_gsp_focus_30: row.approved_gsp_focus_30 ?? null,
+        approved_council_tf: row.approved_council_tf ?? null,
+      }
+
+      setGspData(enhancedData)
+      console.log("✅ GSP data loaded via RPC:", enhancedData)
     } catch (error) {
       console.error("❌ Error loading GSP data:", error)
       setGspData(null)
