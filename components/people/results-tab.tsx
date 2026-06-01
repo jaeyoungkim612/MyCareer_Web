@@ -233,18 +233,40 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           fiveDigitEmpno.padStart(5, '0'),
         ])).filter(Boolean)
 
-        const { data: gpsPeiRows, error: gpsPeiError } = await supabase
-          .from("L_GPS_PEI_Table")
-          .select('"EMPNO", "연도", "GPS(ITS)", "GPS(PEI)"')
-          .in('"EMPNO"', empnoVariations)
-          .in('"연도"', ['2606', '2506'])
+        // ItS / ITS 컬럼명 호환 (DB 환경마다 대소문자 다름) — 양쪽 시도
+        const tryGpsPeiQuery = async (itsCol: string) => {
+          return await supabase
+            .from("L_GPS_PEI_Table")
+            .select(`EMPNO, 연도, "${itsCol}", "GPS(PEI)"`)
+            .in('EMPNO', empnoVariations)
+            .in('연도', ['2606', '2506'])
+        }
+
+        let gpsPeiRows: any[] | null = null
+        let gpsPeiError: any = null
+        let itsColumnUsed = 'GPS(ItS)'
+
+        const first = await tryGpsPeiQuery('GPS(ItS)')
+        if (first.error && first.error.message?.includes('does not exist')) {
+          // 대문자 버전 fallback
+          const second = await tryGpsPeiQuery('GPS(ITS)')
+          gpsPeiRows = second.data
+          gpsPeiError = second.error
+          itsColumnUsed = 'GPS(ITS)'
+        } else {
+          gpsPeiRows = first.data
+          gpsPeiError = first.error
+        }
 
         if (gpsPeiError) {
           console.error('❌ GPS/PEI 일괄 조회 실패:', gpsPeiError)
         } else {
-          scoreData = gpsPeiRows?.find((r: any) => r['연도'] === '2606') || null
-          fallbackTargetData = gpsPeiRows?.find((r: any) => r['연도'] === '2506') || null
-          console.log(`📊 GPS/PEI 일괄 조회: ${gpsPeiRows?.length || 0}건`)
+          const pickItsValue = (row: any) => row[itsColumnUsed] ?? row['GPS(ItS)'] ?? row['GPS(ITS)']
+          const row2606 = gpsPeiRows?.find((r: any) => String(r['연도']) === '2606') || null
+          const row2506 = gpsPeiRows?.find((r: any) => String(r['연도']) === '2506') || null
+          scoreData = row2606 ? { 'GPS(ITS)': pickItsValue(row2606), 'GPS(PEI)': row2606['GPS(PEI)'] } : null
+          fallbackTargetData = row2506 ? { 'GPS(ITS)': pickItsValue(row2506), 'GPS(PEI)': row2506['GPS(PEI)'] } : null
+          console.log(`📊 GPS/PEI 일괄 조회: ${gpsPeiRows?.length || 0}건 (컬럼: ${itsColumnUsed})`)
         }
 
         // HR 정보 설정

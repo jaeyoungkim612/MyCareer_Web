@@ -376,50 +376,76 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
         const fiveDigitEmpno = normalizedEmpno.replace(/^0/, '')
         
+        // 사번 변형 (results-tab.tsx와 동일 패턴)
+        const empnoVariations = Array.from(new Set([
+          fiveDigitEmpno,
+          normalizedEmpno,
+          targetEmpno,
+          fiveDigitEmpno.padStart(6, '0'),
+          fiveDigitEmpno.padStart(5, '0'),
+        ])).filter(Boolean)
+
         // 병렬로 모든 데이터 가져오기
         const [goalResult, scoreResult, refreshOffResult, coachingResult] = await Promise.all([
           // 1. 목표 데이터
           PeopleGoalsService.getLatestGoals(targetEmpno),
-          
-          // 2. GPS/PEI 실제 데이터
-          supabase
-            .from("L_GPS_PEI_Table")
-            .select("GPS, PEI")
-            .eq("EMPNO", fiveDigitEmpno)
-            .maybeSingle(),
-            
+
+          // 2. GPS/PEI 실제 데이터 — 사번 변형 일괄, 연도는 JS에서 최신 선택
+          //    ItS/ITS 컬럼명 호환을 위해 양쪽 시도
+          (async () => {
+            const tryQuery = (itsCol: string) =>
+              supabase
+                .from("L_GPS_PEI_Table")
+                .select(`EMPNO, 연도, "${itsCol}", "GPS(PEI)"`)
+                .in('EMPNO', empnoVariations)
+
+            const first = await tryQuery('GPS(ItS)')
+            if (first.error && first.error.message?.includes('does not exist')) {
+              return await tryQuery('GPS(ITS)')
+            }
+            return first
+          })(),
+
           // 3. TL의 팀원들 조회 (Refresh Off, Util A/B 계산용)
           supabase
             .from("a_hr_master")
             .select("EMPNO, EMPNM, CM_NM")
             .eq("TL_EMPNO", normalizedEmpno),
-            
-          // 4. 코칭타임 실제 데이터
+
+          // 4. 코칭타임 실제 데이터 — 회계연도 누적(yearHours) 사용
           (async () => {
             try {
               const now = new Date()
               const year = now.getFullYear()
               const quarter = Math.ceil((now.getMonth() + 1) / 3)
-              const { quarterHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
-              return quarterHours
+              const { yearHours } = await PeopleGoalsService.getCoachingTimeStats(normalizedEmpno, year, quarter)
+              return yearHours
             } catch {
               return 0
             }
           })()
         ])
-        
+
         // 목표 데이터 설정
         setPeopleGoal(goalResult)
-        
-        // GPS/PEI 실제 데이터 설정
-        const { data: scoreData } = scoreResult
-        let gpsScore = null, peiScore = null
-        if (scoreData) {
-          gpsScore = scoreData.GPS
-          peiScore = scoreData.PEI
+
+        // GPS/PEI 실제 데이터 설정 (ItS / ITS 컬럼명 양쪽 호환 + 최신 연도 자동 선택)
+        const { data: scoreRows, error: scoreError } = scoreResult as any
+        if (scoreError) {
+          console.error('❌ DashboardTabs: GPS/PEI 조회 실패:', scoreError)
         }
-        
-        // 코칭타임 실제 데이터
+        let gpsScore: string | null = null, peiScore: string | null = null
+        // 연도 내림차순으로 정렬 후 첫 번째 행 사용 (예: 2606 > 2506)
+        const latestScoreRow = (scoreRows && scoreRows.length > 0)
+          ? [...scoreRows].sort((a: any, b: any) => String(b['연도']).localeCompare(String(a['연도'])))[0]
+          : null
+        if (latestScoreRow) {
+          gpsScore = latestScoreRow['GPS(ItS)'] ?? latestScoreRow['GPS(ITS)'] ?? null
+          peiScore = latestScoreRow['GPS(PEI)'] ?? null
+          console.log(`📊 DashboardTabs: GPS/PEI from year ${latestScoreRow['연도']}: GPS=${gpsScore}, PEI=${peiScore}`)
+        }
+
+        // 코칭타임 실제 데이터 (회계연도 누적)
         const coachingTimeHours = coachingResult || 0
         
         // 팀원들 데이터로 Refresh Off, Util A/B 계산
@@ -453,36 +479,49 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
             refreshOffUsageRate = totalSumTime > 0 ? Math.round((totalUsedTime / totalSumTime) * 100 * 100) / 100 : 0
           }
           
-          // Util A/B 계산
-          console.log(`📊 DashboardTabs: Fetching Util A/B for ${teamEmpnos.length} team members`)
-          
+          // Util A/B 계산 — v_employee_core 우회, a_utilization 2-phase 직접 조회
+          console.log(`📊 DashboardTabs: Fetching Util A/B for ${teamEmpnos.length} team members (2-phase)`)
+
           try {
-            const { data: utilData, error: utilError } = await supabase
-              .from("v_employee_core")
-              .select("EMPNO, UTIL_A, UTIL_B")
-              .in("EMPNO", teamEmpnos)
-            
-            if (utilError) {
-              console.error('❌ DashboardTabs: Util query error:', utilError)
-              // timeout이나 에러 발생 시에도 계속 진행
-            } else if (utilData && utilData.length > 0) {
-              console.log(`✅ DashboardTabs: Util data loaded (${utilData.length} records)`)
-              const validUtilA = utilData.filter(item => item.UTIL_A !== null && item.UTIL_A !== "")
-              const validUtilB = utilData.filter(item => item.UTIL_B !== null && item.UTIL_B !== "")
-              
-              const utilASum = validUtilA.reduce((sum, item) => sum + (parseFloat(item.UTIL_A) || 0), 0)
-              const utilBSum = validUtilB.reduce((sum, item) => sum + (parseFloat(item.UTIL_B) || 0), 0)
-              
-              utilAAverage = validUtilA.length > 0 ? Math.round((utilASum / validUtilA.length) * 100) / 100 : 0
-              utilBAverage = validUtilB.length > 0 ? Math.round((utilBSum / validUtilB.length) * 100) / 100 : 0
-              
-              console.log(`📊 DashboardTabs: Util A Average: ${utilAAverage}%, Util B Average: ${utilBAverage}%`)
+            // Phase 1: 최신 UTIL_DATE 조회 (전역 단일 스냅샷 가정)
+            const { data: latestDateRow } = await supabase
+              .from("a_utilization")
+              .select("UTIL_DATE")
+              .order("UTIL_DATE", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+
+            const latestUtilDate = latestDateRow?.UTIL_DATE
+
+            // Phase 2: 해당 날짜의 팀원 활용률 행
+            if (latestUtilDate) {
+              const { data: utilData, error: utilError } = await supabase
+                .from("a_utilization")
+                .select("EMPNO, UTIL_A, UTIL_B")
+                .in("EMPNO", teamEmpnos)
+                .eq("UTIL_DATE", latestUtilDate)
+
+              if (utilError) {
+                console.error('❌ DashboardTabs: a_utilization query error:', utilError)
+              } else if (utilData && utilData.length > 0) {
+                const validUtilA = utilData.filter(item => item.UTIL_A !== null && item.UTIL_A !== "")
+                const validUtilB = utilData.filter(item => item.UTIL_B !== null && item.UTIL_B !== "")
+
+                const utilASum = validUtilA.reduce((sum, item) => sum + (parseFloat(item.UTIL_A) || 0), 0)
+                const utilBSum = validUtilB.reduce((sum, item) => sum + (parseFloat(item.UTIL_B) || 0), 0)
+
+                utilAAverage = validUtilA.length > 0 ? Math.round((utilASum / validUtilA.length) * 100) / 100 : 0
+                utilBAverage = validUtilB.length > 0 ? Math.round((utilBSum / validUtilB.length) * 100) / 100 : 0
+
+                console.log(`📊 DashboardTabs: Util A=${utilAAverage}%, B=${utilBAverage}% (date=${latestUtilDate})`)
+              } else {
+                console.warn('⚠️ DashboardTabs: No util data for latest date')
+              }
             } else {
-              console.warn('⚠️ DashboardTabs: No util data found')
+              console.warn('⚠️ DashboardTabs: No UTIL_DATE found in a_utilization')
             }
           } catch (e) {
             console.error('❌ DashboardTabs: Util fetch error:', e)
-            // 에러 발생 시에도 계속 진행 (null 값 유지)
           }
         }
         
