@@ -26,6 +26,8 @@ import {
   Home,
   Award,
   Calendar,
+  Minus,
+  TrendingDown,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -78,7 +80,16 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
   const [collabActuals, setCollabActuals] = useState<{ xlos: { count: number, amount: number }, los: { count: number, amount: number }, axnode: { count: number, amount: number } } | null>(null)
   const [collabLoading, setCollabLoading] = useState(false)
   const [collabError, setCollabError] = useState<string | null>(null)
-  const [qualityGoal, setQualityGoal] = useState<{ doae_rate?: number; yra_ratio?: number } | null>(null)
+  const [qualityGoal, setQualityGoal] = useState<{
+    doae_rate?: number
+    yra_ratio?: number
+    yearEndTargetRatio?: number
+    yearEndActualRatio?: number
+    elInputTargetRatio?: number
+    elInputActualRatio?: number
+  } | null>(null)
+  const [eerResult, setEerResult] = useState<string | null>(null)
+  const [eerLoading, setEerLoading] = useState(true)
   const [qualityLoading, setQualityLoading] = useState(false)
   const [qualityError, setQualityError] = useState<string | null>(null)
   const [nonAuditGoal, setNonAuditGoal] = useState<{ Quality향상: string; 효율화계획: string; 신상품개발: string }>({ Quality향상: "", 효율화계획: "", 신상품개발: "" })
@@ -440,13 +451,111 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         // 새로운 quality_non_audit_performance 테이블에서 데이터 가져오기
         const performances = await QualityNonAuditPerformanceService.getByEmployeeId(targetEmpno)
         
+        // ===== 실제값 (plan 유무와 독립적으로 항상 조회) =====
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        let yearEndActualRatio = 0
+        let elInputActualRatio = 0
+
+        try {
+          // Year-End 이전 시간 비율 = SUM(OCCURTIME) / SUM(CUMULATIVEBUDGET) × 100
+          const { data: epcRows } = await supabase
+            .from('epc_view')
+            .select('OCCURTIME, CUMULATIVEBUDGET')
+            .eq('EMPLNO', normalizedEmpno)
+          if (epcRows && epcRows.length > 0) {
+            const totalOccur = epcRows.reduce((s: number, r: any) => s + (parseFloat(r.OCCURTIME) || 0), 0)
+            const totalBudget = epcRows.reduce((s: number, r: any) => s + (parseFloat(r.CUMULATIVEBUDGET) || 0), 0)
+            yearEndActualRatio = totalBudget > 0 ? Math.round((totalOccur / totalBudget) * 10000) / 100 : 0
+          }
+        } catch (e) {
+          console.warn('⚠️ Year-End ratio 조회 실패:', e)
+        }
+
+        try {
+          // EL 투입시간 비율 = 내 시간 / 전체 프로젝트 시간 × 100
+          // (CHARGPTR 프로젝트 중 PRJTCD 중간자 01/11만 필터)
+          const { data: chargeProjects } = await supabase
+            .from('a_project_info')
+            .select('PRJTCD, PRJTNM')
+            .eq('CHARGPTR', normalizedEmpno)
+            .not('PRJTNM', 'ilike', '%코칭%')
+            .not('PRJTNM', 'like', '%24%')
+            .not('PRJTNM', 'like', '%2024%')
+
+          const filteredProjectCodes = Array.from(new Set(
+            (chargeProjects || [])
+              .map((p: any) => p.PRJTCD)
+              .filter((code: string) => {
+                const parts = String(code).split('-')
+                return parts.length >= 2 && (parts[1] === '01' || parts[1] === '11')
+              })
+          ))
+
+          if (filteredProjectCodes.length > 0) {
+            // 먼저 v_project_time 시도 (스키마 캐시 미스 가능성 있음)
+            let timeRows: any[] | null = null
+            const viewResult = await supabase
+              .from('v_project_time')
+              .select('EMPNO, total_use_time')
+              .in('PRJTCD', filteredProjectCodes)
+
+            if (!viewResult.error && viewResult.data && viewResult.data.length > 0) {
+              timeRows = viewResult.data
+            } else {
+              // Fallback: a_coaching_time 직접 조회 + 2025 필터 + PRJTCD+EMPNO 집계
+              console.log('🔄 Dashboard: v_project_time 실패, a_coaching_time fallback')
+              const { data: coachingData } = await supabase
+                .from('a_coaching_time')
+                .select('EMPNO, PRJTCD, USE_TIME, INPUTDATE')
+                .in('PRJTCD', filteredProjectCodes)
+                .not('INPUTDATE', 'is', null)
+                .like('INPUTDATE', '2025%')
+
+              if (coachingData && coachingData.length > 0) {
+                const timeMap = new Map<string, { EMPNO: string; total_use_time: number }>()
+                coachingData.forEach((item: any) => {
+                  const key = `${item.PRJTCD}_${item.EMPNO}`
+                  const useTime = parseFloat(item.USE_TIME || '0') || 0
+                  if (timeMap.has(key)) {
+                    timeMap.get(key)!.total_use_time += useTime
+                  } else {
+                    timeMap.set(key, { EMPNO: item.EMPNO, total_use_time: useTime })
+                  }
+                })
+                timeRows = Array.from(timeMap.values())
+              }
+            }
+
+            if (timeRows && timeRows.length > 0) {
+              const totalTime = timeRows.reduce((s: number, r: any) => s + (parseFloat(r.total_use_time) || 0), 0)
+              const myTime = timeRows
+                .filter((r: any) => r.EMPNO === normalizedEmpno)
+                .reduce((s: number, r: any) => s + (parseFloat(r.total_use_time) || 0), 0)
+              elInputActualRatio = totalTime > 0 ? Math.round((myTime / totalTime) * 10000) / 100 : 0
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ EL ratio 조회 실패:', e)
+        }
+
+        // ===== 목표값 (plan 있으면 사용, 없으면 0) =====
+        const firstRecord = performances[0] || null as any
+        const yearEndTargetRatio = firstRecord ? (Number(firstRecord.year_end_time_ratio) || 0) : 0
+        const elInputTargetRatio = firstRecord ? (Number(firstRecord.el_input_hours) || 0) : 0
+
+        // ===== qualityGoal 항상 set (plan 없어도 실제값은 표시) =====
+        setQualityGoal({
+          doae_rate: firstRecord?.doae_rate || 0,
+          yra_ratio: firstRecord?.yra_ratio || 0,
+          yearEndTargetRatio,
+          yearEndActualRatio,
+          elInputTargetRatio,
+          elInputActualRatio,
+        })
+        console.log('📊 Dashboard Quality:', { yearEndTargetRatio, yearEndActualRatio, elInputTargetRatio, elInputActualRatio })
+
         if (performances.length > 0) {
-          // 첫 번째 레코드에서 감사 메트릭 가져오기 (legacy)
-          const firstRecord = performances[0]
-          setQualityGoal({
-            doae_rate: firstRecord.doae_rate || 0,
-            yra_ratio: firstRecord.yra_ratio || 0,
-          })
 
           // 비감사 목표: 3분류(Quality향상/효율화계획/신상품개발) 타입 + none 폴백
           // monitoring-tab.tsx와 동일 로직
@@ -513,6 +622,46 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
       }
     }
     fetchQualityGoal()
+  }, [targetEmpno])
+
+  // EER 평가 결과 조회 (L_EER_Result 테이블)
+  useEffect(() => {
+    const fetchEer = async () => {
+      if (!targetEmpno) {
+        setEerLoading(false)
+        return
+      }
+      setEerLoading(true)
+      try {
+        const { ReviewerService } = await import("@/lib/reviewer-service")
+        const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
+        const empnoVariants = Array.from(new Set([
+          normalizedEmpno,
+          targetEmpno,
+          normalizedEmpno.replace(/^0+/, ''),
+        ])).filter(Boolean)
+
+        const { data, error } = await supabase
+          .from('L_EER_Result')
+          .select('"2025 EER"')
+          .in('사번', empnoVariants)
+          .limit(1)
+          .maybeSingle()
+
+        if (error) {
+          console.error('❌ Dashboard L_EER_Result 조회 실패:', error)
+          setEerResult(null)
+        } else {
+          setEerResult((data as any)?.['2025 EER'] || null)
+        }
+      } catch (e) {
+        console.error('❌ Dashboard EER 조회 에러:', e)
+        setEerResult(null)
+      } finally {
+        setEerLoading(false)
+      }
+    }
+    fetchEer()
   }, [targetEmpno])
 
   useEffect(() => {
@@ -1243,35 +1392,101 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
               <span className="text-lg font-bold">감사 성과</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* DoAE 적용율 */}
+              {/* Year End 이전 시간 비율 — epc_view: SUM(OCCURTIME) / SUM(CUMULATIVEBUDGET) */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">DoAE 적용율</CardTitle>
+                  <CardTitle className="text-base font-semibold">Year End 이전 시간 비율</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex justify-between items-end mb-1">
-                    <div className="text-2xl font-bold">{qualityGoal.doae_rate ?? 0}%</div>
-                    <div className="text-xs text-muted-foreground text-right">목표: {qualityGoal.doae_rate ?? 0}%</div>
+                    <div className="text-2xl font-bold">{qualityGoal.yearEndActualRatio ?? 0}%</div>
+                    <div className="text-xs text-muted-foreground text-right">목표: {qualityGoal.yearEndTargetRatio ?? 0}%</div>
                   </div>
-                  <Progress value={qualityGoal.doae_rate ?? 0} className="h-2 mt-2" />
-                  <div className="mt-1 text-xs text-right text-gray-500">달성률: {qualityGoal.doae_rate ?? 0}%</div>
+                  <Progress
+                    value={qualityGoal.yearEndTargetRatio
+                      ? Math.min(((qualityGoal.yearEndActualRatio ?? 0) / qualityGoal.yearEndTargetRatio) * 100, 100)
+                      : 0}
+                    className="h-2 mt-2"
+                  />
+                  <div className="mt-1 text-xs text-right text-gray-500">
+                    실제: {qualityGoal.yearEndActualRatio ?? 0}% / 목표: {qualityGoal.yearEndTargetRatio ?? 0}%
+                  </div>
                 </CardContent>
               </Card>
-              {/* YRA 비율 */}
+              {/* EL 투입시간 비율 — v_project_time: 내 시간 / 전체 프로젝트 시간 */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">YRA 비율</CardTitle>
+                  <CardTitle className="text-base font-semibold">EL 투입시간 비율</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex justify-between items-end mb-1">
-                    <div className="text-2xl font-bold">{qualityGoal.yra_ratio ?? 0}%</div>
-                    <div className="text-xs text-muted-foreground text-right">목표: {qualityGoal.yra_ratio ?? 0}%</div>
+                    <div className="text-2xl font-bold">{qualityGoal.elInputActualRatio ?? 0}%</div>
+                    <div className="text-xs text-muted-foreground text-right">목표: {qualityGoal.elInputTargetRatio ?? 0}%</div>
                   </div>
-                  <Progress value={qualityGoal.yra_ratio ?? 0} className="h-2 mt-2" />
-                  <div className="mt-1 text-xs text-right text-gray-500">달성률: {qualityGoal.yra_ratio ?? 0}%</div>
+                  <Progress
+                    value={qualityGoal.elInputTargetRatio
+                      ? Math.min(((qualityGoal.elInputActualRatio ?? 0) / qualityGoal.elInputTargetRatio) * 100, 100)
+                      : 0}
+                    className="h-2 mt-2"
+                  />
+                  <div className="mt-1 text-xs text-right text-gray-500">
+                    실제: {qualityGoal.elInputActualRatio ?? 0}% / 목표: {qualityGoal.elInputTargetRatio ?? 0}%
+                  </div>
                 </CardContent>
               </Card>
             </div>
+
+            {/* EER 평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
+            <Card className="mt-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold flex items-center">
+                  EER 평가 결과
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">(2025 기준)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {eerLoading ? (
+                  <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">로딩 중...</div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {([
+                        { value: '상위 20%', tone: 'green' as const,  icon: TrendingUp },
+                        { value: '중위',      tone: 'blue' as const,   icon: Minus },
+                        { value: '하위 20%', tone: 'amber' as const,  icon: TrendingDown },
+                        { value: '하위 10%', tone: 'red' as const,    icon: TrendingDown },
+                      ]).map(({ value, tone, icon: Icon }) => {
+                        const selected = eerResult === value
+                        const cls = {
+                          green: { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-300', iconColor: 'text-green-600' },
+                          blue:  { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300',  iconColor: 'text-blue-600' },
+                          amber: { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', iconColor: 'text-amber-600' },
+                          red:   { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',     text: 'text-red-700 dark:text-red-300',    iconColor: 'text-red-600' },
+                        }[tone]
+                        return (
+                          <div
+                            key={value}
+                            className={
+                              selected
+                                ? `flex flex-col items-center justify-center p-3 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md h-[90px]`
+                                : 'flex flex-col items-center justify-center p-3 border border-gray-200 bg-gray-50 dark:bg-gray-800 rounded-lg h-[90px] opacity-50'
+                            }
+                          >
+                            <Icon className={`h-5 w-5 mb-1 ${selected ? cls.iconColor : 'text-gray-400'}`} />
+                            <span className={`text-sm font-bold ${selected ? cls.text : 'text-gray-500'}`}>{value}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {!eerResult && (
+                      <div className="mt-2 text-xs text-center text-muted-foreground">
+                        EER 평가 결과 데이터가 없습니다
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
           {/* 비감사(논오딧) 성과 - 내러티브 카드 */}
           <div>

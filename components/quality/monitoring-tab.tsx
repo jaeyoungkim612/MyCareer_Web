@@ -107,6 +107,10 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
   const [elMyTime, setElMyTime] = useState(0)
   const [elDetailData, setElDetailData] = useState<any[]>([])
 
+  // EER 평가 결과 (L_EER_Result 테이블)
+  const [eerResult, setEerResult] = useState<string | null>(null)
+  const [eerLoading, setEerLoading] = useState(true)
+
   // --- Non-Audit Status State ---
   const [isEditingNonAuditStatus, setIsEditingNonAuditStatus] = useState(false)
   const [nonAuditStatus, setNonAuditStatus] = useState({
@@ -515,12 +519,49 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
     setPerformanceLoading(false);
   };
 
+  // EER 평가 결과 조회 (L_EER_Result 테이블)
+  const fetchEerResult = async () => {
+    if (!currentUser?.empno) return
+    setEerLoading(true)
+    try {
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(currentUser.empno)
+      const empnoVariants = Array.from(new Set([
+        normalizedEmpno,
+        currentUser.empno,
+        normalizedEmpno.replace(/^0+/, ''),
+      ])).filter(Boolean)
+
+      const { data, error } = await supabase
+        .from('L_EER_Result')
+        .select('"2025 EER"')
+        .in('사번', empnoVariants)
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        console.error('❌ L_EER_Result 조회 실패:', error)
+        setEerResult(null)
+      } else {
+        const value = (data as any)?.['2025 EER'] || null
+        setEerResult(value)
+        console.log('📊 EER 결과:', value)
+      }
+    } catch (e) {
+      console.error('❌ EER 조회 에러:', e)
+      setEerResult(null)
+    } finally {
+      setEerLoading(false)
+    }
+  }
+
   // EPC 데이터 및 EL 데이터 로드
   useEffect(() => {
     if (currentUser?.empno) {
       fetchEpcData();
       fetchElInputData();
       fetchPerformanceData();
+      fetchEerResult();
     }
   }, [currentUser])
 
@@ -980,30 +1021,63 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
               </CardContent>
             </Card>
 
-            {/* EER 평가 결과 */}
+            {/* EER 평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
             <Card>
               <CardHeader className="pb-4">
                 <CardTitle className="text-base font-medium flex items-center justify-between">
                   <span className="flex items-center">
                     <CheckCircle className="mr-2 h-5 w-5" />
                     EER 평가 결과
+                    <span className="ml-2 text-xs text-muted-foreground">(2025 기준)</span>
                   </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-center space-x-6">
-                  {/* Compliant 카드 - 선택된 상태 */}
-                  <div className="flex flex-col items-center justify-center p-8 border-2 border-green-500 bg-green-50 dark:bg-green-900/20 rounded-lg shadow-md w-[160px] h-[140px]">
-                    <CheckCircle className="h-10 w-10 text-green-600 mb-4" />
-                    <span className="text-xl font-bold text-green-700 dark:text-green-300">Compliant</span>
+                {eerLoading ? (
+                  <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                    로딩 중...
                   </div>
-                  
-                  {/* Non-compliant 카드 - 비선택된 상태 */}
-                  <div className="flex flex-col items-center justify-center p-8 border border-gray-300 bg-gray-50 dark:bg-gray-800 rounded-lg w-[160px] h-[140px] opacity-60">
-                    <X className="h-10 w-10 text-gray-400 mb-4" />
-                    <span className="text-xl font-bold text-gray-500">Non-compliant</span>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {([
+                        { value: '상위 20%', tone: 'green',   icon: TrendingUp },
+                        { value: '중위',      tone: 'blue',    icon: Minus },
+                        { value: '하위 20%', tone: 'amber',   icon: TrendingDown },
+                        { value: '하위 10%', tone: 'red',     icon: TrendingDown },
+                      ] as const).map(({ value, tone, icon: Icon }) => {
+                        const selected = eerResult === value
+                        const toneClasses: Record<typeof tone, { border: string; bg: string; text: string; iconColor: string }> = {
+                          green: { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20',  text: 'text-green-700 dark:text-green-300',  iconColor: 'text-green-600' },
+                          blue:  { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',    text: 'text-blue-700 dark:text-blue-300',    iconColor: 'text-blue-600' },
+                          amber: { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20',  text: 'text-amber-700 dark:text-amber-300',  iconColor: 'text-amber-600' },
+                          red:   { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',      text: 'text-red-700 dark:text-red-300',      iconColor: 'text-red-600' },
+                        }
+                        const cls = toneClasses[tone]
+                        return (
+                          <div
+                            key={value}
+                            className={
+                              selected
+                                ? `flex flex-col items-center justify-center p-4 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md h-[110px]`
+                                : 'flex flex-col items-center justify-center p-4 border border-gray-200 bg-gray-50 dark:bg-gray-800 rounded-lg h-[110px] opacity-50'
+                            }
+                          >
+                            <Icon className={`h-7 w-7 mb-2 ${selected ? cls.iconColor : 'text-gray-400'}`} />
+                            <span className={`text-base font-bold ${selected ? cls.text : 'text-gray-500'}`}>
+                              {value}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {!eerResult && (
+                      <div className="mt-3 text-xs text-center text-muted-foreground">
+                        EER 평가 결과 데이터가 없습니다
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
