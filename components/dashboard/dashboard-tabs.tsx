@@ -56,8 +56,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
   
   // 실제 People 데이터 (results-tab.tsx와 동일한 로직)
   const [peopleActualData, setPeopleActualData] = useState<{
-    gpsScore: string | null
-    peiScore: string | null
+    gpsScore: string | null         // 당기
+    peiScore: string | null         // 당기
+    prevGpsScore: string | null     // 전기
+    prevPeiScore: string | null     // 전기
     coachingTimeHours: number
     refreshOffUsageRate: number | null
     utilAAverage: number | null
@@ -65,6 +67,8 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
   }>({
     gpsScore: null,
     peiScore: null,
+    prevGpsScore: null,
+    prevPeiScore: null,
     coachingTimeHours: 0,
     refreshOffUsageRate: null,
     utilAAverage: null,
@@ -271,21 +275,28 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         // 목표 데이터 설정
         setPeopleGoal(goalResult)
 
-        // GPS/PEI 실제 데이터 설정 (ItS / ITS 컬럼명 양쪽 호환 + 최신 연도 자동 선택)
+        // GPS/PEI 실제 데이터 설정 (ItS / ITS 컬럼명 양쪽 호환 + 최신/이전 연도 자동 선택)
         const { data: scoreRows, error: scoreError } = scoreResult as any
         if (scoreError) {
           console.error('❌ DashboardTabs: GPS/PEI 조회 실패:', scoreError)
         }
         let gpsScore: string | null = null, peiScore: string | null = null
-        // 연도 내림차순으로 정렬 후 첫 번째 행 사용 (예: 2606 > 2506)
-        const latestScoreRow = (scoreRows && scoreRows.length > 0)
-          ? [...scoreRows].sort((a: any, b: any) => String(b['연도']).localeCompare(String(a['연도'])))[0]
-          : null
+        let prevGpsScore: string | null = null, prevPeiScore: string | null = null
+        // 연도 내림차순 정렬 → [0]: 당기, [1]: 전기
+        const sortedRows = (scoreRows && scoreRows.length > 0)
+          ? [...scoreRows].sort((a: any, b: any) => String(b['연도']).localeCompare(String(a['연도'])))
+          : []
+        const latestScoreRow = sortedRows[0] || null
+        const prevScoreRow = sortedRows[1] || null
         if (latestScoreRow) {
           gpsScore = latestScoreRow['GPS(ItS)'] ?? latestScoreRow['GPS(ITS)'] ?? null
           peiScore = latestScoreRow['GPS(PEI)'] ?? null
-          console.log(`📊 DashboardTabs: GPS/PEI from year ${latestScoreRow['연도']}: GPS=${gpsScore}, PEI=${peiScore}`)
         }
+        if (prevScoreRow) {
+          prevGpsScore = prevScoreRow['GPS(ItS)'] ?? prevScoreRow['GPS(ITS)'] ?? null
+          prevPeiScore = prevScoreRow['GPS(PEI)'] ?? null
+        }
+        console.log(`📊 DashboardTabs: 당기(${latestScoreRow?.['연도']}) GPS=${gpsScore}, PEI=${peiScore} | 전기(${prevScoreRow?.['연도']}) GPS=${prevGpsScore}, PEI=${prevPeiScore}`)
 
         // 코칭타임 실제 데이터 (회계연도 누적)
         const coachingTimeHours = coachingResult || 0
@@ -380,6 +391,8 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         setPeopleActualData({
           gpsScore,
           peiScore,
+          prevGpsScore,
+          prevPeiScore,
           coachingTimeHours,
           refreshOffUsageRate,
           utilAAverage,
@@ -994,7 +1007,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                  </div>
                  <div className="space-y-2">
                    <div className="flex justify-between text-xs">
-                     <span>실제: {peopleActualData.peiScore && peopleActualData.peiScore !== '-' ? `${Math.round(parseFloat(peopleActualData.peiScore) * 100)}%` : '-'}</span>
+                     <span>전기(2506): {peopleActualData.prevPeiScore && peopleActualData.prevPeiScore !== '-' ? `${Math.round(parseFloat(peopleActualData.prevPeiScore) * 100)}%` : '-'}</span>
                      <span>목표: {peopleGoal?.pei_score || '-'}%</span>
                    </div>
                    <Progress value={
@@ -1019,7 +1032,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                  </div>
                  <div className="space-y-2">
                    <div className="flex justify-between text-xs">
-                     <span>실제: {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-'}</span>
+                     <span>전기(2506): {peopleActualData.prevGpsScore && peopleActualData.prevGpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.prevGpsScore) * 100)}%` : '-'}</span>
                      <span>목표: {peopleGoal?.gps_score || '-'}%</span>
                    </div>
                    <Progress value={

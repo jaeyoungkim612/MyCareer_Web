@@ -33,8 +33,10 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
   const [loading, setLoading] = useState(true)
 
   // GPS/PEI 점수 상태 (실제 LoS 데이터)
-  const [gpsScore, setGpsScore] = useState<string | null>(null)
-  const [peiScore, setPeiScore] = useState<string | null>(null)
+  const [gpsScore, setGpsScore] = useState<string | null>(null)  // 당기 (2606)
+  const [peiScore, setPeiScore] = useState<string | null>(null)  // 당기 (2606)
+  const [prevGpsScore, setPrevGpsScore] = useState<string | null>(null)  // 전기 (2506)
+  const [prevPeiScore, setPrevPeiScore] = useState<string | null>(null)  // 전기 (2506)
   
   // 목표 데이터 상태 (plan에서 설정한 값)
   const [goalData, setGoalData] = useState<{
@@ -264,17 +266,29 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
           })
         }
 
-        // GPS/PEI 실데이터 설정
+        // GPS/PEI 당기(2606) 실데이터 설정
         if (scoreData) {
           const gpsItsValue = (scoreData as any)['GPS(ITS)']
           const gpsPeiValue = (scoreData as any)['GPS(PEI)']
           setGpsScore(gpsItsValue)
           setPeiScore(gpsPeiValue)
-          console.log("✅ Results: GPS/PEI actual data loaded:", { 'GPS(ITS)': gpsItsValue, 'GPS(PEI)': gpsPeiValue })
+          console.log("✅ Results: GPS/PEI 당기(2606) 실데이터:", { 'GPS(ITS)': gpsItsValue, 'GPS(PEI)': gpsPeiValue })
         } else {
-          console.log("ℹ️ Results: No GPS/PEI actual data found for 2606")
+          console.log("ℹ️ Results: 당기(2606) GPS/PEI 데이터 없음")
           setGpsScore(null)
           setPeiScore(null)
+        }
+
+        // GPS/PEI 전기(2506) 실데이터 설정 — 화면에 함께 표시
+        if (fallbackTargetData) {
+          const prevGpsItsValue = (fallbackTargetData as any)['GPS(ITS)']
+          const prevGpsPeiValue = (fallbackTargetData as any)['GPS(PEI)']
+          setPrevGpsScore(prevGpsItsValue)
+          setPrevPeiScore(prevGpsPeiValue)
+          console.log("✅ Results: GPS/PEI 전기(2506) 실데이터:", { 'GPS(ITS)': prevGpsItsValue, 'GPS(PEI)': prevGpsPeiValue })
+        } else {
+          setPrevGpsScore(null)
+          setPrevPeiScore(null)
         }
         
         // 목표 데이터 설정 (people_goals 우선, 없으면 2506 데이터 사용)
@@ -715,6 +729,16 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
   // 매 렌더마다 재계산되던 파생값들을 의존성 기반 메모이즈
   const gpsAchievement = useMemo(() => getGpsAchievement(), [gpsScore, goalData.gpsTarget])
   const peiAchievement = useMemo(() => getPeiAchievement(), [peiScore, goalData.peiTarget])
+
+  // 전기(2506) 실데이터 백분율 — 부동소수점 정밀도 처리
+  const prevGpsPercent = useMemo(() => {
+    if (!prevGpsScore || prevGpsScore === '-') return null
+    return Math.round(parseFloat(prevGpsScore) * 1000) / 10
+  }, [prevGpsScore])
+  const prevPeiPercent = useMemo(() => {
+    if (!prevPeiScore || prevPeiScore === '-') return null
+    return Math.round(parseFloat(prevPeiScore) * 1000) / 10
+  }, [prevPeiScore])
   const refreshOffAchievement = useMemo(() => getRefreshOffAchievement(), [refreshOffData.usageRate, goalData.refreshOffTarget])
   const coachingTimeAchievement = useMemo(() => getCoachingTimeAchievement(), [coachingTimeData.yearHours, goalData.coachingTimeTarget])
 
@@ -1008,7 +1032,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span>실제: {peiAchievement.actual > 0 ? `${peiAchievement.actual}%` : '-'}</span>
+                  <span>전기(2506): {prevPeiPercent !== null ? `${prevPeiPercent}%` : '-'}</span>
                   <span>목표: {peiAchievement.target > 0 ? `${peiAchievement.target}%` : '-'}</span>
                 </div>
                 <Progress value={peiAchievement.rate > 0 ? Math.min(peiAchievement.rate, 100) : 0} className="h-1.5" />
@@ -1048,7 +1072,7 @@ export function ResultsTab({ empno, readOnly = false }: ResultsTabProps = {}) {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span>실제: {gpsAchievement.actual > 0 ? `${gpsAchievement.actual}%` : '-'}</span>
+                  <span>전기(2506): {prevGpsPercent !== null ? `${prevGpsPercent}%` : '-'}</span>
                   <span>목표: {gpsAchievement.target > 0 ? `${gpsAchievement.target}%` : '-'}</span>
                 </div>
                 <Progress value={gpsAchievement.rate > 0 ? Math.min(gpsAchievement.rate, 100) : 0} className="h-1.5" />
