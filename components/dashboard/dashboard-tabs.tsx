@@ -77,12 +77,13 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
   const [qualityGoal, setQualityGoal] = useState<{ doae_rate?: number; yra_ratio?: number } | null>(null)
   const [qualityLoading, setQualityLoading] = useState(false)
   const [qualityError, setQualityError] = useState<string | null>(null)
-  const [nonAuditGoal, setNonAuditGoal] = useState<{ 신규: string; 기존: string }>({ 신규: "", 기존: "" })
+  const [nonAuditGoal, setNonAuditGoal] = useState<{ Quality향상: string; 효율화계획: string; 신상품개발: string }>({ Quality향상: "", 효율화계획: "", 신상품개발: "" })
   const [nonAuditGoalText, setNonAuditGoalText] = useState("")
   const [isEditingNonAuditStatus, setIsEditingNonAuditStatus] = useState(false)
-  const [nonAuditStatus, setNonAuditStatus] = useState({ 신규: { progress: "" }, 기존: { progress: "" } })
+  const [nonAuditStatus, setNonAuditStatus] = useState<{ Quality향상: { progress: string }; 효율화계획: { progress: string }; 신상품개발: { progress: string } }>({ Quality향상: { progress: "" }, 효율화계획: { progress: "" }, 신상품개발: { progress: "" } })
   const [originalNonAuditStatus, setOriginalNonAuditStatus] = useState(nonAuditStatus)
-  const [performanceStatus, setPerformanceStatus] = useState<{신규: 'pending'|'in_progress'|'completed', 기존: 'pending'|'in_progress'|'completed'}>({신규: 'pending', 기존: 'pending'})
+  type PerfStatus = 'pending' | 'in_progress' | 'completed'
+  const [performanceStatus, setPerformanceStatus] = useState<{ Quality향상: PerfStatus; 효율화계획: PerfStatus; 신상품개발: PerfStatus }>({ Quality향상: 'pending', 효율화계획: 'pending', 신상품개발: 'pending' })
   const [industryActivities, setIndustryActivities] = useState<IndustryTLActivity[]>([])
   const [industryLoading, setIndustryLoading] = useState(false)
   const [industryError, setIndustryError] = useState<string | null>(null)
@@ -105,244 +106,86 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         
         setBusinessGoal(goal)
         
-        // BPR_fact 테이블에서 My Budget 및 Team Budget 데이터 가져오기
+        // BPR_fact 집계 — 서버 RPC로 이동 (이전: 수천 행 fetch + JS 집계, pagination 버그 존재)
         const { ReviewerService } = await import("@/lib/reviewer-service")
         const normalizedEmpno = ReviewerService.normalizeEmpno(targetEmpno)
-        
-        // 사번 변형 목록 생성
+
+        // 사번 변형 목록 (정규화 + 원본)
         const empnoVariants = [normalizedEmpno]
         if (normalizedEmpno.startsWith('0')) {
           empnoVariants.push(normalizedEmpno.replace(/^0+/, ''))
         } else {
           empnoVariants.push(`0${normalizedEmpno}`)
         }
-        
-        // 1. 사용자의 본부(CM_NM) 조회
+
+        // 사용자의 본부(CM_NM) 조회
         const { data: userData } = await supabase
           .from("a_hr_master")
           .select("CM_NM")
           .eq("EMPNO", normalizedEmpno)
           .maybeSingle()
-        
+
         if (!userData?.CM_NM) {
           console.log("❌ 사용자 본부 정보 없음")
           if (hrResult.data) setBudgetData(hrResult.data)
           return
         }
-        
+
         console.log("🏢 사용자 본부:", userData.CM_NM)
-        
-        // 2. BPR_fact에서 최신 날짜 찾기
-        const { data: latestDateData } = await supabase
-          .from("BPR_fact")
-          .select("CDM_REPORT_DATE")
-          .not("CDM_REPORT_DATE", "is", null)
-          .order("CDM_REPORT_DATE", { ascending: false })
-          .limit(1)
-          .single()
-        
-        if (!latestDateData?.CDM_REPORT_DATE) {
-          console.log("❌ 최신 CDM_REPORT_DATE 없음")
-          if (hrResult.data) setBudgetData(hrResult.data)
-          return
+
+        // My + Team BPR 집계를 RPC 2개 병렬 호출
+        const [myBprRes, teamBprRes] = await Promise.all([
+          supabase.rpc('get_bpr_aggregate_by_person', {
+            p_empno_list: empnoVariants,
+            p_report_date: null,
+          }),
+          supabase.rpc('get_bpr_aggregate_by_dept', {
+            p_dept_prefix: userData.CM_NM,
+            p_report_date: null,
+          }),
+        ])
+
+        if (myBprRes.error) {
+          console.error('❌ get_bpr_aggregate_by_person 실패:', myBprRes.error)
         }
-        
-        const latestDate = latestDateData.CDM_REPORT_DATE
-        console.log("📅 최신 날짜:", latestDate)
-        
-        // 3. My BPR 데이터 가져오기 (Pagination)
-        let allMyBprData: any[] = []
-        let myPage = 0
-        const pageSize = 1000
-        
-        while (true) {
-          const { data, error } = await supabase
-            .from('BPR_fact')
-            .select('*')
-            .in('CDM_PERSON_ID', empnoVariants)
-            .eq('CDM_REPORT_DATE', latestDate)
-            .not('CDM_SOURCE', 'is', null)
-            .range(myPage * pageSize, (myPage + 1) * pageSize - 1)
-          
-          if (error || !data || data.length === 0) break
-          allMyBprData = allMyBprData.concat(data)
-          if (data.length < pageSize) break
-          myPage++
-          if (myPage >= 20) break
+        if (teamBprRes.error) {
+          console.error('❌ get_bpr_aggregate_by_dept 실패:', teamBprRes.error)
         }
-        
-        console.log(`📦 My BPR 데이터 ${allMyBprData.length}건 로드됨`)
-        
-        // 4. Team BPR 데이터 가져오기 (Pagination)
-        let allTeamBprData: any[] = []
-        let teamPage = 0
-        
-        while (true) {
-          const { data: bprPage } = await supabase
-            .from("BPR_fact")
-            .select("*")
-            .eq("PRJT_CMOFNM", userData.CM_NM)
-            .eq("CDM_REPORT_DATE", latestDate)
-            .not('CDM_SOURCE', 'is', null)
-            .range(teamPage * pageSize, (teamPage + 1) * pageSize - 1)
-          
-          if (!bprPage || bprPage.length === 0) break
-          allTeamBprData = allTeamBprData.concat(bprPage)
-          if (bprPage.length < pageSize) break
-          teamPage += pageSize
-          if (teamPage >= 20000) break
-        }
-        
-        console.log(`📦 Team BPR 데이터 ${allTeamBprData.length}건 로드됨`)
-        
-        // 5. My BPR 데이터 집계
-        let myAuditRevenue = 0, myAuditBacklog = 0, myAuditPipeline = 0
-        let myNonAuditRevenue = 0, myNonAuditBacklog = 0, myNonAuditPipeline = 0
-        
-        allMyBprData.forEach(item => {
-          const auditTypeRaw = String(item['감사 구분'] || '').trim()
-          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
-          const cdmSource = String(item.CDM_SOURCE || '').trim()
-          const cdmStage = String(item.CDM_STAGE || '').trim()
-          
-          // F-link Revenue
-          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
-            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
-            if (isAudit) {
-              myAuditRevenue += amount
-            } else {
-              myNonAuditRevenue += amount
-            }
-          }
-          
-          // F-link Backlog (분기별 월 데이터 합산)
-          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
-            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
-            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
-            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
-            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
-            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
-            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
-            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
-            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
-            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
-            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
-            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
-            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
-            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
-            if (isAudit) {
-              myAuditBacklog += amount
-            } else {
-              myNonAuditBacklog += amount
-            }
-          }
-          
-          // Salesforce Pipeline
-          if (cdmSource === 'Salesforce') {
-            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
-            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
-            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
-            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
-            const amount = (q1 + q2 + q3 + q4) / 1_000_000
-            
-            if (isAudit) {
-              myAuditPipeline += amount
-            } else {
-              myNonAuditPipeline += amount
-            }
-          }
+
+        const myRow = (myBprRes.data || [])[0] || {}
+        const teamRow = (teamBprRes.data || [])[0] || {}
+
+        // RPC 반환값 단위: 백만원 (JS의 1_000_000으로 나눠준 결과와 동일)
+        const myAuditRevenue = Number(myRow.audit_revenue) || 0
+        const myNonAuditRevenue = Number(myRow.non_audit_revenue) || 0
+        const myAuditBacklog = Number(myRow.audit_backlog) || 0
+        const myNonAuditBacklog = Number(myRow.non_audit_backlog) || 0
+        const myAuditPipeline = Number(myRow.audit_pipeline) || 0
+        const myNonAuditPipeline = Number(myRow.non_audit_pipeline) || 0
+
+        const teamAuditRevenue = Number(teamRow.audit_revenue) || 0
+        const teamNonAuditRevenue = Number(teamRow.non_audit_revenue) || 0
+        const teamAuditBacklog = Number(teamRow.audit_backlog) || 0
+        const teamNonAuditBacklog = Number(teamRow.non_audit_backlog) || 0
+        const teamAuditPipeline = Number(teamRow.audit_pipeline) || 0
+        const teamNonAuditPipeline = Number(teamRow.non_audit_pipeline) || 0
+
+        console.log("📊 BPR 집계 (서버 RPC):", {
+          my: { rev: myAuditRevenue + myNonAuditRevenue, bl: myAuditBacklog + myNonAuditBacklog, pl: myAuditPipeline + myNonAuditPipeline },
+          team: { rev: teamAuditRevenue + teamNonAuditRevenue, bl: teamAuditBacklog + teamNonAuditBacklog, pl: teamAuditPipeline + teamNonAuditPipeline },
         })
-        
-        console.log("✅ DashboardTabs: My Budget 집계 완료:", {
-          audit: { rev: myAuditRevenue, bl: myAuditBacklog, pl: myAuditPipeline },
-          nonAudit: { rev: myNonAuditRevenue, bl: myNonAuditBacklog, pl: myNonAuditPipeline }
-        })
-        
-        // 6. Team BPR 데이터 집계 (중복 제거)
-        const uniqueTeamData = new Map()
-        allTeamBprData.forEach(item => {
-          const key = `${item.CDM_PROJECT_CODE}_${item.CDM_PERSON_ID}_${item.CDM_SOURCE}_${item.CDM_STAGE}`
-          if (!uniqueTeamData.has(key)) {
-            uniqueTeamData.set(key, item)
-          }
-        })
-        
-        const deduplicatedTeamData = Array.from(uniqueTeamData.values())
-        console.log(`🔍 Team 중복 제거 후 ${deduplicatedTeamData.length}건`)
-        
-        let teamAuditRevenue = 0, teamAuditBacklog = 0, teamAuditPipeline = 0
-        let teamNonAuditRevenue = 0, teamNonAuditBacklog = 0, teamNonAuditPipeline = 0
-        
-        deduplicatedTeamData.forEach(item => {
-          const auditTypeRaw = String(item['감사 구분'] || '').trim()
-          const isAudit = auditTypeRaw.includes('감사') && !auditTypeRaw.includes('비감사')
-          const cdmSource = String(item.CDM_SOURCE || '').trim()
-          const cdmStage = String(item.CDM_STAGE || '').trim()
-          
-          // F-link Revenue
-          if (cdmSource === 'F-link' && cdmStage === 'Realized' && !cdmStage.includes('/')) {
-            const amount = parseFloat(String(item.CDM_REVENUE_TOTAL || 0)) / 1_000_000
-            if (isAudit) {
-              teamAuditRevenue += amount
-            } else {
-              teamNonAuditRevenue += amount
-            }
-          }
-          
-          // F-link Backlog (분기별 월 데이터 합산)
-          if (cdmSource === 'F-link' && cdmStage === 'Backlog' && !cdmStage.includes('/')) {
-            const m1 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M1 || 0))
-            const m2 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M2 || 0))
-            const m3 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M3 || 0))
-            const m4 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M4 || 0))
-            const m5 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M5 || 0))
-            const m6 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M6 || 0))
-            const m7 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M7 || 0))
-            const m8 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M8 || 0))
-            const m9 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M9 || 0))
-            const m10 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M10 || 0))
-            const m11 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M11 || 0))
-            const m12 = parseFloat(String(item.CDM_REVENUE_BACKLOG_M12 || 0))
-            const amount = (m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12) / 1_000_000
-            if (isAudit) {
-              teamAuditBacklog += amount
-            } else {
-              teamNonAuditBacklog += amount
-            }
-          }
-          
-          // Salesforce Pipeline
-          if (cdmSource === 'Salesforce') {
-            const q1 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q1 || 0))
-            const q2 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q2 || 0))
-            const q3 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q3 || 0))
-            const q4 = parseFloat(String(item.CDM_REVENUE_TOTAL_Q4 || 0))
-            const amount = (q1 + q2 + q3 + q4) / 1_000_000
-            
-            if (isAudit) {
-              teamAuditPipeline += amount
-            } else {
-              teamNonAuditPipeline += amount
-            }
-          }
-        })
-        
-        console.log("📊 Team Budget 집계 완료:", {
-          audit: { rev: teamAuditRevenue, bl: teamAuditBacklog, pl: teamAuditPipeline },
-          nonAudit: { rev: teamNonAuditRevenue, bl: teamNonAuditBacklog, pl: teamNonAuditPipeline }
-        })
-        
-        // 7. budgetData 구성 (BPR_fact 데이터 + hr_master_dashboard 예산/기타 데이터)
+
+        // budgetData 구성 (RPC 결과 백만원 → 원단위로 변환해서 저장; JSX는 /1_000_000으로 표시)
         const combinedBudgetData = {
           ...(hrResult.data || {}),
-          // My Budget 실적 (BPR_fact에서)
+          // My Budget 실적
           current_audit_revenue: Math.round(myAuditRevenue * 1_000_000),
           current_audit_backlog: Math.round(myAuditBacklog * 1_000_000),
           pipeline_audit_current_total: Math.round(myAuditPipeline * 1_000_000),
           current_non_audit_revenue: Math.round(myNonAuditRevenue * 1_000_000),
           current_non_audit_backlog: Math.round(myNonAuditBacklog * 1_000_000),
           pipeline_non_audit_current_total: Math.round(myNonAuditPipeline * 1_000_000),
-          // Team Budget 실적 (BPR_fact에서)
+          // Team Budget 실적
           dept_revenue_audit: Math.round(teamAuditRevenue * 1_000_000),
           dept_backlog_audit: Math.round(teamAuditBacklog * 1_000_000),
           dept_pipeline_audit_current_total: Math.round(teamAuditPipeline * 1_000_000),
@@ -350,8 +193,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
           dept_backlog_non_audit: Math.round(teamNonAuditBacklog * 1_000_000),
           dept_pipeline_non_audit_current_total: Math.round(teamNonAuditPipeline * 1_000_000),
         }
-        
-        console.log("✅ DashboardTabs: Combined budget data set")
+
         setBudgetData(combinedBudgetData)
         
       } catch (e: any) {
@@ -586,43 +428,70 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
         const performances = await QualityNonAuditPerformanceService.getByEmployeeId(targetEmpno)
         
         if (performances.length > 0) {
-          // 첫 번째 레코드에서 감사 메트릭 가져오기
+          // 첫 번째 레코드에서 감사 메트릭 가져오기 (legacy)
           const firstRecord = performances[0]
           setQualityGoal({
             doae_rate: firstRecord.doae_rate || 0,
             yra_ratio: firstRecord.yra_ratio || 0,
           })
-          
-          // 비감사 목표 조합
-          const 신규Performance = performances.find(p => p.type === '신규')
-          const 기존Performance = performances.find(p => p.type === '기존')
-          const nonePerformance = performances.find(p => p.type === 'none')
-          
-          // 목표 텍스트 설정
-          if (신규Performance || 기존Performance) {
-            const combinedGoal = QualityNonAuditPerformanceService.combineToOriginalFormat(
-              신규Performance?.goal_text || '',
-              기존Performance?.goal_text || ''
-            )
+
+          // 비감사 목표: 3분류(Quality향상/효율화계획/신상품개발) 타입 + none 폴백
+          // monitoring-tab.tsx와 동일 로직
+          const qualityPlan = performances.find((p: any) => p.type === 'Quality향상')
+          const 효율화Plan = performances.find((p: any) => p.type === '효율화계획')
+          const 신상품Plan = performances.find((p: any) => p.type === '신상품개발')
+          const nonePerformance = performances.find((p: any) => p.type === 'none')
+
+          const validStatus = ['pending', 'in_progress', 'completed']
+
+          if (qualityPlan || 효율화Plan || 신상품Plan) {
+            // 3분류 타입이면 합쳐서 표시
+            const parts: string[] = []
+            if (qualityPlan?.goal_text) {
+              parts.push('Quality 향상')
+              parts.push(qualityPlan.goal_text)
+              parts.push('')
+            }
+            if (효율화Plan?.goal_text) {
+              parts.push('효율화 계획')
+              parts.push(효율화Plan.goal_text)
+              parts.push('')
+            }
+            if (신상품Plan?.goal_text) {
+              parts.push('신상품 개발')
+              parts.push(신상품Plan.goal_text)
+            }
+            const combinedGoal = parts.join('\n')
             setNonAuditGoalText(combinedGoal)
             setNonAuditGoal(parseNonAuditGoal(combinedGoal))
-          } else if (nonePerformance?.goal_text) {
-            setNonAuditGoalText(nonePerformance.goal_text)
-            setNonAuditGoal(parseNonAuditGoal(nonePerformance.goal_text))
+
+            setPerformanceStatus({
+              Quality향상: validStatus.includes(qualityPlan?.status || '') ? qualityPlan?.status as PerfStatus : 'pending',
+              효율화계획: validStatus.includes(효율화Plan?.status || '') ? 효율화Plan?.status as PerfStatus : 'pending',
+              신상품개발: validStatus.includes(신상품Plan?.status || '') ? 신상품Plan?.status as PerfStatus : 'pending',
+            })
+            setNonAuditStatus({
+              Quality향상: { progress: qualityPlan?.progress_text || '' },
+              효율화계획: { progress: 효율화Plan?.progress_text || '' },
+              신상품개발: { progress: 신상품Plan?.progress_text || '' },
+            })
+          } else if (nonePerformance) {
+            // 'none' 타입: goal_text 그대로 + parseNonAuditGoal로 분리 시도
+            setNonAuditGoalText(nonePerformance.goal_text || '')
+            setNonAuditGoal(parseNonAuditGoal(nonePerformance.goal_text || ''))
+
+            const noneStatus = validStatus.includes(nonePerformance.status || '') ? nonePerformance.status as PerfStatus : 'pending'
+            setPerformanceStatus({
+              Quality향상: noneStatus,
+              효율화계획: 'pending',
+              신상품개발: 'pending',
+            })
+            setNonAuditStatus({
+              Quality향상: { progress: nonePerformance.progress_text || '' },
+              효율화계획: { progress: '' },
+              신상품개발: { progress: '' },
+            })
           }
-          
-          // 상태 설정
-          const validStatus = ['pending', 'in_progress', 'completed'];
-          setPerformanceStatus({
-            신규: validStatus.includes(신규Performance?.status || '') ? 신규Performance?.status as any : 'pending',
-            기존: validStatus.includes(기존Performance?.status || '') ? 기존Performance?.status as any : 'pending',
-          })
-          
-          // 진행상황 설정
-          setNonAuditStatus({
-            신규: { progress: 신규Performance?.progress_text || '' },
-            기존: { progress: 기존Performance?.progress_text || '' },
-          })
         }
       } catch (e: any) {
         setQualityError(e.message || String(e))
@@ -655,21 +524,34 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
     return n?.toLocaleString() ?? "0"
   }
 
+  // 3분류(Quality 향상 / 효율화 계획 / 신상품 개발) 키워드 기반 파서 — monitoring-tab.tsx와 동일
   function parseNonAuditGoal(text: string) {
-    if (!text) return { 신규: "", 기존: "" };
-    const 신규Idx = text.indexOf("신규 서비스 개발");
-    const 기존Idx = text.indexOf("기존 서비스 확장");
-    let 신규 = "";
-    let 기존 = "";
-    if (신규Idx !== -1 && 기존Idx !== -1) {
-      신규 = text.substring(신규Idx + 9, 기존Idx).trim();
-      기존 = text.substring(기존Idx + 9).trim();
-    } else if (신규Idx !== -1) {
-      신규 = text.substring(신규Idx + 9).trim();
-    } else if (기존Idx !== -1) {
-      기존 = text.substring(기존Idx + 9).trim();
+    if (!text) return { Quality향상: "", 효율화계획: "", 신상품개발: "" }
+    const qualityIdx = text.indexOf("Quality 향상")
+    const 효율화Idx = text.indexOf("효율화 계획")
+    const 신상품Idx = text.indexOf("신상품 개발")
+
+    let Quality향상 = ""
+    let 효율화계획 = ""
+    let 신상품개발 = ""
+
+    const indices = [
+      { type: "Quality 향상", idx: qualityIdx, key: "Quality향상" as const },
+      { type: "효율화 계획", idx: 효율화Idx, key: "효율화계획" as const },
+      { type: "신상품 개발", idx: 신상품Idx, key: "신상품개발" as const },
+    ].filter(i => i.idx !== -1).sort((a, b) => a.idx - b.idx)
+
+    for (let i = 0; i < indices.length; i++) {
+      const current = indices[i]
+      const next = indices[i + 1]
+      const startIdx = current.idx + current.type.length
+      const endIdx = next ? next.idx : text.length
+      const content = text.substring(startIdx, endIdx).trim()
+      if (current.key === "Quality향상") Quality향상 = content
+      else if (current.key === "효율화계획") 효율화계획 = content
+      else if (current.key === "신상품개발") 신상품개발 = content
     }
-    return { 신규, 기존 };
+    return { Quality향상, 효율화계획, 신상품개발 }
   }
 
   const handleEditNonAuditStatus = () => {
@@ -690,33 +572,46 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
       // 업데이트할 데이터 준비
       const performancesToUpdate = []
       
-      // 신규 타입 업데이트
-      const 신규Performance = existingPerformances.find(p => p.type === '신규')
-      if (신규Performance) {
+      // Quality향상 타입 업데이트
+      const qualityPerf = existingPerformances.find((p: any) => p.type === 'Quality향상')
+      if (qualityPerf) {
         performancesToUpdate.push({
-          ...신규Performance,
-          progress_text: nonAuditStatus.신규.progress,
-          status: performanceStatus.신규
+          ...qualityPerf,
+          progress_text: nonAuditStatus.Quality향상.progress,
+          status: performanceStatus.Quality향상,
         })
       }
-      
-      // 기존 타입 업데이트
-      const 기존Performance = existingPerformances.find(p => p.type === '기존')
-      if (기존Performance) {
+
+      // 효율화계획 타입 업데이트
+      const 효율화Perf = existingPerformances.find((p: any) => p.type === '효율화계획')
+      if (효율화Perf) {
         performancesToUpdate.push({
-          ...기존Performance,
-          progress_text: nonAuditStatus.기존.progress,
-          status: performanceStatus.기존
+          ...효율화Perf,
+          progress_text: nonAuditStatus.효율화계획.progress,
+          status: performanceStatus.효율화계획,
         })
       }
-      
-      // none 타입도 확인하여 업데이트
-      const nonePerformance = existingPerformances.find(p => p.type === 'none')
+
+      // 신상품개발 타입 업데이트
+      const 신상품Perf = existingPerformances.find((p: any) => p.type === '신상품개발')
+      if (신상품Perf) {
+        performancesToUpdate.push({
+          ...신상품Perf,
+          progress_text: nonAuditStatus.신상품개발.progress,
+          status: performanceStatus.신상품개발,
+        })
+      }
+
+      // none 타입도 확인하여 업데이트 (legacy)
+      const nonePerformance = existingPerformances.find((p: any) => p.type === 'none')
       if (nonePerformance) {
         performancesToUpdate.push({
           ...nonePerformance,
-          progress_text: nonAuditStatus.신규.progress || nonAuditStatus.기존.progress,
-          status: performanceStatus.신규 || performanceStatus.기존
+          progress_text:
+            nonAuditStatus.Quality향상.progress ||
+            nonAuditStatus.효율화계획.progress ||
+            nonAuditStatus.신상품개발.progress,
+          status: performanceStatus.Quality향상,
         })
       }
       
@@ -1085,42 +980,17 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                  </div>
                </CardContent>
              </Card>
-            {/* GPS Score Card */}
+            {/* GPS(PEI) Score Card — L_GPS_PEI_Table."GPS(PEI)" 컬럼 (=people_goals.pei_score 목표) */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">GPS Score</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-end mb-1">
-                     <div className="text-2xl font-bold">
-                       {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-%'}
-                </div>
-                     <div className="text-xs text-muted-foreground text-right">FY25 기준</div>
-                 </div>
-                 <div className="space-y-2">
-                   <div className="flex justify-between text-xs">
-                     <span>실제: {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-'}</span>
-                     <span>목표: {peopleGoal?.gps_score || '-'}%</span>
-                   </div>
-                   <Progress value={
-                     peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' && peopleGoal?.gps_score 
-                     ? Math.min(Math.round((parseFloat(peopleActualData.gpsScore) * 100) / peopleGoal.gps_score * 100), 100) 
-                     : 0
-                   } className="h-1.5" />
-                 </div>
-              </CardContent>
-            </Card>
-            {/* PEI Score Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">PEI Score</CardTitle>
+                <CardTitle className="text-base font-semibold">GPS(PEI)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex justify-between items-end mb-1">
                      <div className="text-2xl font-bold">
                        {peopleActualData.peiScore && peopleActualData.peiScore !== '-' ? `${Math.round(parseFloat(peopleActualData.peiScore) * 100)}%` : '-%'}
                 </div>
-                     <div className="text-xs text-muted-foreground text-right">FY25 기준</div>
+                     <div className="text-xs text-muted-foreground text-right">2606 기준</div>
                  </div>
                  <div className="space-y-2">
                    <div className="flex justify-between text-xs">
@@ -1128,8 +998,33 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                      <span>목표: {peopleGoal?.pei_score || '-'}%</span>
                    </div>
                    <Progress value={
-                     peopleActualData.peiScore && peopleActualData.peiScore !== '-' && peopleGoal?.pei_score 
-                     ? Math.min(Math.round((parseFloat(peopleActualData.peiScore) * 100) / peopleGoal.pei_score * 100), 100) 
+                     peopleActualData.peiScore && peopleActualData.peiScore !== '-' && peopleGoal?.pei_score
+                     ? Math.min(Math.round((parseFloat(peopleActualData.peiScore) * 100) / peopleGoal.pei_score * 100), 100)
+                     : 0
+                   } className="h-1.5" />
+                 </div>
+              </CardContent>
+            </Card>
+            {/* GPS(ITS) Score Card — L_GPS_PEI_Table."GPS(ItS)" 컬럼 (=people_goals.gps_score 목표) */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">GPS(ITS)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-end mb-1">
+                     <div className="text-2xl font-bold">
+                       {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-%'}
+                </div>
+                     <div className="text-xs text-muted-foreground text-right">2606 기준</div>
+                 </div>
+                 <div className="space-y-2">
+                   <div className="flex justify-between text-xs">
+                     <span>실제: {peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' ? `${Math.round(parseFloat(peopleActualData.gpsScore) * 100)}%` : '-'}</span>
+                     <span>목표: {peopleGoal?.gps_score || '-'}%</span>
+                   </div>
+                   <Progress value={
+                     peopleActualData.gpsScore && peopleActualData.gpsScore !== '-' && peopleGoal?.gps_score
+                     ? Math.min(Math.round((parseFloat(peopleActualData.gpsScore) * 100) / peopleGoal.gps_score * 100), 100)
                      : 0
                    } className="h-1.5" />
                  </div>
@@ -1196,7 +1091,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
           <div className="p-8 text-center text-gray-500">입력된 Collaboration 데이터가 없습니다.</div>
         ) : (
         <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             {/* X-Los 협업 카드 */}
             <Card>
               <CardHeader>
@@ -1252,35 +1147,6 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                     <div className="text-2xl font-bold">{Math.ceil(Math.floor(collabActuals.los.amount / 1_000_000)).toLocaleString()}백만원</div>
                     <Progress value={(Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100} className="h-2 mt-2" />
                     <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.los.amount / 1_000_000) / collabGoal.losllk_target_amount) * 100)}%</div>
-                </div>
-              </CardContent>
-            </Card>
-            {/* AX Node 협업 카드 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center">
-                  <Network className="mr-2 h-4 w-4 text-orange-600" />
-                  AX Node 협업
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-sm text-muted-foreground">건수</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: {formatNumber(collabGoal.ax_node_target_count)}건</span>
-                    </div>
-                    <div className="text-2xl font-bold">{formatNumber(collabActuals.axnode.count)}건</div>
-                    <Progress value={(collabActuals.axnode.count / collabGoal.ax_node_target_count) * 100} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((collabActuals.axnode.count / collabGoal.ax_node_target_count) * 100)}%</div>
-                </div>
-                <div>
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-sm text-muted-foreground">금액</span>
-                      <span className="text-xs text-muted-foreground text-right">목표: {Math.ceil(collabGoal.ax_node_target_amount).toLocaleString()}백만원</span>
-                    </div>
-                    <div className="text-2xl font-bold">{Math.ceil(Math.floor(collabActuals.axnode.amount / 1_000_000)).toLocaleString()}백만원</div>
-                    <Progress value={(Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100} className="h-2 mt-2" />
-                    <div className="mt-1 text-xs text-right text-gray-500">달성률: {Math.round((Math.floor(collabActuals.axnode.amount / 1_000_000) / collabGoal.ax_node_target_amount) * 100)}%</div>
                 </div>
               </CardContent>
             </Card>
@@ -1400,10 +1266,10 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
               <TrendingUp className="mr-2 h-5 w-5 text-blue-600" />
               <span className="text-lg font-bold">비감사 성과</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 단일/복수 카드 모두 지원 */}
-              {(!nonAuditGoal.신규 && !nonAuditGoal.기존) ? (
-                <Card className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {(!nonAuditGoal.Quality향상 && !nonAuditGoal.효율화계획 && !nonAuditGoal.신상품개발) ? (
+                // 폴백: 3분류 없으면 raw 텍스트 + 단일 상태
+                <Card className="md:col-span-3">
                   <CardContent>
                     <div className="mt-4 mb-4 text-xs text-muted-foreground whitespace-pre-line">
                       {nonAuditGoalText || "비감사 목표를 입력하세요"}
@@ -1412,7 +1278,7 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">현재 상태</span>
                         {isEditingNonAuditStatus && !readOnly ? (
-                          <Select value={performanceStatus.신규} onValueChange={v => setPerformanceStatus(s => ({...s, 신규: v as any}))}>
+                          <Select value={performanceStatus.Quality향상} onValueChange={v => setPerformanceStatus(s => ({ ...s, Quality향상: v as PerfStatus }))}>
                             <SelectTrigger className="w-32 h-7 text-xs">
                               <SelectValue />
                             </SelectTrigger>
@@ -1423,9 +1289,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                             </SelectContent>
                           </Select>
                         ) : (
-                          performanceStatus.신규 === 'completed' ? (
+                          performanceStatus.Quality향상 === 'completed' ? (
                             <Badge className="bg-green-500">Completed</Badge>
-                          ) : performanceStatus.신규 === 'in_progress' ? (
+                          ) : performanceStatus.Quality향상 === 'in_progress' ? (
                             <Badge className="bg-orange-500">On Track</Badge>
                           ) : (
                             <Badge className="bg-gray-400">Pending</Badge>
@@ -1435,12 +1301,12 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                       <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                         {isEditingNonAuditStatus && !readOnly ? (
                           <Textarea
-                            value={nonAuditStatus.신규.progress}
-                            onChange={e => setNonAuditStatus(s => ({ ...s, 신규: { progress: e.target.value } }))}
+                            value={nonAuditStatus.Quality향상.progress}
+                            onChange={e => setNonAuditStatus(s => ({ ...s, Quality향상: { progress: e.target.value } }))}
                             className="mb-2"
                           />
                         ) : (
-                          <p className="text-sm">{nonAuditStatus.신규.progress || nonAuditStatus.기존.progress || "진행상황을 입력하세요"}</p>
+                          <p className="text-sm">{nonAuditStatus.Quality향상.progress || nonAuditStatus.효율화계획.progress || nonAuditStatus.신상품개발.progress || "진행상황을 입력하세요"}</p>
                         )}
                       </div>
                     </div>
@@ -1448,20 +1314,24 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                 </Card>
               ) : (
                 <>
-                  {nonAuditGoal.신규 && (
-              <Card>
-                <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">신규 서비스 개발</CardTitle>
-                        <CardDescription className="text-xs">
-                          {nonAuditGoal.신규}
+                  {([
+                    { key: 'Quality향상' as const, label: 'Quality 향상' },
+                    { key: '효율화계획' as const, label: '효율화 계획' },
+                    { key: '신상품개발' as const, label: '신상품 개발' },
+                  ]).map(({ key, label }) => nonAuditGoal[key] && (
+                    <Card key={key}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                        <CardDescription className="text-xs whitespace-pre-line">
+                          {nonAuditGoal[key]}
                         </CardDescription>
-                </CardHeader>
-                <CardContent>
+                      </CardHeader>
+                      <CardContent>
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium">현재 상태</span>
                             {isEditingNonAuditStatus && !readOnly ? (
-                              <Select value={performanceStatus.신규} onValueChange={v => setPerformanceStatus(s => ({...s, 신규: v as any}))}>
+                              <Select value={performanceStatus[key]} onValueChange={v => setPerformanceStatus(s => ({ ...s, [key]: v as PerfStatus }))}>
                                 <SelectTrigger className="w-32 h-7 text-xs">
                                   <SelectValue />
                                 </SelectTrigger>
@@ -1472,9 +1342,9 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                                 </SelectContent>
                               </Select>
                             ) : (
-                              performanceStatus.신규 === 'completed' ? (
+                              performanceStatus[key] === 'completed' ? (
                                 <Badge className="bg-green-500">Completed</Badge>
-                              ) : performanceStatus.신규 === 'in_progress' ? (
+                              ) : performanceStatus[key] === 'in_progress' ? (
                                 <Badge className="bg-orange-500">On Track</Badge>
                               ) : (
                                 <Badge className="bg-gray-400">Pending</Badge>
@@ -1484,66 +1354,18 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                           <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
                             {isEditingNonAuditStatus && !readOnly ? (
                               <Textarea
-                                value={nonAuditStatus.신규.progress}
-                                onChange={e => setNonAuditStatus(s => ({ ...s, 신규: { progress: e.target.value } }))}
+                                value={nonAuditStatus[key].progress}
+                                onChange={e => setNonAuditStatus(s => ({ ...s, [key]: { progress: e.target.value } }))}
                                 className="mb-2"
                               />
                             ) : (
-                              <p className="text-sm">{nonAuditStatus.신규.progress}</p>
+                              <p className="text-sm">{nonAuditStatus[key].progress}</p>
                             )}
                           </div>
-                  </div>
-                </CardContent>
-              </Card>
-                  )}
-                  {nonAuditGoal.기존 && (
-              <Card>
-                <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">기존 서비스 확장</CardTitle>
-                        <CardDescription className="text-xs">
-                          {nonAuditGoal.기존}
-                        </CardDescription>
-                </CardHeader>
-                <CardContent>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">현재 상태</span>
-                            {isEditingNonAuditStatus && !readOnly ? (
-                              <Select value={performanceStatus.기존} onValueChange={v => setPerformanceStatus(s => ({...s, 기존: v as any}))}>
-                                <SelectTrigger className="w-32 h-7 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in_progress">On Track</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              performanceStatus.기존 === 'completed' ? (
-                                <Badge className="bg-green-500">Completed</Badge>
-                              ) : performanceStatus.기존 === 'in_progress' ? (
-                                <Badge className="bg-orange-500">On Track</Badge>
-                              ) : (
-                                <Badge className="bg-gray-400">Pending</Badge>
-                              )
-                            )}
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
-                            {isEditingNonAuditStatus && !readOnly ? (
-                              <Textarea
-                                value={nonAuditStatus.기존.progress}
-                                onChange={e => setNonAuditStatus(s => ({ ...s, 기존: { progress: e.target.value } }))}
-                                className="mb-2"
-                              />
-                            ) : (
-                              <p className="text-sm">{nonAuditStatus.기존.progress}</p>
-                            )}
-                          </div>
-                  </div>
-                </CardContent>
-              </Card>
-                  )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </>
               )}
             </div>

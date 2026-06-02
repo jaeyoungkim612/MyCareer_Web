@@ -439,7 +439,7 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
 
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             {/* X-Los Collaboration */}
             <Card>
               <CardHeader className="pb-3">
@@ -550,60 +550,6 @@ export function CollaborationPlanTab({ empno, readOnly = false }: CollaborationP
               </CardContent>
             </Card>
 
-            {/*  AX Node Collaboration */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center">
-                  <Network className="mr-2 h-4 w-4 text-orange-600" />
-                  AX Node 협업
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="specialized-count">목표 건수</Label>
-                  {isEditMode ? (
-                    <Input
-                      id="specialized-count"
-                      type="number"
-                      min={0}
-                      value={formData.axNodeCollaboration.count || ""}
-                      onChange={e => handleMetricChange("axNodeCollaboration", "count", e.target.value)}
-                      placeholder="0"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-lg">
-                        {planData.selfAssessment.axNodeCollaboration.count || "-"}
-                      </span>
-                      <span className="text-sm text-muted-foreground">건</span>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="specialized-amount">목표 금액 (백만원)</Label>
-                  {isEditMode ? (
-                    <Input
-                      id="specialized-amount"
-                      type="number"
-                      min={0}
-                      value={formData.axNodeCollaboration.amount || ""}
-                      onChange={e => handleMetricChange("axNodeCollaboration", "amount", e.target.value)}
-                      placeholder="0"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-lg">
-                        {planData.selfAssessment.axNodeCollaboration.amount ? 
-                          `${formatAmountM(planData.selfAssessment.axNodeCollaboration.amount)}` : 
-                          "-"
-                        }
-                      </span>
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">대상기간은 25년 6월 이후 부터 입니다</p>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </CardContent>
         <CardFooter>

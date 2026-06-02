@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { QualityMonitoringService } from "@/lib/quality-monitoring-service"
 import { AuthService, User } from "@/lib/auth-service"
+import { DoAEEvaluationSection } from "@/components/quality/doae-evaluation-section"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -300,11 +301,16 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         
         // 3. 내가 투입한 시간만 필터링
         const myTimeData = (allTimeData || []).filter(item => item.EMPNO === normalizedEmpno);
-        
+
         // 4. 프로젝트별 상세 데이터 생성 - 필터링된 프로젝트 중 시간 데이터가 있는 것만
-        const filteredChargeProjects = (chargeProjects || []).filter(project => 
-          filteredProjectCodes.includes(project.PRJTCD)
-        );
+        //    a_project_info에 동일 PRJTCD 다중 row가 있을 수 있어 PRJTCD 기준 중복 제거
+        const uniqueProjectMap = new Map<string, { PRJTCD: string; PRJTNM: string; CHARGPTR: string }>()
+        ;(chargeProjects || []).forEach(p => {
+          if (filteredProjectCodes.includes(p.PRJTCD) && !uniqueProjectMap.has(p.PRJTCD)) {
+            uniqueProjectMap.set(p.PRJTCD, p)
+          }
+        })
+        const filteredChargeProjects = Array.from(uniqueProjectMap.values())
         
         const detailData = filteredChargeProjects
           .map(project => {
@@ -974,34 +980,6 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
               </CardContent>
             </Card>
 
-            {/* AX/DX Transition 비율 */}
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base font-medium flex items-center justify-between">
-                  <span className="flex items-center">
-                    <TrendingUp className="mr-2 h-5 w-5" />
-                    AX/DX Transition 비율
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-bold">-%</span>
-                    <span className="text-base text-muted-foreground">/ {targetMetrics.axTransitionRatio}%</span>
-                  </div>
-                  <Progress value={0} className="h-3" />
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">vs Target</span>
-                    <span className="flex items-center text-gray-600">
-                      {getTrendIcon(0)}
-                      <span className="ml-1">-</span>
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* EER 평가 결과 */}
             <Card>
               <CardHeader className="pb-4">
@@ -1033,6 +1011,9 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
       </Card>
 
 
+
+      {/* DoAE Interim 다면평가결과 — People Status에서 이관 */}
+      <DoAEEvaluationSection empno={empno} readOnly={readOnly} />
 
       {/* Non-Audit Metrics */}
       <Card className="mb-6">
