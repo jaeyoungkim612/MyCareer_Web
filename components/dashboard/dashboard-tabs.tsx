@@ -503,18 +503,38 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
             if (!viewResult.error && viewResult.data && viewResult.data.length > 0) {
               timeRows = viewResult.data
             } else {
-              // Fallback: a_coaching_time 직접 조회 + 2025 필터 + PRJTCD+EMPNO 집계
-              console.log('🔄 Dashboard: v_project_time 실패, a_coaching_time fallback')
-              const { data: coachingData } = await supabase
-                .from('a_coaching_time')
-                .select('EMPNO, PRJTCD, USE_TIME, INPUTDATE')
-                .in('PRJTCD', filteredProjectCodes)
-                .not('INPUTDATE', 'is', null)
-                .like('INPUTDATE', '2025%')
+              // Fallback: a_coaching_time 50개씩 chunk + 날짜범위 + Promise.all 병렬
+              console.log('🔄 Dashboard: v_project_time 실패, a_coaching_time chunk fallback (parallel)')
+              const CHUNK_SIZE = 50
+              const PER_CHUNK_LIMIT = 5000
+              let allCoaching: any[] = []
+              const codes = filteredProjectCodes as string[]
 
-              if (coachingData && coachingData.length > 0) {
+              const chunks: string[][] = []
+              for (let i = 0; i < codes.length; i += CHUNK_SIZE) {
+                chunks.push(codes.slice(i, i + CHUNK_SIZE))
+              }
+              const results = await Promise.all(
+                chunks.map(chunk =>
+                  supabase
+                    .from('a_coaching_time')
+                    .select('EMPNO, PRJTCD, USE_TIME, INPUTDATE')
+                    .in('PRJTCD', chunk)
+                    .not('INPUTDATE', 'is', null)
+                    .gte('INPUTDATE', '2025-01-01')
+                    .lt('INPUTDATE', '2027-01-01')
+                    .limit(PER_CHUNK_LIMIT)
+                )
+              )
+              for (let idx = 0; idx < results.length; idx++) {
+                const r = results[idx]
+                if (r.error) { console.warn(`⚠️ Dashboard chunk ${idx} 실패:`, r.error.code); continue }
+                if (r.data) allCoaching = allCoaching.concat(r.data)
+              }
+
+              if (allCoaching.length > 0) {
                 const timeMap = new Map<string, { EMPNO: string; total_use_time: number }>()
-                coachingData.forEach((item: any) => {
+                allCoaching.forEach((item: any) => {
                   const key = `${item.PRJTCD}_${item.EMPNO}`
                   const useTime = parseFloat(item.USE_TIME || '0') || 0
                   if (timeMap.has(key)) {
@@ -1436,54 +1456,36 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
               </Card>
             </div>
 
-            {/* EER 평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
+            {/* EER 기말평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
             <Card className="mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-semibold flex items-center">
-                  EER 평가 결과
-                  <span className="ml-2 text-xs text-muted-foreground font-normal">(2025 기준)</span>
+                  EER 기말평가 결과
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">(2605 기준)</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {eerLoading ? (
                   <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">로딩 중...</div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {([
-                        { value: '상위 20%', tone: 'green' as const,  icon: TrendingUp },
-                        { value: '중위',      tone: 'blue' as const,   icon: Minus },
-                        { value: '하위 20%', tone: 'amber' as const,  icon: TrendingDown },
-                        { value: '하위 10%', tone: 'red' as const,    icon: TrendingDown },
-                      ]).map(({ value, tone, icon: Icon }) => {
-                        const selected = eerResult === value
-                        const cls = {
-                          green: { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-300', iconColor: 'text-green-600' },
-                          blue:  { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300',  iconColor: 'text-blue-600' },
-                          amber: { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', iconColor: 'text-amber-600' },
-                          red:   { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',     text: 'text-red-700 dark:text-red-300',    iconColor: 'text-red-600' },
-                        }[tone]
-                        return (
-                          <div
-                            key={value}
-                            className={
-                              selected
-                                ? `flex flex-col items-center justify-center p-3 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md h-[90px]`
-                                : 'flex flex-col items-center justify-center p-3 border border-gray-200 bg-gray-50 dark:bg-gray-800 rounded-lg h-[90px] opacity-50'
-                            }
-                          >
-                            <Icon className={`h-5 w-5 mb-1 ${selected ? cls.iconColor : 'text-gray-400'}`} />
-                            <span className={`text-sm font-bold ${selected ? cls.text : 'text-gray-500'}`}>{value}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    {!eerResult && (
-                      <div className="mt-2 text-xs text-center text-muted-foreground">
-                        EER 평가 결과 데이터가 없습니다
+                ) : eerResult ? (
+                  (() => {
+                    const toneByValue: Record<string, { border: string; bg: string; text: string }> = {
+                      '상위 20%': { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-300' },
+                      '중위':      { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300' },
+                      '하위 20%': { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
+                      '하위 10%': { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',     text: 'text-red-700 dark:text-red-300' },
+                    }
+                    const cls = toneByValue[eerResult] ?? { border: 'border-gray-300', bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' }
+                    return (
+                      <div className={`flex items-center justify-center p-4 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md`}>
+                        <span className={`text-xl font-bold ${cls.text}`}>{eerResult}</span>
                       </div>
-                    )}
-                  </>
+                    )
+                  })()
+                ) : (
+                  <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
+                    EER 평가 결과 데이터가 없습니다
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -238,16 +238,43 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         if (allTimeError || !allTimeData || allTimeData.length === 0) {
           console.log('🔄 v_project_time 뷰에 데이터가 없거나 에러 발생. a_coaching_time 테이블에서 직접 조회 시도...');
           
-          // a_coaching_time 테이블에서 직접 조회
-          const { data: coachingTimeData, error: coachingError } = await supabase
-            .from('a_coaching_time')
-            .select('EMPNO, PRJTCD, USE_TIME, INPUTDATE')
-            .in('PRJTCD', filteredProjectCodes)
-            .not('INPUTDATE', 'is', null)
-            .like('INPUTDATE', '2025%');
-          
+          // a_coaching_time 직접 조회: PRJTCD 50개씩 chunk + 날짜범위 + Promise.all 병렬
+          const CHUNK_SIZE = 50
+          const PER_CHUNK_LIMIT = 5000
+          let coachingTimeData: any[] = []
+          let coachingError: any = null
+
+          const chunks: string[][] = []
+          for (let i = 0; i < filteredProjectCodes.length; i += CHUNK_SIZE) {
+            chunks.push(filteredProjectCodes.slice(i, i + CHUNK_SIZE))
+          }
+
+          const results = await Promise.all(
+            chunks.map(chunk =>
+              supabase
+                .from('a_coaching_time')
+                .select('EMPNO, PRJTCD, USE_TIME, INPUTDATE')
+                .in('PRJTCD', chunk)
+                .not('INPUTDATE', 'is', null)
+                .gte('INPUTDATE', '2025-01-01')
+                .lt('INPUTDATE', '2027-01-01')
+                .limit(PER_CHUNK_LIMIT)
+            )
+          )
+
+          for (let idx = 0; idx < results.length; idx++) {
+            const r = results[idx]
+            if (r.error) {
+              console.warn(`⚠️ chunk ${idx} 실패:`, r.error.code)
+              coachingError = r.error
+              continue
+            }
+            if (r.data) coachingTimeData = coachingTimeData.concat(r.data)
+          }
+          if (coachingTimeData.length > 0) coachingError = null
+
           if (!coachingError && coachingTimeData && coachingTimeData.length > 0) {
-            console.log(`✅ a_coaching_time에서 ${coachingTimeData.length}건의 데이터 조회 성공`);
+            console.log(`✅ a_coaching_time에서 ${coachingTimeData.length}건의 데이터 조회 성공 (paginated)`);
             
             // 사원명을 가져오기 위해 a_hr_master 조회
             const uniqueEmpnos = [...new Set(coachingTimeData.map(item => item.EMPNO))];
@@ -738,6 +765,107 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         </div>
       </div>
 
+      {/* Performance Metrics Section - 비감사서비스 성과 하단으로 이동 */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <BarChart3 className="mr-2 h-5 w-5 text-orange-600" />
+            실적 현황
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {performanceLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="text-muted-foreground">실적 데이터 로딩 중...</div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* 감사 실적 카드 */}
+                <Card className="border-blue-200 dark:border-blue-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                      <div className="p-2 bg-blue-600 rounded-full">
+                        <CheckCircle className="h-4 w-4 text-white" />
+                      </div>
+                      감사 실적
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Adjusted EM */}
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                          {performanceData?.current_audit_adjusted_em 
+                            ? `${Math.round(Number(performanceData.current_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300">Adjusted EM</div>
+                      </div>
+                      
+                      {/* EM */}
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                          {performanceData?.current_audit_em 
+                            ? `${Math.round(Number(performanceData.current_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300">EM</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 비감사 실적 카드 */}
+                <Card className="border-green-200 dark:border-green-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
+                      <div className="p-2 bg-green-600 rounded-full">
+                        <TrendingUp className="h-4 w-4 text-white" />
+                      </div>
+                      비감사 실적
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Adjusted EM */}
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
+                          {performanceData?.current_non_audit_adjusted_em 
+                            ? `${Math.round(Number(performanceData.current_non_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-green-700 dark:text-green-300">Adjusted EM</div>
+                      </div>
+                      
+                      {/* EM */}
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
+                          {performanceData?.current_non_audit_em 
+                            ? `${Math.round(Number(performanceData.current_non_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
+                            : '-'
+                          }
+                        </div>
+                        <div className="text-xs text-green-700 dark:text-green-300">EM</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="text-center pt-2">
+                <p className="text-sm text-muted-foreground">
+                  * 데이터 기준: {performanceData?.EMPNO ? `${performanceData.EMPNM} (${performanceData.EMPNO})` : '현재 사용자'}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Audit Metrics */}
       <Card className="mb-6">
         <CardHeader>
@@ -1021,14 +1149,14 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
               </CardContent>
             </Card>
 
-            {/* EER 평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
+            {/* EER 기말평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
             <Card>
               <CardHeader className="pb-4">
                 <CardTitle className="text-base font-medium flex items-center justify-between">
                   <span className="flex items-center">
                     <CheckCircle className="mr-2 h-5 w-5" />
-                    EER 평가 결과
-                    <span className="ml-2 text-xs text-muted-foreground">(2025 기준)</span>
+                    EER 기말평가 결과
+                    <span className="ml-2 text-xs text-muted-foreground">(2605 기준)</span>
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -1037,46 +1165,25 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                   <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
                     로딩 중...
                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {([
-                        { value: '상위 20%', tone: 'green',   icon: TrendingUp },
-                        { value: '중위',      tone: 'blue',    icon: Minus },
-                        { value: '하위 20%', tone: 'amber',   icon: TrendingDown },
-                        { value: '하위 10%', tone: 'red',     icon: TrendingDown },
-                      ] as const).map(({ value, tone, icon: Icon }) => {
-                        const selected = eerResult === value
-                        const toneClasses: Record<typeof tone, { border: string; bg: string; text: string; iconColor: string }> = {
-                          green: { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20',  text: 'text-green-700 dark:text-green-300',  iconColor: 'text-green-600' },
-                          blue:  { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',    text: 'text-blue-700 dark:text-blue-300',    iconColor: 'text-blue-600' },
-                          amber: { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20',  text: 'text-amber-700 dark:text-amber-300',  iconColor: 'text-amber-600' },
-                          red:   { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',      text: 'text-red-700 dark:text-red-300',      iconColor: 'text-red-600' },
-                        }
-                        const cls = toneClasses[tone]
-                        return (
-                          <div
-                            key={value}
-                            className={
-                              selected
-                                ? `flex flex-col items-center justify-center p-4 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md h-[110px]`
-                                : 'flex flex-col items-center justify-center p-4 border border-gray-200 bg-gray-50 dark:bg-gray-800 rounded-lg h-[110px] opacity-50'
-                            }
-                          >
-                            <Icon className={`h-7 w-7 mb-2 ${selected ? cls.iconColor : 'text-gray-400'}`} />
-                            <span className={`text-base font-bold ${selected ? cls.text : 'text-gray-500'}`}>
-                              {value}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    {!eerResult && (
-                      <div className="mt-3 text-xs text-center text-muted-foreground">
-                        EER 평가 결과 데이터가 없습니다
+                ) : eerResult ? (
+                  (() => {
+                    const toneByValue: Record<string, { border: string; bg: string; text: string }> = {
+                      '상위 20%': { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-300' },
+                      '중위':      { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300' },
+                      '하위 20%': { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
+                      '하위 10%': { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',     text: 'text-red-700 dark:text-red-300' },
+                    }
+                    const cls = toneByValue[eerResult] ?? { border: 'border-gray-300', bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' }
+                    return (
+                      <div className={`flex items-center justify-center p-6 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md`}>
+                        <span className={`text-2xl font-bold ${cls.text}`}>{eerResult}</span>
                       </div>
-                    )}
-                  </>
+                    )
+                  })()
+                ) : (
+                  <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
+                    EER 평가 결과 데이터가 없습니다
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1235,106 +1342,6 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         </CardContent>
       </Card>
 
-      {/* Performance Metrics Section - 비감사서비스 성과 하단으로 이동 */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <BarChart3 className="mr-2 h-5 w-5 text-orange-600" />
-            실적 현황
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {performanceLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="text-muted-foreground">실적 데이터 로딩 중...</div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* 감사 실적 카드 */}
-                <Card className="border-blue-200 dark:border-blue-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
-                      <div className="p-2 bg-blue-600 rounded-full">
-                        <CheckCircle className="h-4 w-4 text-white" />
-                      </div>
-                      감사 실적
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Adjusted EM */}
-                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
-                          {performanceData?.current_audit_adjusted_em 
-                            ? `${Math.round(Number(performanceData.current_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-blue-700 dark:text-blue-300">Adjusted EM</div>
-                      </div>
-                      
-                      {/* EM */}
-                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
-                          {performanceData?.current_audit_em 
-                            ? `${Math.round(Number(performanceData.current_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-blue-700 dark:text-blue-300">EM</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* 비감사 실적 카드 */}
-                <Card className="border-green-200 dark:border-green-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
-                      <div className="p-2 bg-green-600 rounded-full">
-                        <TrendingUp className="h-4 w-4 text-white" />
-                      </div>
-                      비감사 실적
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Adjusted EM */}
-                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
-                          {performanceData?.current_non_audit_adjusted_em 
-                            ? `${Math.round(Number(performanceData.current_non_audit_adjusted_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-green-700 dark:text-green-300">Adjusted EM</div>
-                      </div>
-                      
-                      {/* EM */}
-                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <div className="text-xl font-bold text-green-900 dark:text-green-100">
-                          {performanceData?.current_non_audit_em 
-                            ? `${Math.round(Number(performanceData.current_non_audit_em) / 1000000).toLocaleString('ko-KR')}백만원`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-green-700 dark:text-green-300">EM</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="text-center pt-2">
-                <p className="text-sm text-muted-foreground">
-                  * 데이터 기준: {performanceData?.EMPNO ? `${performanceData.EMPNM} (${performanceData.EMPNO})` : '현재 사용자'}
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </>
   )
 }
