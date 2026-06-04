@@ -234,14 +234,16 @@ export function PlanAssessmentTab({ empno, readOnly = false }: PlanAssessmentTab
           }
           
           if (budgetData && !budgetError) {
-            budgetAmount = budgetData.reduce((sum, row: any) => {
-              // text 타입을 숫자로 변환 (콤마 제거 후 변환)
+            // 인사팀 수기 입력으로 본부코드가 달라도 동일 금액이 중복 들어오는 케이스 → 중복 금액은 1번만 카운트
+            const uniqueBudgets = new Set<number>()
+            for (const row of budgetData as any[]) {
               const budgetText = row['coaching budget'] || '0'
               const budget = Number(budgetText.toString().replace(/,/g, '')) || 0
+              if (budget > 0) uniqueBudgets.add(budget)
               console.log(`🔍 Budget item: "${budgetText}" → ${budget}`)
-              return sum + budget
-            }, 0)
-            console.log(`💰 Total coaching budget for ${matchedEmpno}: ${budgetAmount}`)
+            }
+            budgetAmount = Array.from(uniqueBudgets).reduce((sum, b) => sum + b, 0)
+            console.log(`💰 Total coaching budget for ${matchedEmpno} (dedup ${budgetData.length}→${uniqueBudgets.size}):`, budgetAmount, Array.from(uniqueBudgets))
           } else {
             console.log(`ℹ️ No coaching budget found for any empno variation in year ${latestYear}`)
             console.log(`❌ Tried variations:`, empnoVariations)
