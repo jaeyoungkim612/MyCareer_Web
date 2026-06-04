@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { FileText, BarChart3, ArrowUp, ArrowDown, DollarSign, PieChartIcon, ChevronDown, ChevronUp, Eye } from "lucide-react"
+import { FileText, BarChart3, ArrowUp, ArrowDown, DollarSign, PieChartIcon, ChevronDown, ChevronUp, Eye, Info } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { useState, useEffect, useMemo } from "react"
 import type { HrMasterDashboardRow } from "@/data/hr-master-dashboard"
@@ -2567,10 +2567,21 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
         <div>
           {goalLoading ? (
             <div className="p-8 text-center text-gray-500">목표 데이터를 불러오는 중...</div>
-          ) : !goalData ? (
-            <div className="p-8 text-center text-gray-500">입력된 목표 데이터가 없습니다.</div>
           ) : (
             <>
+              {!goalData && (
+                <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-4">
+                  <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                      목표가 아직 입력되지 않았습니다
+                    </div>
+                    <div className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                      실적은 아래에서 확인하실 수 있으며, 달성률을 계산하려면 상단의 <span className="font-semibold">Plan 탭</span>에서 목표를 먼저 입력해 주세요.
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* 감사 Metrics */}
               <div>
                 <div className="flex items-center mb-6">
