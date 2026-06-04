@@ -877,144 +877,6 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Year End 이전 시간 비율 */}
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base font-medium flex items-center justify-between">
-                  <span className="flex items-center">
-                    <Percent className="mr-2 h-5 w-5" />
-                    Year End 이전 시간 비율
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-bold">
-                      {actualYearEndRatio > 0 ? `${actualYearEndRatio}%` : '-%'}
-                    </span>
-                    <span className="text-base text-muted-foreground">/ {targetMetrics.yearEndTimeRatio}%</span>
-                  </div>
-                  
-                  {/* 시간 정보 표시 */}
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-slate-50 dark:bg-slate-900 p-2 rounded text-center">
-                      <div className="text-xs text-muted-foreground">누적 Budget</div>
-                      <div className="font-bold">{totalBudget.toLocaleString()}h</div>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-900 p-2 rounded text-center">
-                      <div className="text-xs text-muted-foreground">발생 시간</div>
-                      <div className="font-bold">{totalOccurTime.toLocaleString()}h</div>
-                    </div>
-                  </div>
-                  
-                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
-                    <div 
-                      className="h-full transition-all"
-                      style={{ 
-                        width: `${targetMetrics.yearEndTimeRatio > 0 ? Math.min((actualYearEndRatio / targetMetrics.yearEndTimeRatio) * 100, 100) : 0}%`,
-                        backgroundColor: actualYearEndRatio >= targetMetrics.yearEndTimeRatio ? '#ef4444' : 'hsl(var(--primary))'
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">vs Target</span>
-                    <span className="flex items-center">
-                      {actualYearEndRatio > 0 && targetMetrics.yearEndTimeRatio > 0 ? (
-                        actualYearEndRatio >= targetMetrics.yearEndTimeRatio ? (
-                          <span className="text-red-600 flex items-center">
-                            {getTrendIcon(actualYearEndRatio - targetMetrics.yearEndTimeRatio)}
-                            <span className="ml-1">+{(actualYearEndRatio - targetMetrics.yearEndTimeRatio).toFixed(1)}%</span>
-                          </span>
-                        ) : (
-                          <span className="text-green-600 flex items-center">
-                            {getTrendIcon(actualYearEndRatio - targetMetrics.yearEndTimeRatio)}
-                            <span className="ml-1">{(actualYearEndRatio - targetMetrics.yearEndTimeRatio).toFixed(1)}%</span>
-                          </span>
-                        )
-                      ) : (
-                        <span className="flex items-center text-gray-600">
-                          {getTrendIcon(0)}
-                          <span className="ml-1">-</span>
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  {/* EPC 데이터 보기 버튼 */}
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full" onClick={fetchEpcData}>
-                        <Table className="mr-2 h-4 w-4" />
-                        EPC 상세 데이터 보기
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
-                      <DialogHeader>
-                        <DialogTitle>EPC 데이터 (사번: {currentUser?.empno})</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            총 {epcData.length}개 프로젝트
-                          </span>
-                          <span className="text-lg font-bold">
-                            전체 비율: {actualYearEndRatio}%
-                          </span>
-                        </div>
-                        <TableComponent>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>프로젝트 코드</TableHead>
-                              <TableHead>프로젝트명</TableHead>
-                              <TableHead className="text-right">누적 Budget</TableHead>
-                              <TableHead className="text-right">발생 시간</TableHead>
-                              <TableHead className="text-right">비율 (%)</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {isLoadingEpc ? (
-                              <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8">
-                                  데이터를 불러오는 중...
-                                </TableCell>
-                              </TableRow>
-                            ) : epcData.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                  EPC 데이터가 없습니다.
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              epcData.map((item, index) => {
-                                const ratio = parseFloat(item.CUMULATIVEBUDGET) > 0 
-                                  ? (parseFloat(item.OCCURTIME) / parseFloat(item.CUMULATIVEBUDGET)) * 100 
-                                  : 0;
-                                return (
-                                  <TableRow key={index}>
-                                    <TableCell className="font-medium">{item.PRJTCD}</TableCell>
-                                    <TableCell>{item.PRJTNM || '-'}</TableCell>
-                                    <TableCell className="text-right">
-                                      {parseFloat(item.CUMULATIVEBUDGET || 0).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      {parseFloat(item.OCCURTIME || 0).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className="text-right font-bold">
-                                      {ratio.toFixed(2)}%
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })
-                            )}
-                          </TableBody>
-                        </TableComponent>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* EL 투입시간 */}
             <Card>
               <CardHeader className="pb-4">
@@ -1150,7 +1012,7 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
             </Card>
 
             {/* EER 기말평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
-            <Card>
+            <Card className="flex flex-col">
               <CardHeader className="pb-4">
                 <CardTitle className="text-base font-medium flex items-center justify-between">
                   <span className="flex items-center">
@@ -1160,9 +1022,9 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 flex flex-col">
                 {eerLoading ? (
-                  <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                  <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
                     로딩 중...
                   </div>
                 ) : eerResult ? (
@@ -1175,13 +1037,13 @@ export default function ExpertiseMonitoringTab({ empno, readOnly = false }: Expe
                     }
                     const cls = toneByValue[eerResult] ?? { border: 'border-gray-300', bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' }
                     return (
-                      <div className={`flex items-center justify-center p-6 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md`}>
-                        <span className={`text-2xl font-bold ${cls.text}`}>{eerResult}</span>
+                      <div className={`flex-1 flex items-center justify-center p-6 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md`}>
+                        <span className={`text-4xl font-bold ${cls.text}`}>{eerResult}</span>
                       </div>
                     )
                   })()
                 ) : (
-                  <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
+                  <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
                     EER 평가 결과 데이터가 없습니다
                   </div>
                 )}

@@ -287,7 +287,7 @@ export class GSPService {
       let { data: latestRecords, error: latestError } = await supabase
         .from("a_GSP_Table")
         .select("*")
-        .eq('"Reviewer 사번"', normalizedReviewerEmpno)
+        .eq('Reviewer 사번', normalizedReviewerEmpno)
         .order('변경요청일자', { ascending: false })
       
       // 정규화된 사번으로 못 찾으면 원본 사번으로 다시 시도
@@ -297,7 +297,7 @@ export class GSPService {
         const result = await supabase
           .from("a_GSP_Table")
           .select("*")
-          .eq('"Reviewer 사번"', originalReviewerEmpno)
+          .eq('Reviewer 사번', originalReviewerEmpno)
           .order('변경요청일자', { ascending: false })
         latestRecords = result.data
         latestError = result.error

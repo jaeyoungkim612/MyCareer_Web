@@ -1412,27 +1412,6 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
               <span className="text-lg font-bold">감사 성과</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Year End 이전 시간 비율 — epc_view: SUM(OCCURTIME) / SUM(CUMULATIVEBUDGET) */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">Year End 이전 시간 비율</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-end mb-1">
-                    <div className="text-2xl font-bold">{qualityGoal.yearEndActualRatio ?? 0}%</div>
-                    <div className="text-xs text-muted-foreground text-right">목표: {qualityGoal.yearEndTargetRatio ?? 0}%</div>
-                  </div>
-                  <Progress
-                    value={qualityGoal.yearEndTargetRatio
-                      ? Math.min(((qualityGoal.yearEndActualRatio ?? 0) / qualityGoal.yearEndTargetRatio) * 100, 100)
-                      : 0}
-                    className="h-2 mt-2"
-                  />
-                  <div className="mt-1 text-xs text-right text-gray-500">
-                    실제: {qualityGoal.yearEndActualRatio ?? 0}% / 목표: {qualityGoal.yearEndTargetRatio ?? 0}%
-                  </div>
-                </CardContent>
-              </Card>
               {/* EL 투입시간 비율 — v_project_time: 내 시간 / 전체 프로젝트 시간 */}
               <Card>
                 <CardHeader className="pb-2">
@@ -1454,41 +1433,41 @@ export function DashboardTabs({ empno, readOnly = false }: DashboardTabsProps = 
                   </div>
                 </CardContent>
               </Card>
-            </div>
 
-            {/* EER 기말평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
-            <Card className="mt-4">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold flex items-center">
-                  EER 기말평가 결과
-                  <span className="ml-2 text-xs text-muted-foreground font-normal">(2605 기준)</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {eerLoading ? (
-                  <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">로딩 중...</div>
-                ) : eerResult ? (
-                  (() => {
-                    const toneByValue: Record<string, { border: string; bg: string; text: string }> = {
-                      '상위 20%': { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-300' },
-                      '중위':      { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300' },
-                      '하위 20%': { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
-                      '하위 10%': { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',     text: 'text-red-700 dark:text-red-300' },
-                    }
-                    const cls = toneByValue[eerResult] ?? { border: 'border-gray-300', bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' }
-                    return (
-                      <div className={`flex items-center justify-center p-4 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md`}>
-                        <span className={`text-xl font-bold ${cls.text}`}>{eerResult}</span>
-                      </div>
-                    )
-                  })()
-                ) : (
-                  <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
-                    EER 평가 결과 데이터가 없습니다
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              {/* EER 기말평가 결과 — L_EER_Result 테이블에서 동적 조회 */}
+              <Card className="flex flex-col">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center">
+                    EER 기말평가 결과
+                    <span className="ml-2 text-xs text-muted-foreground font-normal">(2605 기준)</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col">
+                  {eerLoading ? (
+                    <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">로딩 중...</div>
+                  ) : eerResult ? (
+                    (() => {
+                      const toneByValue: Record<string, { border: string; bg: string; text: string }> = {
+                        '상위 20%': { border: 'border-green-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-300' },
+                        '중위':      { border: 'border-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300' },
+                        '하위 20%': { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
+                        '하위 10%': { border: 'border-red-500',   bg: 'bg-red-50 dark:bg-red-900/20',     text: 'text-red-700 dark:text-red-300' },
+                      }
+                      const cls = toneByValue[eerResult] ?? { border: 'border-gray-300', bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' }
+                      return (
+                        <div className={`flex-1 flex items-center justify-center p-4 border-2 ${cls.border} ${cls.bg} rounded-lg shadow-md`}>
+                          <span className={`text-3xl font-bold ${cls.text}`}>{eerResult}</span>
+                        </div>
+                      )
+                    })()
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
+                      EER 평가 결과 데이터가 없습니다
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
           {/* 비감사(논오딧) 성과 - 내러티브 카드 */}
           <div>
