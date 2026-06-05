@@ -287,14 +287,10 @@ RETURNS TABLE (
   non_audit_count BIGINT
 )
 LANGUAGE SQL STABLE AS $$
-  -- 금액은 수임비율(파트너 몫)을 반영해서 합산. 수임비율 없으면 1.0 로 fallback.
+  -- 계약금액 raw 합산 (수임비율 미적용). L_BD_Table 요약본과 동일한 기준.
   SELECT
-    SUM(CASE WHEN "Audit/Non-Audit" = '감사'
-        THEN _safe_numeric("Amount"::TEXT) * COALESCE(NULLIF(_safe_numeric("수임비율"::TEXT), 0), 1)
-        ELSE 0 END) / 1000.0,
-    SUM(CASE WHEN "Audit/Non-Audit" = '비감사'
-        THEN _safe_numeric("Amount"::TEXT) * COALESCE(NULLIF(_safe_numeric("수임비율"::TEXT), 0), 1)
-        ELSE 0 END) / 1000.0,
+    SUM(CASE WHEN "Audit/Non-Audit" = '감사' THEN _safe_numeric("Amount"::TEXT) ELSE 0 END) / 1000.0,
+    SUM(CASE WHEN "Audit/Non-Audit" = '비감사' THEN _safe_numeric("Amount"::TEXT) ELSE 0 END) / 1000.0,
     COUNT(*) FILTER (WHERE "Audit/Non-Audit" = '감사'),
     COUNT(*) FILTER (WHERE "Audit/Non-Audit" = '비감사')
   FROM "L_BD_Table_Detail"

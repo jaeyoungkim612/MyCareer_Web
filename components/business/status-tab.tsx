@@ -650,19 +650,16 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
           const bdProjects = filteredData.map(item => {
             const rawAmount = item['Amount']
             const parsedAmount = parseFloat(String(rawAmount || 0))
-            const rawRatio = item['수임비율']
-            const parsedRatio = parseFloat(String(rawRatio || 1))
-            const ratio = Number.isFinite(parsedRatio) && parsedRatio > 0 ? parsedRatio : 1
-            // 수임비율 반영해서 파트너 몫 금액 계산 (천원 → 백만원)
-            const amountInMillion = (parsedAmount * ratio) / 1_000
+            // 계약금액 raw 값 그대로 표시 (수임비율 미적용, L_BD_Table 요약본과 동일 기준)
+            const amountInMillion = parsedAmount / 1_000 // 천원 → 백만원
 
-            console.log(`💰 금액 변환: Project="${item['Project Name']}", Raw="${rawAmount}", 수임비율="${rawRatio}", Million(파트너 몫)="${amountInMillion}"`)
+            console.log(`💰 금액 변환: Project="${item['Project Name']}", Raw="${rawAmount}", Million(raw)="${amountInMillion}"`)
 
             return {
               projectCode: item['Project Code'] || '',
               projectName: item['Project Name'] || '프로젝트명 없음',
               client: item['Client'] || '고객명 없음',
-              amount: amountInMillion, // 백만원 단위 (수임비율 반영된 파트너 몫)
+              amount: amountInMillion, // 백만원 단위 (raw 계약금액)
               partnerName: item['파트너명'] || '',
               cisMonth: item['CIS 등록월'] || '',
               chargeRatio: item['수임비율'] || '',
