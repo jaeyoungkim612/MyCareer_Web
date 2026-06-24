@@ -198,24 +198,33 @@ export class ReviewerService {
       
       // 내 정보는 둘 중 하나라도 성공하면 사용
       const finalMyInfo = myInfo || myInfo5Digit
-      
-      // 세 가지 결과를 합치고 중복 제거 (사번 기준)
-      const allReviewees = [...(revieweesOriginal || []), ...(reviewees5Digit || []), ...(revieweesConverted || [])]
-      const uniqueRevieweesMap = new Map()
-      allReviewees.forEach(reviewee => {
-        uniqueRevieweesMap.set(reviewee.사번, reviewee)
-      })
-      const reviewees = Array.from(uniqueRevieweesMap.values()).map(reviewee => ({
-        ...reviewee,
-        사번: this.normalizeEmpno(reviewee.사번), // 사번 정규화: 95129 → 095129
-        'Reviewer 사번': this.normalizeEmpno(reviewee['Reviewer 사번']) // 리뷰어 사번도 정규화
-      }))
-      
+
+      // 직접 리뷰어로 등록된 팀원들 합치고 정규화 (사번 기준 dedup)
+      const directReviewees = [...(revieweesOriginal || []), ...(reviewees5Digit || []), ...(revieweesConverted || [])]
+        .map((reviewee: any) => ({
+          ...reviewee,
+          사번: this.normalizeEmpno(reviewee.사번),
+          'Reviewer 사번': this.normalizeEmpno(reviewee['Reviewer 사번'])
+        }))
+
+      // 본부 단위 권한 적용 (L_Reviewer_Departments)
+      const deptReviewees = await this.getDepartmentReviewees(empno, fiveDigitEmpno)
+
+      // direct + dept 합치고 사번 기준 중복 제거 (direct가 우선 — 더 풍부한 정보)
+      const uniqueRevieweesMap = new Map<string, ReviewerInfo>()
+      for (const r of [...deptReviewees, ...directReviewees]) {
+        // direct를 나중에 넣어 덮어쓰기
+        uniqueRevieweesMap.set(r.사번, r)
+      }
+      const reviewees = Array.from(uniqueRevieweesMap.values())
+
       console.log("🔍 ReviewerService: My info found with original empno:", !!myInfo)
       console.log("🔍 ReviewerService: My info found with 5-digit empno:", !!myInfo5Digit)
       console.log("🔍 ReviewerService: Reviewees found with original empno:", revieweesOriginal?.length || 0)
       console.log("🔍 ReviewerService: Reviewees found with 5-digit empno:", reviewees5Digit?.length || 0)
       console.log("🔍 ReviewerService: Reviewees found with converted empno:", revieweesConverted?.length || 0)
+      console.log("🔍 ReviewerService: Direct reviewees (unique):", new Set(directReviewees.map((r:any)=>r.사번)).size)
+      console.log("🔍 ReviewerService: Department reviewees:", deptReviewees.length)
       console.log("🔍 ReviewerService: Total unique reviewees:", reviewees.length)
       console.log("🔍 ReviewerService: Is master user:", isMaster)
 
@@ -269,6 +278,73 @@ export class ReviewerService {
     } catch (error) {
       console.error("❌ Get reviewer info error:", error)
       return null
+    }
+  }
+
+  // 본부 단위 권한이 부여된 리뷰어의 본부 직원 목록 조회 (L_Reviewer_Departments)
+  // L_Reviewer 에 등록된 평가 대상자만 반환 (a_hr_master 전체가 아님)
+  static async getDepartmentReviewees(empno: string, fiveDigitEmpno?: string): Promise<ReviewerInfo[]> {
+    try {
+      const five = fiveDigitEmpno ?? this.convertTo5DigitEmpno(empno)
+
+      // 1) 본인이 본부 권한 가진 CM_NM 목록 조회 (원본/5자리 사번 모두 시도)
+      const { data: deptList, error: deptErr } = await supabase
+        .from("L_Reviewer_Departments")
+        .select("cm_nm")
+        .or(`reviewer_empno.eq.${empno},reviewer_empno.eq.${five}`)
+
+      if (deptErr) {
+        console.error("❌ getDepartmentReviewees query error:", deptErr)
+        return []
+      }
+
+      const cmNms = (deptList || []).map((d: any) => d.cm_nm).filter(Boolean)
+      if (cmNms.length === 0) return []
+
+      console.log("🏢 Department reviewer: cmNms =", cmNms)
+
+      // 2) 해당 CM_NM 의 모든 직원을 a_hr_master 에서 조회 (전체 직급)
+      const { data: deptEmployees, error: empErr } = await supabase
+        .from("a_hr_master")
+        .select("EMPNO, EMPNM, CM_NM")
+        .in("CM_NM", cmNms)
+
+      if (empErr) {
+        console.error("❌ getDepartmentReviewees employees query error:", empErr)
+        return []
+      }
+
+      // 3) EMPNO 정규화 후 L_Reviewer 와 cross-reference 위해 set 생성
+      const deptEmpnoSet = new Set(
+        (deptEmployees || []).map((e: any) => this.normalizeEmpno(String(e.EMPNO || '')))
+      )
+
+      if (deptEmpnoSet.size === 0) return []
+
+      // 4) L_Reviewer 전체를 가져와서 dept 직원 사번과 매칭되는 row 만 추출
+      // (L_Reviewer 는 194 rows 라 전체 조회해도 부담 없음)
+      const { data: allReviewerRows, error: lrErr } = await supabase
+        .from("L_Reviewer")
+        .select("*")
+
+      if (lrErr) {
+        console.error("❌ getDepartmentReviewees L_Reviewer query error:", lrErr)
+        return []
+      }
+
+      const matched = (allReviewerRows || []).filter((r: any) =>
+        deptEmpnoSet.has(this.normalizeEmpno(String(r.사번 || '')))
+      )
+
+      // 5) 사번/Reviewer 사번 정규화해서 반환
+      return matched.map((r: any) => ({
+        ...r,
+        사번: this.normalizeEmpno(r.사번),
+        'Reviewer 사번': r['Reviewer 사번'] ? this.normalizeEmpno(r['Reviewer 사번']) : ''
+      }))
+    } catch (error) {
+      console.error("❌ getDepartmentReviewees error:", error)
+      return []
     }
   }
 
