@@ -1358,28 +1358,36 @@ export function BusinessMonitoringTab({ empno, readOnly = false }: BusinessMonit
                                 <TableHead className="w-40">Client</TableHead>
                                 <TableHead className="w-36">파트너명</TableHead>
                                 <TableHead className="w-28">CIS 등록월</TableHead>
+                                <TableHead className="text-right w-24">수임비율</TableHead>
                                 <TableHead className="text-right w-40">금액 (백만원)</TableHead>
                                 <TableHead className="w-32">비고</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {bdDetails.map((project, index) => (
-                                <TableRow key={index}>
-                                  <TableCell className="font-medium w-28">{project.updateMonth}</TableCell>
-                                  <TableCell className="font-medium w-24">{project.reportMonth}</TableCell>
-                                  <TableCell className="w-32">{project.projectCode}</TableCell>
-                                  <TableCell className="max-w-xs truncate" title={project.projectName}>{project.projectName}</TableCell>
-                                  <TableCell className="w-40">{project.client}</TableCell>
-                                  <TableCell className="w-36">{project.partnerName}</TableCell>
-                                  <TableCell className="w-28">{project.cisMonth}</TableCell>
-                                  <TableCell className={`text-right w-40 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
-                                    {project.amount !== 0 
-                                      ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
-                                      : '-'}
-                                  </TableCell>
-                                  <TableCell className="w-32">{project.note}</TableCell>
-                                </TableRow>
-                              ))}
+                              {bdDetails.map((project, index) => {
+                                const ratioNum = parseFloat(String(project.chargeRatio || ''))
+                                const ratioDisplay = Number.isFinite(ratioNum) && ratioNum > 0
+                                  ? `${Math.round(ratioNum * 100)}%`
+                                  : '-'
+                                return (
+                                  <TableRow key={index}>
+                                    <TableCell className="font-medium w-28">{project.updateMonth}</TableCell>
+                                    <TableCell className="font-medium w-24">{project.reportMonth}</TableCell>
+                                    <TableCell className="w-32">{project.projectCode}</TableCell>
+                                    <TableCell className="max-w-xs truncate" title={project.projectName}>{project.projectName}</TableCell>
+                                    <TableCell className="w-40">{project.client}</TableCell>
+                                    <TableCell className="w-36">{project.partnerName}</TableCell>
+                                    <TableCell className="w-28">{project.cisMonth}</TableCell>
+                                    <TableCell className="text-right w-24">{ratioDisplay}</TableCell>
+                                    <TableCell className={`text-right w-40 ${project.amount < 0 ? 'text-red-600 font-bold' : ''}`}>
+                                      {project.amount !== 0
+                                        ? `${Math.ceil(project.amount).toLocaleString('ko-KR')}백만원`
+                                        : '-'}
+                                    </TableCell>
+                                    <TableCell className="w-32">{project.note}</TableCell>
+                                  </TableRow>
+                                )
+                              })}
                             </TableBody>
                           </Table>
                         ) : (
