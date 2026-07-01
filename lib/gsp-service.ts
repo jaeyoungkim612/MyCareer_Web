@@ -280,27 +280,52 @@ export class GSPService {
       // ReviewerService import 및 사번 정규화
       const { ReviewerService } = await import("@/lib/reviewer-service")
       const normalizedReviewerEmpno = ReviewerService.normalizeEmpno(reviewerEmpno)
-      
+      const strippedReviewerEmpno = normalizedReviewerEmpno.replace(/^0+/, '')
+
       console.log(`🔍 GSPService: Getting pending approvals for reviewer ${reviewerEmpno} → ${normalizedReviewerEmpno}`)
-      
-      // 각 사번별 최신 레코드 조회
-      let { data: latestRecords, error: latestError } = await supabase
-        .from("a_GSP_Table")
-        .select("*")
-        .eq('Reviewer 사번', normalizedReviewerEmpno)
-        .order('변경요청일자', { ascending: false })
-      
-      // 정규화된 사번으로 못 찾으면 원본 사번으로 다시 시도
-      if ((!latestRecords || latestRecords.length === 0) && !latestError) {
-        const originalReviewerEmpno = reviewerEmpno.replace(/^0+/, '') // 앞의 0 제거
-        console.log(`🔄 GSPService: Trying with original reviewer empno: ${originalReviewerEmpno}`)
+
+      // GSP 승인 마스터 권한 체크 (L_Reviewer_Master.can_approve_gsp = true 면 전체 조회)
+      const { data: masterCheck } = await supabase
+        .from('L_Reviewer_Master')
+        .select('can_approve_gsp')
+        .or(`사번.eq.${normalizedReviewerEmpno},사번.eq.${strippedReviewerEmpno}`)
+        .limit(1)
+        .maybeSingle()
+
+      const isGspApprovalMaster = masterCheck?.can_approve_gsp === true
+
+      let latestRecords: any[] | null = null
+      let latestError: any = null
+
+      if (isGspApprovalMaster) {
+        console.log('👑 GSP 승인 마스터 - 전체 승인대기 조회')
         const result = await supabase
           .from("a_GSP_Table")
           .select("*")
-          .eq('Reviewer 사번', originalReviewerEmpno)
           .order('변경요청일자', { ascending: false })
         latestRecords = result.data
         latestError = result.error
+      } else {
+        // 본인이 Reviewer로 지정된 요청만 조회
+        const result1 = await supabase
+          .from("a_GSP_Table")
+          .select("*")
+          .eq('Reviewer 사번', normalizedReviewerEmpno)
+          .order('변경요청일자', { ascending: false })
+        latestRecords = result1.data
+        latestError = result1.error
+
+        // 정규화된 사번으로 못 찾으면 원본 사번으로 다시 시도
+        if ((!latestRecords || latestRecords.length === 0) && !latestError) {
+          console.log(`🔄 GSPService: Trying with original reviewer empno: ${strippedReviewerEmpno}`)
+          const result2 = await supabase
+            .from("a_GSP_Table")
+            .select("*")
+            .eq('Reviewer 사번', strippedReviewerEmpno)
+            .order('변경요청일자', { ascending: false })
+          latestRecords = result2.data
+          latestError = result2.error
+        }
       }
       
       if (latestError) {
