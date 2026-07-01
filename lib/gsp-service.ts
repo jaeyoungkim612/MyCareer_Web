@@ -707,10 +707,25 @@ export class GSPService {
       // Reviewer 사번 비교 (정규화 문제 고려)
       const storedReviewerEmpno = (checkData as any)["Reviewer 사번"]
       const originalReviewerEmpno = reviewerEmpno.replace(/^0+/, '') // 앞의 0 제거
-      
+
       console.log(`🔍 GSPService: Authority check - stored: ${storedReviewerEmpno}, normalized: ${normalizedReviewerEmpno}, original: ${originalReviewerEmpno}`)
-      
-      if (storedReviewerEmpno !== normalizedReviewerEmpno && storedReviewerEmpno !== originalReviewerEmpno) {
+
+      const isDirectReviewer = storedReviewerEmpno === normalizedReviewerEmpno || storedReviewerEmpno === originalReviewerEmpno
+
+      // GSP 승인 마스터 권한 체크 (L_Reviewer_Master.can_approve_gsp = true 이면 모든 요청 승인 가능)
+      let isGspApprovalMaster = false
+      if (!isDirectReviewer) {
+        const { data: masterCheck } = await supabase
+          .from('L_Reviewer_Master')
+          .select('can_approve_gsp')
+          .or(`사번.eq.${normalizedReviewerEmpno},사번.eq.${originalReviewerEmpno}`)
+          .limit(1)
+          .maybeSingle()
+        isGspApprovalMaster = masterCheck?.can_approve_gsp === true
+        console.log(`🔍 GSPService: Master approval check - isGspApprovalMaster=${isGspApprovalMaster}`)
+      }
+
+      if (!isDirectReviewer && !isGspApprovalMaster) {
         return { success: false, message: "해당 요청의 승인 권한이 없습니다." }
       }
 
