@@ -122,6 +122,31 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
     setIsEditingFinal(false)
     setTabValueFinal("view")
   }
+
+  // 제출된 평가를 다시 수정하기 (status: submitted → draft)
+  const handleReopen = async (table: string, kind: "중간평가" | "기말평가", switchToEdit: () => void) => {
+    if (!empno) return
+    if (!confirm(`제출된 ${kind}를 다시 수정하시겠습니까?\n임시저장(Draft) 상태로 되돌아갑니다.`)) return
+    setLoading(true)
+    try {
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      const { error } = await supabase
+        .from(table)
+        .update({ status: 'draft', updated_at: new Date().toISOString() })
+        .eq('empno', normalizedEmpno)
+      if (error) throw error
+      await fetchAssessments()
+      switchToEdit()
+    } catch (e: any) {
+      console.error(`❌ ${kind} 수정 모드 전환 실패:`, e)
+      alert(`수정 모드 전환에 실패했습니다.\n${e.message || ""}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+  const handleReopenMid = () => handleReopen("collaboration_mid_assessments", "중간평가", () => { setIsEditingMid(true); setTabValueMid("edit") })
+  const handleReopenFinal = () => handleReopen("collaboration_final_assessments", "기말평가", () => { setIsEditingFinal(true); setTabValueFinal("edit") })
   // 임시저장/제출 (insert로 저장)
   const handleSaveMid = async (status: "draft" | "submitted") => {
     if (!empno) return
@@ -231,7 +256,14 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
               <FileText className="mr-2 h-5 w-5 text-orange-600" />
               중간평가
             </span>
-            {renderBadges(midAssessment)}
+            <div className="flex items-center gap-2">
+              {renderBadges(midAssessment)}
+              {!readOnly && midSubmitted && (
+                <Button variant="outline" size="sm" onClick={handleReopenMid} disabled={loading}>
+                  수정하기
+                </Button>
+              )}
+            </div>
           </CardTitle>
 
         </CardHeader>
@@ -295,7 +327,14 @@ export function CollaborationSelfAssessmentTab({ empno: propEmpno, readOnly = fa
               <FileText className="mr-2 h-5 w-5 text-orange-600" />
               기말평가
             </span>
-            {renderBadges(finalAssessment)}
+            <div className="flex items-center gap-2">
+              {renderBadges(finalAssessment)}
+              {!readOnly && finalSubmitted && (
+                <Button variant="outline" size="sm" onClick={handleReopenFinal} disabled={loading}>
+                  수정하기
+                </Button>
+              )}
+            </div>
           </CardTitle>
 
         </CardHeader>

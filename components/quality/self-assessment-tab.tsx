@@ -152,13 +152,38 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
     setIsEditingFinal(false)
     setTabValueFinal("view")
   }
+
+  // 제출된 평가를 다시 수정하기 (status: submitted → draft)
+  const handleReopen = async (table: string, kind: "중간평가" | "기말평가", switchToEdit: () => void) => {
+    if (!empno) return
+    if (!confirm(`제출된 ${kind}를 다시 수정하시겠습니까?\n임시저장(Draft) 상태로 되돌아갑니다.`)) return
+    setLoading(true)
+    try {
+      const { ReviewerService } = await import("@/lib/reviewer-service")
+      const normalizedEmpno = ReviewerService.normalizeEmpno(empno)
+      const { error } = await supabase
+        .from(table)
+        .update({ status: 'draft', updated_at: new Date().toISOString() })
+        .eq('empno', normalizedEmpno)
+      if (error) throw error
+      await fetchAssessments()
+      switchToEdit()
+    } catch (e: any) {
+      console.error(`❌ ${kind} 수정 모드 전환 실패:`, e)
+      alert(`수정 모드 전환에 실패했습니다.\n${e.message || ""}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+  const handleReopenMid = () => handleReopen("quality_mid_assessments", "중간평가", () => { setIsEditingMid(true); setTabValueMid("edit") })
+  const handleReopenFinal = () => handleReopen("quality_final_assessments", "기말평가", () => { setIsEditingFinal(true); setTabValueFinal("edit") })
   // 임시저장/제출 (upsert로 저장)
   const handleSaveMid = async (status: "draft" | "submitted") => {
     if (!empno) return
     
     // 제출 시 확인 창
     if (status === "submitted") {
-      if (!confirm("제출하시겠습니까?\n제출 후에는 수정이 불가능합니다.")) {
+      if (!confirm("제출하시겠습니까?\n제출 후에도 '수정하기'로 다시 편집 가능합니다.")) {
         return
       }
     }
@@ -188,7 +213,7 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
       await fetchAssessments()
       setIsEditingMid(false)
       setTabValueMid("view")
-      alert(status === "draft" ? "임시저장 완료!" : "제출이 완료되었습니다.\n이후 수정이 불가능합니다.")
+      alert(status === "draft" ? "임시저장 완료!" : "제출이 완료되었습니다.\n필요 시 '수정하기' 버튼으로 다시 편집할 수 있습니다.")
     } catch (e) {
       console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
@@ -201,7 +226,7 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
     
     // 제출 시 확인 창
     if (status === "submitted") {
-      if (!confirm("제출하시겠습니까?\n제출 후에는 수정이 불가능합니다.")) {
+      if (!confirm("제출하시겠습니까?\n제출 후에도 '수정하기'로 다시 편집 가능합니다.")) {
         return
       }
     }
@@ -231,7 +256,7 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
       await fetchAssessments()
       setIsEditingFinal(false)
       setTabValueFinal("view")
-      alert(status === "draft" ? "임시저장 완료!" : "제출이 완료되었습니다.\n이후 수정이 불가능합니다.")
+      alert(status === "draft" ? "임시저장 완료!" : "제출이 완료되었습니다.\n필요 시 '수정하기' 버튼으로 다시 편집할 수 있습니다.")
     } catch (e) {
       console.error("저장 오류:", e)
       alert("저장에 실패했습니다. 다시 시도해 주세요.")
@@ -289,7 +314,14 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
               <FileText className="mr-2 h-5 w-5 text-orange-600" />
               중간평가
             </span>
-            {renderBadges(midAssessment)}
+            <div className="flex items-center gap-2">
+              {renderBadges(midAssessment)}
+              {!readOnly && midSubmitted && (
+                <Button variant="outline" size="sm" onClick={handleReopenMid} disabled={loading}>
+                  수정하기
+                </Button>
+              )}
+            </div>
           </CardTitle>
 
         </CardHeader>
@@ -353,7 +385,14 @@ export default function QualitySelfAssessmentTab({ empno: propEmpno, readOnly = 
               <FileText className="mr-2 h-5 w-5 text-orange-600" />
               기말평가
             </span>
-            {renderBadges(finalAssessment)}
+            <div className="flex items-center gap-2">
+              {renderBadges(finalAssessment)}
+              {!readOnly && finalSubmitted && (
+                <Button variant="outline" size="sm" onClick={handleReopenFinal} disabled={loading}>
+                  수정하기
+                </Button>
+              )}
+            </div>
           </CardTitle>
 
         </CardHeader>

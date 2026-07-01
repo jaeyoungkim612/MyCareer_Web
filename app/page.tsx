@@ -685,17 +685,20 @@ export default function Intro() {
   const uniqueTeams = Array.from(new Set(userRole?.reviewees.map(r => r['FY26 팀명']) || []))
 
   // Status badge 렌더링 함수
-  const renderStatusBadge = (status: 'Draft' | '작성중' | '완료' | null | undefined, isSmall = false) => {
+  // Plan 은 한글('완료'/'작성중'/'Draft'), Self Assessment 는 영어('submitted'/'draft') 로 저장돼서 양쪽 다 처리
+  const renderStatusBadge = (status: string | null | undefined, isSmall = false) => {
     if (!status) {
       return <Badge variant="outline" className={`${isSmall ? 'text-sm' : 'text-base'} bg-gray-100 text-gray-500`}>미작성</Badge>
     }
-    
+
     switch (status) {
       case '완료':
+      case 'submitted':
         return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-green-500 text-white`}>제출</Badge>
       case '작성중':
         return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-orange-500 text-white`}>작성중</Badge>
       case 'Draft':
+      case 'draft':
         return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-gray-400 text-white`}>Draft</Badge>
       default:
         return <Badge variant="outline" className={`${isSmall ? 'text-sm' : 'text-base'} bg-gray-100 text-gray-500`}>미작성</Badge>
@@ -1177,30 +1180,17 @@ export default function Intro() {
                     const memberStatus = teamPlanAssessmentStatus.get(reviewee.사번)
                     const memberInfo = teamMemberInfo.get(reviewee.사번)
                     
-                    // Status badge 렌더링 함수
-                    const renderStatusBadge = (status: 'Draft' | '작성중' | '완료' | null | undefined, isSmall = false) => {
-                      if (!status) {
-                        return <Badge variant="outline" className={`${isSmall ? 'text-sm' : 'text-base'} bg-gray-100 text-gray-500`}>미작성</Badge>
-                      }
-                      
-                      switch (status) {
-                        case '완료':
-                          return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-green-500 text-white`}>완료</Badge>
-                        case '작성중':
-                          return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-orange-500 text-white`}>작성중</Badge>
-                        case 'Draft':
-                          return <Badge className={`${isSmall ? 'text-sm' : 'text-base'} bg-gray-400 text-white`}>Draft</Badge>
-                        default:
-                          return <Badge variant="outline" className={`${isSmall ? 'text-sm' : 'text-base'} bg-gray-100 text-gray-500`}>미작성</Badge>
-                      }
-                    }
-                    
+                    // 상단의 renderStatusBadge (공용)를 그대로 사용
+
+                    // 완료 판정 헬퍼: Plan은 '완료', Self Assessment는 'submitted' 값 사용
+                    const isDone = (s: any) => s === '완료' || s === 'submitted'
+
                     // 완료율 계산
                     const planStatuses = memberStatus ? Object.values(memberStatus.planStatus) : []
-                    const completedPlans = planStatuses.filter(status => status === '완료').length
+                    const completedPlans = planStatuses.filter(isDone).length
                     const totalPlans = 5
                     const planCompletionRate = Math.round((completedPlans / totalPlans) * 100)
-                    
+
                     // Self Assessment 중간 진행률 계산
                     const midAssessmentStatuses = memberStatus ? [
                       memberStatus.selfAssessmentStatus.business_mid,
@@ -1209,9 +1199,9 @@ export default function Intro() {
                       memberStatus.selfAssessmentStatus.quality_mid,
                       memberStatus.selfAssessmentStatus.industry_mid
                     ] : []
-                    const completedMidAssessments = midAssessmentStatuses.filter(status => status === '완료').length
+                    const completedMidAssessments = midAssessmentStatuses.filter(isDone).length
                     const midAssessmentCompletionRate = Math.round((completedMidAssessments / 5) * 100)
-                    
+
                     // Self Assessment 기말 진행률 계산
                     const finalAssessmentStatuses = memberStatus ? [
                       memberStatus.selfAssessmentStatus.business_final,
@@ -1220,7 +1210,7 @@ export default function Intro() {
                       memberStatus.selfAssessmentStatus.quality_final,
                       memberStatus.selfAssessmentStatus.industry_final
                     ] : []
-                    const completedFinalAssessments = finalAssessmentStatuses.filter(status => status === '완료').length
+                    const completedFinalAssessments = finalAssessmentStatuses.filter(isDone).length
                     const finalAssessmentCompletionRate = Math.round((completedFinalAssessments / 5) * 100)
                     
                     return (
