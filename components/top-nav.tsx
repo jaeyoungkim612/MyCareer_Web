@@ -16,7 +16,7 @@ import Link from "next/link"
 import { AuthService } from "@/lib/auth-service"
 import { UserInfoMapper } from "@/data/user-info"
 import { useRouter } from "next/navigation"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 
 export function TopNav() {
@@ -65,20 +65,16 @@ export function TopNav() {
       // AuthContext의 logout 함수 호출 (세션만 삭제, DB는 유지)
       logout()
 
-      toast({
-        title: "🚪 로그아웃 완료",
+      toast.success("🚪 로그아웃 완료", {
         description: "성공적으로 로그아웃되었습니다.",
-        variant: "default",
       })
 
       console.log("🚪 즉시 로그인 페이지로 이동...")
       router.push("/login")
     } catch (error) {
       console.error("🚪 로그아웃 중 예외 발생:", error)
-      toast({
-        title: "❌ 오류 발생",
+      toast.error("❌ 오류 발생", {
         description: "로그아웃 처리 중 오류가 발생했습니다.",
-        variant: "destructive",
       })
     } finally {
       setIsDeleting(false)

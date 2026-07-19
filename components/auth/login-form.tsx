@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import Image from "next/image"
 import Link from "next/link"
 import { HelpCircle, Bell } from "lucide-react"
@@ -121,25 +121,19 @@ export function LoginForm() {
         if (result.needsPasswordChange) {
           // 🔄 비밀번호 변경 필요 - Settings로 가서 비밀번호 변경 후 메인으로
           setMessage(result.message)
-          toast({
-            title: "비밀번호 변경 필요",
+          toast("비밀번호 변경 필요", {
             description: "기본 비밀번호를 변경해주세요.",
-            variant: "default",
           })
           console.log("🔄 LoginForm: Redirecting to /settings for password change")
           router.push("/settings?redirect=main")
         } else if (result.needsVerification) {
           setMessage(result.message)
-          toast({
-            title: "인증 이메일 발송",
+          toast("인증 이메일 발송", {
             description: result.message,
-            variant: "default",
           })
         } else if (result.user) {
-          toast({
-            title: "로그인 성공",
+          toast.success("로그인 성공", {
             description: `환영합니다, ${result.user.empnm}님!`,
-            variant: "default",
           })
           console.log("🚀 LoginForm: Redirecting to /")
           router.push("/")
@@ -169,19 +163,15 @@ export function LoginForm() {
           setMessage(result.message)
         }
         
-        toast({
-          title: "로그인 실패",
+        toast.error("로그인 실패", {
           description: result.message,
-          variant: "destructive",
         })
       }
     } catch (error) {
       console.error("Login error:", error)
       setMessage("로그인 처리 중 오류가 발생했습니다.")
-      toast({
-        title: "오류 발생",
+      toast.error("오류 발생", {
         description: "로그인 처리 중 오류가 발생했습니다.",
-        variant: "destructive",
       })
     } finally {
       setIsLoading(false)

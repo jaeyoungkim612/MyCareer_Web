@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { AuthGuard } from "@/components/auth/auth-guard"
 import type React from "react"
 import LayoutShell from "@/components/layout-shell"
+import { Toaster } from "@/components/ui/sonner"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -37,6 +38,7 @@ export default function RootLayout({
                   <LayoutShell>
                     {children}
                   </LayoutShell>
+                  <Toaster richColors position="top-center" />
                 </TooltipProvider>
               </SettingsProvider>
             </AuthGuard>
